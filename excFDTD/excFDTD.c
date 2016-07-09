@@ -1,39 +1,100 @@
 #include "stdio.h"
 #include "stdlib.h"
 
+#define _DimX (10)
+#define _DimY (20)
+#define _DimZ (30)
+
+#define _blockDimX (8)
+#define _blockDimY (8)
+#define _blockDimZ (8)
+#define _blockDimXYZ (_blockDimX * _blockDimY * _blockDimZ)
+
+#define _sizeofFloat (32)
+
+//memory overhead : 1px padding per block
+#define _gridDimX ((_DimX + (_blockDimX-2) - 1) / (_blockDimX-2))
+#define _gridDimY ((_DimY + (_blockDimY-2) - 1) / (_blockDimY-2))
+#define _gridDimZ ((_DimZ + (_blockDimZ-2) - 1) / (_blockDimZ-2))
+
+#define _threadPerGrid (_blockDimX*_gridDimX*_blockDimY*_gridDimY*_blockDimZ*_gridDimZ)
+#define _offsetX (1)
+#define _offsetY (_blockDimX)
+#define _offsetZ (_blockDimX*_blockDimY)
+#define _offsetPadding (_offsetX+_offsetY+_offsetZ)
+
 #define _INDEX_BLOCK(blockIdxX, blockIdxY, blockIdxZ) \
-		((blockIdxX) + gridDimX * (blockIdxY) + gridDimX * gridDimY * (blockIdxZ))
+		((blockIdxX) + _gridDimX * (blockIdxY) + _gridDimX * _gridDimY * (blockIdxZ))
 #define _INDEX_THREAD(blockIdxX, blockIdxY, blockIdxZ, threadIdxX, threadIdxY, threadIdxZ) \
 		( \
-		(_INDEX_BLOCK(blockIdxX, blockIdxY, blockIdxZ)) \
-		* ((blockDimX) * (blockDimY) * (blockDimZ)) \
-		+ (threadIdxX) + blockDimX * (threadIdxY) + blockDimX * blockDimY * (threadIdxZ) \
+		_INDEX_BLOCK(blockIdxX, blockIdxY, blockIdxZ) * _blockDimXYZ\
+		+ (threadIdxX) + _blockDimX * (threadIdxY) + _blockDimX * _blockDimY * (threadIdxZ) \
 		)
 #define _INDEX_XYZ(x,y,z) \
-		_INDEX_THREAD((x)/blockDimX, (y)/blockDimY, (z)/blockDimZ, (x)%blockDimX, (y)%blockDimY, (z)%blockDimZ)
+		( \
+		_INDEX_THREAD( ((x))/(_blockDimX-2), ((y))/(_blockDimY-2), ((z))/(_blockDimZ-2), ((x))%(_blockDimX-2)+1 , ((y))%(_blockDimY-2)+1 , ((z))%(_blockDimZ-2)+1 ) \
+		)
 
-//thread를 blockDim개씩 묶어서 block이 gridDim개 
-unsigned int DimX = 10, DimY = 10, DimZ = 10;
-unsigned int blockDimX = 4, blockDimY = 4, blockDimZ = 4;
-unsigned int gridDimX, gridDimY, gridDimZ;
-unsigned int threadPerGrid;
-float* Ex, *Ey, *Ez, *Hx, *Hy, *Hz, *update;
+__declspec(align(32)) float Ex[_threadPerGrid] = { 999.99f };
+__declspec(align(32)) float update[_threadPerGrid] = { 0 };
+float *Ey, *Ez, *Hx, *Hy, *Hz;
+
 
 int init(void);
 int snapshot(void);
 int main(int argc, char* argv[])
 {
-	gridDimX = (DimX + blockDimX - 1) / blockDimX;
-	gridDimY = (DimY + blockDimY - 1) / blockDimY;
-	gridDimZ = (DimZ + blockDimZ - 1) / blockDimZ;
+	printf("total area : block(%d,%d,%d) * grid(%d,%d,%d) = %d(%d,%d,%d)\n",_blockDimX,_blockDimY,_blockDimZ,_gridDimX,_gridDimY,_gridDimZ, _threadPerGrid, _blockDimX*_gridDimX, _blockDimY*_gridDimY, _blockDimZ*_gridDimZ);
+	printf("thread space (padding overhead) : %d(%d,%d,%d) \n", (_blockDimX - 2)*_gridDimX* (_blockDimY - 2)*_gridDimY* (_blockDimZ - 2)*_gridDimZ,(_blockDimX-2)*_gridDimX , (_blockDimY - 2)*_gridDimY, (_blockDimZ - 2)*_gridDimZ);
+	printf("xyz space (block overhead) : %d(%d,%d,%d) \n", _DimX*_DimY*_DimZ, _DimX, _DimY, _DimZ);
+	printf("unit : sizeof(float)\n ");
 
-	threadPerGrid = blockDimX*gridDimX*blockDimY*gridDimY*blockDimZ*gridDimZ;
-
-	Ex = (float*)malloc(sizeof(float) * threadPerGrid );
-	update = (float*)malloc(sizeof(float) * threadPerGrid);
 	init();
 
-	int loopsize = gridDimX*gridDimY*gridDimZ;
+	unsigned int loopsize = _threadPerGrid / 64; 	// 8 * ymm(32byte) = 64 * float(4byte)
+	if ((_blockDimXYZ) % 64 != 0 ) { printf("Error : block size need to be a multiple of 64 float");return -1;}
+	__asm
+	{
+		//pushad
+		mov ecx, loopsize
+		mov eax, Ex
+		mov esi, 0
+//		prefetchnta[eax + _sizeofFloat * _blockDimXYZ] //block cache
+MEMLP:
+		vmovaps ymm0, [Ex + esi]
+		vmovaps ymm1, [Ex + esi + 32]
+		vmovaps ymm2, [Ex + esi + 64]
+		vmovaps ymm3, [Ex + esi + 96]
+		vmovaps ymm4, [Ex + esi + 128]
+		vmovaps ymm5, [Ex + esi + 160]
+		vmovaps ymm6, [Ex + esi + 192]
+		vmovaps ymm7, [Ex + esi + 224]
+
+		vmovaps [update + esi], ymm0
+		vmovaps [update + esi + 32], ymm1
+		vmovaps [update + esi + 64], ymm2
+		vmovaps [update + esi + 96], ymm3
+		vmovaps [update + esi + 128], ymm4
+		vmovaps [update + esi + 160], ymm5
+		vmovaps [update + esi + 192], ymm6
+		vmovaps [update + esi + 224], ymm7
+
+		add esi, 256
+		dec ecx
+		jnz MEMLP
+		sfence
+
+		//popad
+	}
+
+	snapshot();
+	return 0;
+}
+
+int Drude_eps0_c_Ex(void)
+{
+	int loopsize = 1; //1px padding
+
 	__asm
 	{
 		pushad
@@ -43,79 +104,79 @@ int main(int argc, char* argv[])
 		mov edx, update
 		mov esi, 0
 
-		prefetchnta[eax + 32 * 4 * 4 * 4]
-MEMLP:
+		prefetchnta[eax + _sizeofFloat * _blockDimXYZ]
+		MEMLP:
 		vmovups ymm0, [eax + esi]
-		vmovups ymm1, [eax + esi + 32]
-		vmovups ymm2, [eax + esi + 64]
-		vmovups ymm3, [eax + esi + 96]
-		vmovups ymm4, [eax + esi + 128]
-		vmovups ymm5, [eax + esi + 160]
-		vmovups ymm6, [eax + esi + 192]
-		vmovups ymm7, [eax + esi + 224]
+			vmovups ymm1, [eax + esi + 32]
+			vmovups ymm2, [eax + esi + 64]
+			vmovups ymm3, [eax + esi + 96]
+			vmovups ymm4, [eax + esi + 128]
+			vmovups ymm5, [eax + esi + 160]
+			vmovups ymm6, [eax + esi + 192]
+			vmovups ymm7, [eax + esi + 224]
 
-		vmovups [edx + esi], ymm0
-		vmovups [edx + esi + 32], ymm1
-		vmovups [edx + esi + 64], ymm2
-		vmovups [edx + esi + 96], ymm3
-		vmovups [edx + esi + 128], ymm4
-		vmovups [edx + esi + 160], ymm5
-		vmovups [edx + esi + 192], ymm6
-		vmovups [edx + esi + 224], ymm7
+			vmovups[edx + esi], ymm0
+			vmovups[edx + esi + 32], ymm1
+			vmovups[edx + esi + 64], ymm2
+			vmovups[edx + esi + 96], ymm3
+			vmovups[edx + esi + 128], ymm4
+			vmovups[edx + esi + 160], ymm5
+			vmovups[edx + esi + 192], ymm6
+			vmovups[edx + esi + 224], ymm7
 
-		add esi, 256
-		dec ecx
-		jnz MEMLP
-		sfence
+			add esi, 256
+			dec ecx
+			jnz MEMLP
+			sfence
 
-		popad
+			popad
 	}
-
-	snapshot();
-
-	free(Ex);
-	free(update);
-	return 0;
 }
+
 int init(void)
 {
-	for (unsigned int i = 0; i < threadPerGrid; i++)
+	for (unsigned int i = 0; i < _threadPerGrid; i++)
 	{
-		unsigned int tmp = i;
-		unsigned int X = 0, Y = 0, Z = 0;
-		X += tmp % blockDimX; tmp /= blockDimX;
-		Y += tmp % blockDimY; tmp /= blockDimY;
-		Z += tmp % blockDimZ; tmp /= blockDimZ;
-		X += (tmp % gridDimX) * blockDimX; tmp /= gridDimX;
-		Y += (tmp % gridDimY) * blockDimY; tmp /= gridDimY;
-		Z += (tmp % gridDimZ) * blockDimZ; tmp /= gridDimZ;
-
-		if (0 <= X && X <= 5 && 2 <= Y && Y <= 7 && 5 <= Z && Z <= 10) { Ex[i] = 8.8f; }
-		else { Ex[i] = 0.0f; }
 		update[i] = 0.0f;
+
+		unsigned int tmp = i;
+		int X = 0, Y = 0, Z = 0;
+		X += tmp % _blockDimX - 1; tmp /= _blockDimX;
+		Y += tmp % _blockDimY - 1; tmp /= _blockDimY;
+		Z += tmp % _blockDimZ - 1; tmp /= _blockDimZ;
+		X += (tmp % _gridDimX) * (_blockDimX-2); tmp /= _gridDimX;
+		Y += (tmp % _gridDimY) * (_blockDimY-2); tmp /= _gridDimY;
+		Z += (tmp % _gridDimZ) * (_blockDimZ-2); tmp /= _gridDimZ;
+
+		if (X < 0 || _DimX-1 < X || Y < 0 || _DimY-1 < Y || Z < 0 || _DimZ-1 < Z) { continue; }
+		//else if (0 <= X) { Ex[i] = 8.8f; }
+		else if (0 <= X) { Ex[i] = (float)(X*10000 + Y*100 + Z); }
+		else { Ex[i] = 0.0f; }
+
 	}
 	return 0;
 }
 int snapshot(void)
 {
-	printf("Z=8\n");
-	for (unsigned int Y = 0; Y < blockDimY*gridDimY; Y++) {
-		for (unsigned int X = 0; X < blockDimX*gridDimX; X++) {
-			unsigned int Z = 8;
-			unsigned int k = _INDEX_XYZ(X, Y, Z);
-			printf("%1.1f \t", update[_INDEX_XYZ(X, Y, Z) ]);
-			//printf("%d \t", _INDEX_BLOCK(X/blockDimX, Y/blockDimY, Z/blockDimZ));
-			//printf("%d \t",Y/blockDimY);
+	printf("Z=2\n");
+	for (int Y = 0; Y < _DimY; Y++) {
+		for (int X = 0; X < _DimX; X++) {
+			int Z = 2;
+			//printf("%1.1f \t", update[_INDEX_XYZ(X, Y, Z) ]);
+			printf("%06.0f \t", update[_INDEX_XYZ(X, Y, Z)]);
+			//printf("%d \t", _INDEX_BLOCK(X/(_blockDimX-2), Y/(_blockDimY-2), Z/(_blockDimZ-2)));
+			//printf("%d \t",Y/_blockDimY);
+			//printf("%d \t",_INDEX_XYZ(X,Y,Z));
 		}
 		printf("\n");
 	}
 	printf("\n");
-	printf("Y=5\n");
-	for (unsigned int Z = 0; Z < blockDimZ*gridDimZ; Z++) {
-		for (unsigned int X = 0; X < blockDimX*gridDimX; X++) {
-			unsigned int Y = 5;
-			unsigned int k = _INDEX_XYZ(X, Y, Z);
-			printf("%1.1f \t", update[_INDEX_XYZ(X, Y, Z)]);
+	printf("Y=2\n");
+	for (int Z = 0; Z < _DimZ; Z++) {
+		for (int X = 0; X < _DimX; X++) {
+			int Y = 2;
+			//printf("%05.0f \t", Ex[_INDEX_XYZ(X, Y, Z)]);
+			printf("%06.0f \t", update[_INDEX_XYZ(X, Y, Z)]);
 		}
 		printf("\n");
 	}

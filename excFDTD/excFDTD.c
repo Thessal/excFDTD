@@ -1,3 +1,6 @@
+//VS2015
+//ipsxe2016 Cluster Edition
+
 #include "stdio.h"
 #include "stdlib.h"
 
@@ -10,6 +13,7 @@
 #define _blockDimZ (8)
 #define _blockDimXYZ (_blockDimX * _blockDimY * _blockDimZ)
 
+
 #define _sizeofFloat (32)
 
 //memory overhead : 1px padding per block
@@ -21,7 +25,11 @@
 #define _offsetX (1)
 #define _offsetY (_blockDimX)
 #define _offsetZ (_blockDimX*_blockDimY)
+#define _offsetX_byte (4)
+#define _offsetY_byte (_blockDimX*4)
+#define _offsetZ_byte (_blockDimX*_blockDimY*4)
 #define _offsetPadding (_offsetX+_offsetY+_offsetZ)
+#define _offsetPadding_byte ((_offsetX+_offsetY+_offsetZ)*4)
 
 #define _INDEX_BLOCK(blockIdxX, blockIdxY, blockIdxZ) \
 		((blockIdxX) + _gridDimX * (blockIdxY) + _gridDimX * _gridDimY * (blockIdxZ))
@@ -35,12 +43,22 @@
 		_INDEX_THREAD( ((x))/(_blockDimX-2), ((y))/(_blockDimY-2), ((z))/(_blockDimZ-2), ((x))%(_blockDimX-2)+1 , ((y))%(_blockDimY-2)+1 , ((z))%(_blockDimZ-2)+1 ) \
 		)
 
-__declspec(align(32)) float Ex[_threadPerGrid] = { 999.99f };
-__declspec(align(32)) float update[_threadPerGrid] = { 0 };
-float *Ey, *Ez, *Hx, *Hy, *Hz;
 
+__declspec(align(32)) float eps0_c_Ex[_threadPerGrid] = { 0 };
+__declspec(align(32)) float eps0_c_Ey[_threadPerGrid] = { 0 };
+__declspec(align(32)) float eps0_c_Ez[_threadPerGrid] = { 0 };
+__declspec(align(32)) float Hx[_threadPerGrid] = { 0 };
+__declspec(align(32)) float Hy[_threadPerGrid] = { 0 };
+__declspec(align(32)) float Hz[_threadPerGrid] = { 0 };
+__declspec(align(32)) float eps_r_inv[_threadPerGrid] = { 0 };
+__declspec(align(32)) float stability_factor_inv[8] = { 0.5f, 0.5f, 0.5f, 0.5f, 0.5f, 0.5f, 0.5f, 0.5f }; 
+//__declspec(align(32)) float eps_r_inv[_threadPerGrid] = { 0 }; //이거 조절해서 zdivision 처리하는 것도 가능할듯
+
+__declspec(align(32)) float test[8] = { 0.1f, 0.5f, 0.5f, 0.5f, 0.5f, 0.5f, 0.5f, 0.5f};
 
 int init(void);
+int DrudeE(void);
+int DrudeH(void);
 int snapshot(void);
 int main(int argc, char* argv[])
 {
@@ -51,93 +69,161 @@ int main(int argc, char* argv[])
 
 	init();
 
-	unsigned int loopsize = _threadPerGrid / 64; 	// 8 * ymm(32byte) = 64 * float(4byte)
-	if ((_blockDimXYZ) % 64 != 0 ) { printf("Error : block size need to be a multiple of 64 float");return -1;}
-	__asm
-	{
-		//pushad
-		mov ecx, loopsize
-		mov eax, Ex
-		mov esi, 0
-//		prefetchnta[eax + _sizeofFloat * _blockDimXYZ] //block cache
-MEMLP:
-		vmovaps ymm0, [Ex + esi]
-		vmovaps ymm1, [Ex + esi + 32]
-		vmovaps ymm2, [Ex + esi + 64]
-		vmovaps ymm3, [Ex + esi + 96]
-		vmovaps ymm4, [Ex + esi + 128]
-		vmovaps ymm5, [Ex + esi + 160]
-		vmovaps ymm6, [Ex + esi + 192]
-		vmovaps ymm7, [Ex + esi + 224]
-
-		vmovaps [update + esi], ymm0
-		vmovaps [update + esi + 32], ymm1
-		vmovaps [update + esi + 64], ymm2
-		vmovaps [update + esi + 96], ymm3
-		vmovaps [update + esi + 128], ymm4
-		vmovaps [update + esi + 160], ymm5
-		vmovaps [update + esi + 192], ymm6
-		vmovaps [update + esi + 224], ymm7
-
-		add esi, 256
-		dec ecx
-		jnz MEMLP
-		sfence
-
-		//popad
-	}
+	DrudeE();
+	//DrudeH();
 
 	snapshot();
 	return 0;
 }
 
-int Drude_eps0_c_Ex(void)
+int DrudeE(void)
 {
-	int loopsize = 1; //1px padding
+	float* pEx = eps0_c_Ex;// +_offsetPadding;
+	float* pEy = eps0_c_Ey;// + _offsetPadding;
+	float* pEz = eps0_c_Ez;// + _offsetPadding;
+	float* pHx = Hx;// + _offsetPadding;
+	float* pHy = Hy;// + _offsetPadding;
+	float* pHz = Hz;// + _offsetPadding;
+	float* peps = eps_r_inv;
+	float* pS = stability_factor_inv;
+	//float* ptest = test;//vmovaps ymm0, [rbp]
+	unsigned int loopsize = _threadPerGrid / 64; 	// 8 * ymm(32byte) = 64 * float(4byte)
+	if ((_blockDimXYZ) % 64 != 0) { printf("Error : block size need to be a multiple of 64 float"); return -1; }
 
 	__asm
 	{
-		pushad
+		nop
 
-		mov ecx, loopsize
-		mov eax, Ex
-		mov edx, update
-		mov esi, 0
+		//PUSHA
+		push rax 
+		push rbx 
+		push rcx 
+		push rdx 
+		push rdi 
+		push rsi 
+		push r8 
+		push r9 
+		push r10 
+		push r11 
+		push r12 
+		push r13 
+		push r14 
+		push r15 
+		
+		mov rax, pEx
+		mov rbx, pEy
+		mov rcx, pEz
+		mov rdx, pHx
+		mov rdi, pHy
+		mov rsi, pHz
+		mov r13, peps
+		mov r14, pS
+		mov r15, 1000 //FIXME:counter
 
-		prefetchnta[eax + _sizeofFloat * _blockDimXYZ]
+	EX:
+		vmovaps ymm0, [rdi- _offsetZ_byte]
+		vmovaps ymm1, [rdi]
+		vsubps ymm0, ymm0, ymm1
+		vmovaps ymm1, [rsi - _offsetZ_byte]
+		vaddps ymm0, ymm0, ymm1
+		vmovaps ymm1, [rsi - _offsetY_byte - _offsetZ_byte]
+		vsubps ymm0, ymm0, ymm1
+		vmovaps ymm1, [r13]
+		vmulps ymm0, ymm0, ymm1
+		vmovaps ymm1, [r14]
+		//movss ymm1, 0x3F0000003F000000 // unsupported?
+		//vshufps ymm1,  ymm1, 0 // splat across all lanes of xmm1
+		vmulps ymm0, ymm0, ymm1
+		vmovaps ymm1, [rax]
+		vaddps ymm0, ymm0, ymm1
+
+		vmovaps [rax], ymm0
+
+
+		add rax, 32
+		add rbx, 32
+		add rcx, 32
+		add rdx, 32
+		add rdi, 32
+		add rsi, 32
+		add r13, 32
+		dec r15
+		jnz EX
+		sfence
+
+		//POPA
+		pop r15 
+		pop r14 
+		pop r13 
+		pop r12 
+		pop r11 
+		pop r10 
+		pop r9 
+		pop r8 
+		pop rsi 
+		pop rdi 
+		pop rdx 
+		pop rcx 
+		pop rbx 
+		pop rax 
+
+		nop
+
+		//movdqa xmm0 
+	}
+}
+
+
+int noupdate(void)
+{
+	float* pEx = eps0_c_Ex;
+	float* pEy = eps0_c_Ey;
+	unsigned int loopsize = _threadPerGrid / 64; 	// 8 * ymm(32byte) = 64 * float(4byte)
+	if ((_blockDimXYZ) % 64 != 0) { printf("Error : block size need to be a multiple of 64 float"); return -1; }
+	__asm
+	{
+		//pushad
+		mov rcx, loopsize
+		mov rax, pEx
+		mov rdx, pEy
+		mov rsi, 0
+		//		prefetchnta[eax + _sizeofFloat * _blockDimXYZ] //block cache
 		MEMLP:
-		vmovups ymm0, [eax + esi]
-			vmovups ymm1, [eax + esi + 32]
-			vmovups ymm2, [eax + esi + 64]
-			vmovups ymm3, [eax + esi + 96]
-			vmovups ymm4, [eax + esi + 128]
-			vmovups ymm5, [eax + esi + 160]
-			vmovups ymm6, [eax + esi + 192]
-			vmovups ymm7, [eax + esi + 224]
+		vmovaps ymm0, [rax + rsi]
+			vmovaps ymm1, [rax + rsi + 32]
+			vmovaps ymm2, [rax + rsi + 64]
+			vmovaps ymm3, [rax + rsi + 96]
+			vmovaps ymm4, [rax + rsi + 128]
+			vmovaps ymm5, [rax + rsi + 160]
+			vmovaps ymm6, [rax + rsi + 192]
+			vmovaps ymm7, [rax + rsi + 224]
 
-			vmovups[edx + esi], ymm0
-			vmovups[edx + esi + 32], ymm1
-			vmovups[edx + esi + 64], ymm2
-			vmovups[edx + esi + 96], ymm3
-			vmovups[edx + esi + 128], ymm4
-			vmovups[edx + esi + 160], ymm5
-			vmovups[edx + esi + 192], ymm6
-			vmovups[edx + esi + 224], ymm7
+			vmovaps[rdx + rsi], ymm0
+			vmovaps[rdx + rsi + 32], ymm1
+			vmovaps[rdx + rsi + 64], ymm2
+			vmovaps[rdx + rsi + 96], ymm3
+			vmovaps[rdx + rsi + 128], ymm4
+			vmovaps[rdx + rsi + 160], ymm5
+			vmovaps[rdx + rsi + 192], ymm6
+			vmovaps[rdx + rsi + 224], ymm7
 
-			add esi, 256
-			dec ecx
+			add rsi, 256
+			dec rcx
 			jnz MEMLP
 			sfence
 
-			popad
+			//popad
 	}
 }
+
+
+
 
 int init(void)
 {
 	for (unsigned int i = 0; i < _threadPerGrid; i++)
 	{
-		update[i] = 0.0f;
+		//eps0_c_Ey[i] = 0.0f;
 
 		unsigned int tmp = i;
 		int X = 0, Y = 0, Z = 0;
@@ -148,10 +234,16 @@ int init(void)
 		Y += (tmp % _gridDimY) * (_blockDimY-2); tmp /= _gridDimY;
 		Z += (tmp % _gridDimZ) * (_blockDimZ-2); tmp /= _gridDimZ;
 
+		Hy[i] = (float)(X * 10000 + Y * 100 + Z);
+		Hz[i] = (float)(X * 10000 + Y * 100 + Z);
+		eps_r_inv[i] = 1.0f;
+
+
 		if (X < 0 || _DimX-1 < X || Y < 0 || _DimY-1 < Y || Z < 0 || _DimZ-1 < Z) { continue; }
-		//else if (0 <= X) { Ex[i] = 8.8f; }
-		else if (0 <= X) { Ex[i] = (float)(X*10000 + Y*100 + Z); }
-		else { Ex[i] = 0.0f; }
+		//else if (0 <= X) { eps0_c_Ex[i] = 8.8f; }
+		else if (0 <= X) { 	eps0_c_Ex[i] = (float)(X*10000 + Y*100 + Z);}
+		else { eps0_c_Ex[i] = 0.0f; }
+
 
 	}
 	return 0;
@@ -163,7 +255,7 @@ int snapshot(void)
 		for (int X = 0; X < _DimX; X++) {
 			int Z = 2;
 			//printf("%1.1f \t", update[_INDEX_XYZ(X, Y, Z) ]);
-			printf("%06.0f \t", update[_INDEX_XYZ(X, Y, Z)]);
+			printf("%06.0f \t", eps0_c_Ex[_INDEX_XYZ(X, Y, Z)]);
 			//printf("%d \t", _INDEX_BLOCK(X/(_blockDimX-2), Y/(_blockDimY-2), Z/(_blockDimZ-2)));
 			//printf("%d \t",Y/_blockDimY);
 			//printf("%d \t",_INDEX_XYZ(X,Y,Z));
@@ -176,100 +268,9 @@ int snapshot(void)
 		for (int X = 0; X < _DimX; X++) {
 			int Y = 2;
 			//printf("%05.0f \t", Ex[_INDEX_XYZ(X, Y, Z)]);
-			printf("%06.0f \t", update[_INDEX_XYZ(X, Y, Z)]);
+			printf("%06.0f \t", eps0_c_Ex[_INDEX_XYZ(X, Y, Z)]);
 		}
 		printf("\n");
 	}
 	return 0;
-}
-int ConvolutionC(
-	unsigned char *pSrc,
-	unsigned char *pDest,
-	unsigned int nSizeX,
-	unsigned int nSizeY,
-	unsigned int nSizeZ,
-	unsigned int *ROIPoint,
-	short *pKernel
-)
-{
-	unsigned int nStartX = ROIPoint[0];
-	unsigned int nStartY = ROIPoint[1];
-	unsigned int nStartZ = ROIPoint[2];
-	unsigned int nEndX = ROIPoint[3];
-	unsigned int nEndY = ROIPoint[4];
-	unsigned int nEndZ = ROIPoint[5];
-
-	if (0 == nStartX) nStartX = 1; //필터링 후 크기 1 감소
-	if (0 == nStartY) nStartY = 1;
-	if (0 == nStartZ) nStartZ = 1;
-	if (nSizeX == nEndX) nEndX = nSizeX - 1;
-	if (nSizeY == nEndY) nEndY = nSizeY - 1;
-	if (nSizeZ == nEndZ) nEndZ = nSizeZ - 1;
-
-	short total = 0;
-	short value[9] = { 0 };
-
-	for (unsigned int k = nStartZ; k < nEndZ; k++)
-	{
-		for (unsigned int j = nStartY; j < nEndY; j++)
-		{
-			for (unsigned int i = nStartX; i < nEndX; i++)
-			{
-				total = 0;
-				value[0] = pSrc[i + j*nSizeX + k*nSizeX*nSizeY - 1];
-				total += pKernel[0] * value[0];
-
-				value[1] = pSrc[i + j*nSizeX + k*nSizeX*nSizeY + 1];
-				total += pKernel[1] * value[1];
-
-				value[2] = pSrc[i + j*nSizeX + k*nSizeX*nSizeY - nSizeX];
-				total += pKernel[2] * value[2];
-
-				value[3] = pSrc[i + j*nSizeX + k*nSizeX*nSizeY + nSizeX];
-				total += pKernel[3] * value[3];
-
-				value[4] = pSrc[i + j*nSizeX + k*nSizeX*nSizeY - nSizeX*nSizeY];
-				total += pKernel[4] * value[4];
-
-				value[5] = pSrc[i + j*nSizeX + k*nSizeX*nSizeY + nSizeX*nSizeY];
-				total += pKernel[5] * value[5];
-
-				if (total < 0) total = 0;
-				if (total > 255) total = 255;
-
-				pDest[i + j*nSizeX + k*nSizeX*nSizeY] = (unsigned char)total;
-			}
-		}
-	}
-	return 0;
-}
-
-void ConvolutionSIMD(
-	unsigned char *pSrc, //char = 1byte
-	unsigned char *pDest,
-	unsigned int nSizeX,
-	unsigned int nSizeY,
-	unsigned int nSizeZ,
-	unsigned int *ROIPoint,
-	short *pKernel
-)
-{
-	unsigned int nStartX = ROIPoint[0];
-	unsigned int nStartY = ROIPoint[1];
-	unsigned int nStartZ = ROIPoint[2];
-	unsigned int nEndX = ROIPoint[3];
-	unsigned int nEndY = ROIPoint[4];
-	unsigned int nEndZ = ROIPoint[5];
-
-	if (0 == nStartX) nStartX = 1; //필터링 후 크기 1 감소
-	if (0 == nStartY) nStartY = 1;
-	if (0 == nStartZ) nStartZ = 1;
-	if (nSizeX == nEndX) nEndX = nSizeX - 1;
-	if (nSizeY == nEndY) nEndY = nSizeY - 1;
-	if (nSizeZ == nEndZ) nEndZ = nSizeZ - 1;
-
-	// 더하고 나면 255보다 커지므로 2byte short로 형변환
-	//__declspec(align(16)) short Mask0[8], Mask1[8], Mask2[8], Mask3[8],
-	//	Mask4[8], Mask5[8];
-
 }

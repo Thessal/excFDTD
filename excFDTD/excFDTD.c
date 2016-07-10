@@ -87,7 +87,7 @@ int DrudeE(void)
 	float* peps = eps_r_inv;
 	float* pS = stability_factor_inv;
 	//float* ptest = test;//vmovaps ymm0, [rbp]
-	unsigned int loopsize = _threadPerGrid / 64; 	// 8 * ymm(32byte) = 64 * float(4byte)
+	unsigned __int64 loopsize= _threadPerGrid / 8; 	// 1 * ymm(32byte) = 8 * float(4byte)
 	if ((_blockDimXYZ) % 64 != 0) { printf("Error : block size need to be a multiple of 64 float"); return -1; }
 
 	__asm
@@ -118,7 +118,7 @@ int DrudeE(void)
 		mov rsi, pHz
 		mov r13, peps
 		mov r14, pS
-		mov r15, 1000 //FIXME:counter
+		mov r15, loopsize
 
 	EX:
 		vmovaps ymm0, [rdi- _offsetZ_byte]
@@ -178,7 +178,7 @@ int noupdate(void)
 {
 	float* pEx = eps0_c_Ex;
 	float* pEy = eps0_c_Ey;
-	unsigned int loopsize = _threadPerGrid / 64; 	// 8 * ymm(32byte) = 64 * float(4byte)
+	unsigned __int64 loopsize = _threadPerGrid / 64; 	// 8 * ymm(32byte) = 64 * float(4byte)
 	if ((_blockDimXYZ) % 64 != 0) { printf("Error : block size need to be a multiple of 64 float"); return -1; }
 	__asm
 	{
@@ -221,11 +221,11 @@ int noupdate(void)
 
 int init(void)
 {
-	for (unsigned int i = 0; i < _threadPerGrid; i++)
+	for (unsigned __int64 i = 0; i < _threadPerGrid; i++)
 	{
 		//eps0_c_Ey[i] = 0.0f;
 
-		unsigned int tmp = i;
+		unsigned __int64 tmp = i;
 		int X = 0, Y = 0, Z = 0;
 		X += tmp % _blockDimX - 1; tmp /= _blockDimX;
 		Y += tmp % _blockDimY - 1; tmp /= _blockDimY;

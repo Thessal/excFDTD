@@ -3,6 +3,7 @@
 
 #include "stdio.h"
 #include "stdlib.h"
+#include "immintrin.h"
 
 #define _DimX (10)
 #define _DimY (20)
@@ -12,7 +13,6 @@
 #define _blockDimY (8)
 #define _blockDimZ (8)
 #define _blockDimXYZ (_blockDimX * _blockDimY * _blockDimZ)
-
 
 #define _sizeofFloat (32)
 
@@ -43,7 +43,6 @@
 		_INDEX_THREAD( ((x))/(_blockDimX-2), ((y))/(_blockDimY-2), ((z))/(_blockDimZ-2), ((x))%(_blockDimX-2)+1 , ((y))%(_blockDimY-2)+1 , ((z))%(_blockDimZ-2)+1 ) \
 		)
 
-
 __declspec(align(32)) float eps0_c_Ex[_threadPerGrid] = { 0 };
 __declspec(align(32)) float eps0_c_Ey[_threadPerGrid] = { 0 };
 __declspec(align(32)) float eps0_c_Ez[_threadPerGrid] = { 0 };
@@ -51,14 +50,19 @@ __declspec(align(32)) float Hx[_threadPerGrid] = { 0 };
 __declspec(align(32)) float Hy[_threadPerGrid] = { 0 };
 __declspec(align(32)) float Hz[_threadPerGrid] = { 0 };
 __declspec(align(32)) float eps_r_inv[_threadPerGrid] = { 0 };
-__declspec(align(32)) float stability_factor_inv[8] = { 0.5f, 0.5f, 0.5f, 0.5f, 0.5f, 0.5f, 0.5f, 0.5f }; 
-//__declspec(align(32)) float eps_r_inv[_threadPerGrid] = { 0 }; //이거 조절해서 zdivision 처리하는 것도 가능할듯
-
-__declspec(align(32)) float test[8] = { 0.1f, 0.5f, 0.5f, 0.5f, 0.5f, 0.5f, 0.5f, 0.5f};
+float stability_factor_inv = 0.5f; 
+__m256* mEx = (__m256*)eps0_c_Ex;
+__m256* mEy = (__m256*)eps0_c_Ey;
+__m256* mEz = (__m256*)eps0_c_Ez;
+__m256* mHx = (__m256*)Hx;
+__m256* mHy = (__m256*)Hy;
+__m256* mHz = (__m256*)Hz;
+__m256* meps = (__m256*)eps_r_inv;
 
 int init(void);
-int DrudeE(void);
-int DrudeH(void);
+void DielectricE(voie);
+void DrudeE(void);
+void DrudeH(void);
 int snapshot(void);
 int main(int argc, char* argv[])
 {
@@ -69,154 +73,63 @@ int main(int argc, char* argv[])
 
 	init();
 
-	DrudeE();
-	//DrudeH();
+	DielectricE();
 
 	snapshot();
 	return 0;
 }
 
-int DrudeE(void)
+void DielectricE(void)
 {
-	float* pEx = eps0_c_Ex;// +_offsetPadding;
-	float* pEy = eps0_c_Ey;// + _offsetPadding;
-	float* pEz = eps0_c_Ez;// + _offsetPadding;
-	float* pHx = Hx;// + _offsetPadding;
-	float* pHy = Hy;// + _offsetPadding;
-	float* pHz = Hz;// + _offsetPadding;
-	float* peps = eps_r_inv;
-	float* pS = stability_factor_inv;
-	//float* ptest = test;//vmovaps ymm0, [rbp]
-	unsigned __int64 loopsize= _threadPerGrid / 8; 	// 1 * ymm(32byte) = 8 * float(4byte)
-	if ((_blockDimXYZ) % 64 != 0) { printf("Error : block size need to be a multiple of 64 float"); return -1; }
-
-	__asm
-	{
-		nop
-
-		//PUSHA
-		push rax 
-		push rbx 
-		push rcx 
-		push rdx 
-		push rdi 
-		push rsi 
-		push r8 
-		push r9 
-		push r10 
-		push r11 
-		push r12 
-		push r13 
-		push r14 
-		push r15 
-		
-		mov rax, pEx
-		mov rbx, pEy
-		mov rcx, pEz
-		mov rdx, pHx
-		mov rdi, pHy
-		mov rsi, pHz
-		mov r13, peps
-		mov r14, pS
-		mov r15, loopsize
-
-	EX:
-		vmovaps ymm0, [rdi- _offsetZ_byte]
-		vmovaps ymm1, [rdi]
-		vsubps ymm0, ymm0, ymm1
-		vmovaps ymm1, [rsi - _offsetZ_byte]
-		vaddps ymm0, ymm0, ymm1
-		vmovaps ymm1, [rsi - _offsetY_byte - _offsetZ_byte]
-		vsubps ymm0, ymm0, ymm1
-		vmovaps ymm1, [r13]
-		vmulps ymm0, ymm0, ymm1
-		vmovaps ymm1, [r14]
-		//movss ymm1, 0x3F0000003F000000 // unsupported?
-		//vshufps ymm1,  ymm1, 0 // splat across all lanes of xmm1
-		vmulps ymm0, ymm0, ymm1
-		vmovaps ymm1, [rax]
-		vaddps ymm0, ymm0, ymm1
-
-		vmovaps [rax], ymm0
-
-
-		add rax, 32
-		add rbx, 32
-		add rcx, 32
-		add rdx, 32
-		add rdi, 32
-		add rsi, 32
-		add r13, 32
-		dec r15
-		jnz EX
-		sfence
-
-		//POPA
-		pop r15 
-		pop r14 
-		pop r13 
-		pop r12 
-		pop r11 
-		pop r10 
-		pop r9 
-		pop r8 
-		pop rsi 
-		pop rdi 
-		pop rdx 
-		pop rcx 
-		pop rbx 
-		pop rax 
-
-		nop
-
-		//movdqa xmm0 
+	for (unsigned __int64 offset = 0; offset < _threadPerGrid / 8; offset += 1) {
+		_mm256_store_ps(eps0_c_Ex + offset * 8, // 1 * ymm(32byte) = 8 * float(4byte)
+			_mm256_add_ps(
+				_mm256_mul_ps(
+					_mm256_mul_ps(
+						_mm256_sub_ps(
+							_mm256_add_ps(
+								_mm256_sub_ps(
+									mHy[offset - _offsetZ/8],
+									mHy[offset]),
+								mHz[offset - _offsetZ / 8]),
+							mHz[offset - _offsetY / 8 - _offsetZ / 8]),
+						meps[offset]),
+					_mm256_broadcast_ss(&stability_factor_inv)),
+				mEx[offset])
+		);
+		_mm256_store_ps(eps0_c_Ey + offset * 8, // 1 * ymm(32byte) = 8 * float(4byte)
+			_mm256_add_ps(
+				_mm256_mul_ps(
+					_mm256_mul_ps(
+						_mm256_sub_ps(
+							_mm256_add_ps(
+								_mm256_sub_ps(
+									mHz[offset - (_offsetZ / 8)],
+									_mm256_loadu_ps(Hz + offset * 8 + _offsetX - _offsetZ )),//SSE2 : _mm256_permutevar8x32_ps(mHy+offset*8,-1)									 
+								mHx[offset]),
+							mHx[offset - _offsetZ / 8]),
+						meps[offset]),
+					_mm256_broadcast_ss(&stability_factor_inv)),
+				mEy[offset])
+		);
+		_mm256_store_ps(eps0_c_Ez + offset * 8, // 1 * ymm(32byte) = 8 * float(4byte)
+			_mm256_add_ps(
+				_mm256_mul_ps(
+					_mm256_mul_ps(
+						_mm256_sub_ps(
+							_mm256_add_ps(
+								_mm256_sub_ps(
+									_mm256_loadu_ps(Hx + offset * 8 - _offsetX - _offsetY),
+									_mm256_loadu_ps(Hx + offset * 8 - _offsetX)),
+								mHy[offset]),
+							_mm256_loadu_ps(Hy + offset * 8 - _offsetX)),
+						meps[offset]),
+					_mm256_broadcast_ss(&stability_factor_inv)),
+				mEz[offset])
+		);
 	}
+
 }
-
-
-int noupdate(void)
-{
-	float* pEx = eps0_c_Ex;
-	float* pEy = eps0_c_Ey;
-	unsigned __int64 loopsize = _threadPerGrid / 64; 	// 8 * ymm(32byte) = 64 * float(4byte)
-	if ((_blockDimXYZ) % 64 != 0) { printf("Error : block size need to be a multiple of 64 float"); return -1; }
-	__asm
-	{
-		//pushad
-		mov rcx, loopsize
-		mov rax, pEx
-		mov rdx, pEy
-		mov rsi, 0
-		//		prefetchnta[eax + _sizeofFloat * _blockDimXYZ] //block cache
-		MEMLP:
-		vmovaps ymm0, [rax + rsi]
-			vmovaps ymm1, [rax + rsi + 32]
-			vmovaps ymm2, [rax + rsi + 64]
-			vmovaps ymm3, [rax + rsi + 96]
-			vmovaps ymm4, [rax + rsi + 128]
-			vmovaps ymm5, [rax + rsi + 160]
-			vmovaps ymm6, [rax + rsi + 192]
-			vmovaps ymm7, [rax + rsi + 224]
-
-			vmovaps[rdx + rsi], ymm0
-			vmovaps[rdx + rsi + 32], ymm1
-			vmovaps[rdx + rsi + 64], ymm2
-			vmovaps[rdx + rsi + 96], ymm3
-			vmovaps[rdx + rsi + 128], ymm4
-			vmovaps[rdx + rsi + 160], ymm5
-			vmovaps[rdx + rsi + 192], ymm6
-			vmovaps[rdx + rsi + 224], ymm7
-
-			add rsi, 256
-			dec rcx
-			jnz MEMLP
-			sfence
-
-			//popad
-	}
-}
-
-
 
 
 int init(void)
@@ -240,8 +153,8 @@ int init(void)
 
 
 		if (X < 0 || _DimX-1 < X || Y < 0 || _DimY-1 < Y || Z < 0 || _DimZ-1 < Z) { continue; }
-		//else if (0 <= X) { eps0_c_Ex[i] = 8.8f; }
-		else if (0 <= X) { 	eps0_c_Ex[i] = (float)(X*10000 + Y*100 + Z);}
+		else if (0 <= X) { eps0_c_Ex[i] = 8.2f; }
+		//else if (0 <= X) { 	eps0_c_Ex[i] = (float)(X*10000 + Y*100 + Z);}
 		else { eps0_c_Ex[i] = 0.0f; }
 
 
@@ -250,10 +163,10 @@ int init(void)
 }
 int snapshot(void)
 {
-	printf("Z=2\n");
+	printf("Z=5\n");
 	for (int Y = 0; Y < _DimY; Y++) {
 		for (int X = 0; X < _DimX; X++) {
-			int Z = 2;
+			int Z = 5;
 			//printf("%1.1f \t", update[_INDEX_XYZ(X, Y, Z) ]);
 			printf("%06.0f \t", eps0_c_Ex[_INDEX_XYZ(X, Y, Z)]);
 			//printf("%d \t", _INDEX_BLOCK(X/(_blockDimX-2), Y/(_blockDimY-2), Z/(_blockDimZ-2)));

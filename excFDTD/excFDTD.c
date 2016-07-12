@@ -60,7 +60,9 @@ __m256* mHz = (__m256*)Hz;
 __m256* meps = (__m256*)eps_r_inv;
 
 int init(void);
-void DielectricE(voie);
+void DielectricE(void);
+void DielectricH(void);
+void syncPadding(void);
 void DrudeE(void);
 void DrudeH(void);
 int snapshot(void);
@@ -74,6 +76,17 @@ int main(int argc, char* argv[])
 	init();
 
 	DielectricE();
+	DielectricH();
+	syncPadding();
+	DielectricE();
+	DielectricH();
+	syncPadding();
+	DielectricE();
+	DielectricH();
+	syncPadding();
+	DielectricE();
+	DielectricH();
+	syncPadding();
 
 	snapshot();
 	return 0;
@@ -131,6 +144,83 @@ void DielectricE(void)
 
 }
 
+void DielectricH(void) {
+
+
+	for (unsigned __int64 offset = 0; offset < _threadPerGrid / 8; offset += 1) {
+		_mm256_store_ps(Hx + offset * 8, // 1 * ymm(32byte) = 8 * float(4byte)
+			_mm256_sub_ps(
+				mHx[offset],
+				_mm256_mul_ps(
+						_mm256_sub_ps(
+							_mm256_add_ps(
+								_mm256_sub_ps(
+									mEy[offset],
+									mEy[offset + _offsetZ/8]),
+								_mm256_loadu_ps(eps0_c_Ez + offset + _offsetX + _offsetY)),
+							_mm256_loadu_ps(eps0_c_Ez + offset + _offsetX)),
+					_mm256_broadcast_ss(&stability_factor_inv))
+			)
+		);
+		_mm256_store_ps(Hy + offset * 8, // 1 * ymm(32byte) = 8 * float(4byte)
+			_mm256_sub_ps(
+				mHy[offset],
+				_mm256_mul_ps(
+					_mm256_sub_ps(
+						_mm256_add_ps(
+							_mm256_sub_ps(
+								mEz[offset],
+								_mm256_loadu_ps(eps0_c_Ez + offset + _offsetX) ),
+							mEx[offset + _offsetZ ]),
+						mEx[offset]),
+					_mm256_broadcast_ss(&stability_factor_inv))
+			)
+		);
+		_mm256_store_ps(Hz + offset * 8, // 1 * ymm(32byte) = 8 * float(4byte)
+			_mm256_sub_ps(
+				mHz[offset],
+				_mm256_mul_ps(
+					_mm256_sub_ps(
+						_mm256_add_ps(
+							_mm256_sub_ps(
+								mEx[offset + _offsetZ / 8],
+								mEx[offset + _offsetY / 8 + _offsetZ / 8]),
+							mEy[offset + _offsetZ / 8] ) ,
+						_mm256_loadu_ps(eps0_c_Ey + offset - _offsetX + _offsetZ)),
+					_mm256_broadcast_ss(&stability_factor_inv))
+			)
+		);
+	}
+
+
+}
+
+#define _syncX(FIELD) \
+FIELD[_INDEX_THREAD(X - 1, Y, Z, _blockDimX - 1, yy, zz)] = FIELD[_INDEX_THREAD(X, Y, Z, 1, yy, zz)];\
+FIELD[_INDEX_THREAD(X, Y, Z, 0, yy, zz)] = FIELD[_INDEX_THREAD(X, Y, Z, _blockDimX - 2, yy, zz)];
+#define _syncY(FIELD) \
+FIELD[_INDEX_THREAD(X, Y - 1, Z, xx, _blockDimY - 1, zz)] = FIELD[_INDEX_THREAD(X, Y, Z, xx, 1, zz)]; \
+FIELD[_INDEX_THREAD(X, Y, Z, xx, 0, zz)] = FIELD[_INDEX_THREAD(X, Y, Z, xx, _blockDimY - 2, zz)];
+#define _syncZ(FIELD) \
+FIELD[_INDEX_THREAD(X, Y, Z - 1, xx, yy, _blockDimZ - 1)] = FIELD[_INDEX_THREAD(X, Y, Z, xx, yy, 1)]; \
+FIELD[_INDEX_THREAD(X, Y, Z, xx, yy, 0)] = FIELD[_INDEX_THREAD(X, Y, Z, xx, yy, _blockDimZ - 2)];
+#define _syncXall _syncX(eps0_c_Ex) _syncX(eps0_c_Ey) _syncX(eps0_c_Ez)  _syncX(Hx)  _syncX(Hy) _syncX(Hz) 
+#define _syncYall _syncY(eps0_c_Ex) _syncY(eps0_c_Ey) _syncY(eps0_c_Ez)  _syncY(Hx)  _syncY(Hy) _syncY(Hz) 
+#define _syncZall _syncZ(eps0_c_Ex) _syncZ(eps0_c_Ey) _syncZ(eps0_c_Ez)  _syncZ(Hx)  _syncZ(Hy) _syncZ(Hz) 
+
+void syncPadding(void) {
+	for (int X = 1; X < _gridDimX; X++)
+		for (int Y = 1; Y < _gridDimY; Y++)
+			for (int Z = 1; Z < _gridDimZ; Z++) {
+				for (int yy = 0; yy<_blockDimY; yy++)
+					for (int zz = 0; zz < _blockDimZ; zz++) { _syncXall }
+				for (int zz = 0; zz<_blockDimY; zz++)
+					for (int xx = 0; xx < _blockDimZ; xx++) { _syncYall }
+				for (int xx = 0; xx<_blockDimY; xx++)
+					for (int yy = 0; yy < _blockDimZ; yy++) { _syncZall }
+			}
+}
+
 
 int init(void)
 {
@@ -147,13 +237,14 @@ int init(void)
 		Y += (tmp % _gridDimY) * (_blockDimY-2); tmp /= _gridDimY;
 		Z += (tmp % _gridDimZ) * (_blockDimZ-2); tmp /= _gridDimZ;
 
-		Hy[i] = (float)(X * 10000 + Y * 100 + Z);
-		Hz[i] = (float)(X * 10000 + Y * 100 + Z);
+//		Hy[i] = (float)(X * 10000 + Y * 100 + Z);
+//		Hz[i] = (float)(X * 10000 + Y * 100 + Z);
 		eps_r_inv[i] = 1.0f;
 
 
 		if (X < 0 || _DimX-1 < X || Y < 0 || _DimY-1 < Y || Z < 0 || _DimZ-1 < Z) { continue; }
-		else if (0 <= X) { eps0_c_Ex[i] = 8.2f; }
+		else if (X==5 && Y ==2 && Z ==5) { eps0_c_Ex[i] = 1.0f; }
+		//else if (0 <= X) { eps0_c_Ex[i] = 8.2f; }
 		//else if (0 <= X) { 	eps0_c_Ex[i] = (float)(X*10000 + Y*100 + Z);}
 		else { eps0_c_Ex[i] = 0.0f; }
 
@@ -167,8 +258,8 @@ int snapshot(void)
 	for (int Y = 0; Y < _DimY; Y++) {
 		for (int X = 0; X < _DimX; X++) {
 			int Z = 5;
-			//printf("%1.1f \t", update[_INDEX_XYZ(X, Y, Z) ]);
-			printf("%06.0f \t", eps0_c_Ex[_INDEX_XYZ(X, Y, Z)]);
+			printf("%02.1f \t", eps0_c_Ex[_INDEX_XYZ(X, Y, Z) ]);
+			//printf("%06.0f \t", eps0_c_Ex[_INDEX_XYZ(X, Y, Z)]);
 			//printf("%d \t", _INDEX_BLOCK(X/(_blockDimX-2), Y/(_blockDimY-2), Z/(_blockDimZ-2)));
 			//printf("%d \t",Y/_blockDimY);
 			//printf("%d \t",_INDEX_XYZ(X,Y,Z));
@@ -180,8 +271,8 @@ int snapshot(void)
 	for (int Z = 0; Z < _DimZ; Z++) {
 		for (int X = 0; X < _DimX; X++) {
 			int Y = 2;
-			//printf("%05.0f \t", Ex[_INDEX_XYZ(X, Y, Z)]);
-			printf("%06.0f \t", eps0_c_Ex[_INDEX_XYZ(X, Y, Z)]);
+			printf("%02.1f \t", eps0_c_Ex[_INDEX_XYZ(X, Y, Z)]);
+			//printf("%06.0f \t", eps0_c_Ex[_INDEX_XYZ(X, Y, Z)]);
 		}
 		printf("\n");
 	}

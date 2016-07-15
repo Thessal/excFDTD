@@ -8,10 +8,15 @@
 #define _DimZ (30)
 
 #define _S_factor (2.0f)
-//#define _c0 (3e8)
-//#define _dx (1e-6)
-#define _c0 (1.0f)
 #define _dx (1.0f)
+//#define _dx (1e-6)
+
+
+#define _c0 (1.0f)
+//#define _c0 299792458.0f
+#define _USE_MATH_DEFINES
+#define _mu0_ ( 4e-7 * M_PI )
+#define _eps0_ ( 1.0f / _c0 / _c0 / _mu0_ )
 #define _dt (_dx / _c0 / _S_factor)
 #define _cdt (_dx / _S_factor)
 float stability_factor_inv = 1.0f / _S_factor; //not good
@@ -33,6 +38,10 @@ float stability_factor_inv = 1.0f / _S_factor; //not good
 #define _a02_div_eps0 (2.0f * _Delta_eps2_L * _Omega2_L * (_Omega2_L * cos(_phi2_L) - _Gamma2_L * sin(_phi2_L)))
 #define _a11_div_eps0 (-2.0f * _Delta_eps1_L * _Omega1_L * sin(_phi1_L))
 #define _a12_div_eps0 (-2.0f * _Delta_eps2_L * _Omega2_L * sin(_phi2_L))
+#define _a01 ( _a01_div_eps0 * _eps0_ )
+#define _a02 ( _a02_div_eps0 * _eps0_ )
+#define _a11 ( _a11_div_eps0 * _eps0_ )
+#define _a12 ( _a12_div_eps0 * _eps0_ )
 #define _b01 (_Omega1_L * _Omega1_L + _Gamma1_L * _Gamma1_L)
 #define _b02 (_Omega2_L * _Omega2_L + _Gamma2_L * _Gamma2_L)
 #define _b11 (2.0f * _Gamma1_L)
@@ -52,6 +61,7 @@ float stability_factor_inv = 1.0f / _S_factor; //not good
 #define _C42 ( _a02 * 0.5f / _C2_ )
 #define _C51 ( ( _a01 * 0.25f ) - ( _a11 * 0.5f / _dt ) ) / _C1_
 #define _C52 ( ( _a02 * 0.25f ) - ( _a12 * 0.5f / _dt ) ) / _C2_
+#define _C5p ( _C51 + _C52 )
 
 //single drude pole
 #define _dq_ ( ( 1.0f / _dt / _dt ) + ( _gamma_D  * 0.5f / _dt ) )
@@ -65,7 +75,7 @@ float stability_factor_inv = 1.0f / _S_factor; //not good
 #include "stdlib.h"
 #include "math.h"
 #include "immintrin.h"
-
+#include "time.h"
 
 #define _blockDimX (8)
 #define _blockDimY (8)
@@ -102,9 +112,30 @@ float stability_factor_inv = 1.0f / _S_factor; //not good
 		_INDEX_THREAD( ((x))/(_blockDimX-2), ((y))/(_blockDimY-2), ((z))/(_blockDimZ-2), ((x))%(_blockDimX-2)+1 , ((y))%(_blockDimY-2)+1 , ((z))%(_blockDimZ-2)+1 ) \
 		)
 
+//#define SWAP(x, y) do { typeof(x) SWAPVAR = x; x = y; y = SWAPVAR; } while (0)
+#include <string.h>
+#define SWAP(x,y) do \
+{ unsigned char swap_temp[sizeof(x) == sizeof(y) ? (signed)sizeof(x) : -1]; \
+memcpy(swap_temp, &y, sizeof(x)); \
+memcpy(&y, &x, sizeof(x)); \
+memcpy(&x, swap_temp, sizeof(x)); \
+} while (0)
+
 __declspec(align(32)) float eps0_c_Ex[_threadPerGrid] = { 0 };
 __declspec(align(32)) float eps0_c_Ey[_threadPerGrid] = { 0 };
 __declspec(align(32)) float eps0_c_Ez[_threadPerGrid] = { 0 };
+__declspec(align(32)) float eps0_c_Ex_old[_threadPerGrid] = { 0 };
+__declspec(align(32)) float eps0_c_Ey_old[_threadPerGrid] = { 0 };
+__declspec(align(32)) float eps0_c_Ez_old[_threadPerGrid] = { 0 };
+__declspec(align(32)) float Pdx[_threadPerGrid] = { 0 };
+__declspec(align(32)) float Pdy[_threadPerGrid] = { 0 };
+__declspec(align(32)) float Pdz[_threadPerGrid] = { 0 };
+__declspec(align(32)) float Pcp1x[_threadPerGrid] = { 0 };
+__declspec(align(32)) float Pcp1y[_threadPerGrid] = { 0 };
+__declspec(align(32)) float Pcp1z[_threadPerGrid] = { 0 };
+__declspec(align(32)) float Pcp2x[_threadPerGrid] = { 0 };
+__declspec(align(32)) float Pcp2y[_threadPerGrid] = { 0 };
+__declspec(align(32)) float Pcp2z[_threadPerGrid] = { 0 };
 __declspec(align(32)) float Hx[_threadPerGrid] = { 0 };
 __declspec(align(32)) float Hy[_threadPerGrid] = { 0 };
 __declspec(align(32)) float Hz[_threadPerGrid] = { 0 };
@@ -147,12 +178,21 @@ int main(int argc, char* argv[])
 
 	init();
 	
-	syncPadding();
-	Dielectric_HE(); //FIXME : asm update E strange result
-	//Dielectric_HE_C();
+	time_t start;
+
+	start = clock();
+	for (int i = 0; i < 1; i++) { syncPadding(); Dielectric_HE_C(); }
+	printf("time : %f\n", (double)(clock() - start) / CLK_TCK);
+
+	start = clock();
+	for (int i = 0; i < 1; i++) { syncPadding(); Dielectric_HE(); }
+	printf("time : %f\n", (double)(clock() - start) / CLK_TCK);
+
+
 	syncPadding();
 	
 	snapshot();
+
 	return 0;
 }
 
@@ -268,10 +308,40 @@ void DCP_HE_C(void)
 		Hx[offset] -= (eps0_c_Ey[offset] - eps0_c_Ey[offset + _offsetZ] + eps0_c_Ez[offset + _offsetX] - eps0_c_Ez[offset + _offsetX]) * _cdt;
 		Hy[offset] -= (eps0_c_Ez[offset] - eps0_c_Ez[offset + _offsetX] + eps0_c_Ex[offset + _offsetZ] - eps0_c_Ex[offset]) * _cdt;
 		Hz[offset] -= (eps0_c_Ex[offset + _offsetZ] - eps0_c_Ex[offset + _offsetY + _offsetZ] + eps0_c_Ey[offset + _offsetZ] - eps0_c_Ey[offset - _offsetX + _offsetZ]) * _cdt;
+
+		//float temp;
+		//temp1 = eps0_c_Ex[offset] * _C5p;
+		//eps0_c_Ex[offset] += Pcp1x[offset] * A;
+		//Pcp1x[offset] += temp1 * B;
+		//temp1 = eps0_c_Ey[offset] * _C5p;
+		//eps0_c_Ey[offset] += Pcp1y[offset] * A;
+		//Pcp1x[offset] += temp1 * B;
+		//temp1 = eps0_c_Ey[offset] * _C5p;
+		//eps0_c_Ez[offset] += Pcp1z[offset] * A;
+		//Pcp1x[offset] += temp1 * B;
+
+		//loop unrolling
+		//float temp1, temp2, temp3;
+		//temp1 = eps0_c_Ex[offset] * _C5p;
+		//temp2 = eps0_c_Ey[offset] * _C5p;
+		//temp3 = eps0_c_Ey[offset] * _C5p;
+		//eps0_c_Ex[offset] += Pcp1x[offset] * A;
+		//eps0_c_Ey[offset] += Pcp1y[offset] * A;
+		//eps0_c_Ez[offset] += Pcp1z[offset] * A;
+		//Pcp1x[offset] += temp1 * B;
+		//Pcp1x[offset] += temp2 * B;
+		//Pcp1x[offset] += temp3 * B;
+
 		eps0_c_Ex[offset] += (Hy[offset - _offsetZ] - Hy[offset] + Hz[offset - _offsetZ] - Hz[offset - _offsetY - _offsetZ]) * eps_r_inv[offset] * _cdt;
 		eps0_c_Ey[offset] += (Hz[offset - _offsetZ] - Hz[offset + _offsetX - _offsetZ] + Hx[offset] - Hx[offset - _offsetZ]) * eps_r_inv[offset] * _cdt;
 		eps0_c_Ez[offset] += (Hx[offset - _offsetX - _offsetY] - Hx[offset - _offsetX] + Hy[offset] - Hy[offset - _offsetX]) * eps_r_inv[offset] * _cdt;
+
+		
+		
 	}
+	SWAP(eps0_c_Ex, eps0_c_Ex_old);
+	SWAP(eps0_c_Ey, eps0_c_Ey_old);
+	SWAP(eps0_c_Ez, eps0_c_Ez_old);
 }
 
 #define _syncX_(FIELD) \
@@ -362,7 +432,7 @@ int snapshot(void)
 		printf("\n");
 		//if (Y%_blockDimY == _blockDimY -1 ){			for (int X = 0; X < _DimX; X++) 	{				printf("%07.3f ", eps0_c_Ex[_INDEX_XYZ(X, _blockDimY, Z)]);			}printf("\n");		}
 	}
-	return;
+	return (0) ;
 	printf("\n");
 	printf("Y=2\n");
 	for (int Z = 0; Z < _DimZ; Z++) {

@@ -8,16 +8,16 @@
 #define _DimZ (30)
 
 #define _S_factor (2.0f)
-#define _dx (1.0f)
-//#define _dx (1e-6)
+//#define _dx (1.0f)
+#define _dx (1e-7)
 
 
-#define _c0 (1.0f)
-//#define _c0 299792458.0f
+//#define _c0 (1.0f)
+#define _c0 299792458.0f
 #define _USE_MATH_DEFINES
 #define _mu0_ ( 4e-7 * M_PI )
 #define _eps0_ ( 1.0f / _c0 / _c0 / _mu0_ )
-#define _dt (_dx / _c0 / _S_factor)
+#define _dt_ (_dx / _c0 / _S_factor)
 #define _cdt (_dx / _S_factor)
 float stability_factor_inv = 1.0f / _S_factor; //not good
 
@@ -49,27 +49,34 @@ float stability_factor_inv = 1.0f / _S_factor; //not good
 #define _b21 (1.0f)
 #define _b22 (1.0f)
 
-#define _C1_ ( (_b21 / _dt / _dt) + (_b11 * 0.5f / _dt) + (_b01 * 0.25f) )
-#define _C2_ ( (_b22 / _dt / _dt) + (_b12 * 0.5f / _dt) + (_b02 * 0.25f) )
-#define _C11 ( ( ( 2.0f*_b21/_dt/_dt ) - (_b01*0.5f) ) / _C1_ )
-#define _C12 ( ( ( 2.0f*_b22/_dt/_dt ) - (_b02*0.5f) ) / _C2_ )
-#define _C21 ( ( ( _b11 * 0.5f / _dt ) - ( _b21 / _dt / _dt ) - ( _b01 * 0.25f ) ) / _C1_ )
-#define _C22 ( ( ( _b12 * 0.5f / _dt ) - ( _b22 / _dt / _dt ) - ( _b02 * 0.25f ) ) / _C2_ )
-#define _C31 ( ( ( _a01 * 0.25f ) + ( _a11 * 0.5f / _dt ) ) / _C1_ )
-#define _C32 ( ( ( _a02 * 0.25f ) + ( _a12 * 0.5f / _dt ) ) / _C2_ )
+#define _C1_ ( (_b21 / _dt_ / _dt_) + (_b11 * 0.5f / _dt_) + (_b01 * 0.25f) )
+#define _C2_ ( (_b22 / _dt_ / _dt_) + (_b12 * 0.5f / _dt_) + (_b02 * 0.25f) )
+#define _C11 ( ( ( 2.0f*_b21/_dt_/_dt_ ) - (_b01*0.5f) ) / _C1_ )
+#define _C12 ( ( ( 2.0f*_b22/_dt_/_dt_ ) - (_b02*0.5f) ) / _C2_ )
+#define _C21 ( ( ( _b11 * 0.5f / _dt_ ) - ( _b21 / _dt_ / _dt_ ) - ( _b01 * 0.25f ) ) / _C1_ )
+#define _C22 ( ( ( _b12 * 0.5f / _dt_ ) - ( _b22 / _dt_ / _dt_ ) - ( _b02 * 0.25f ) ) / _C2_ )
+#define _C31 ( ( ( _a01 * 0.25f ) + ( _a11 * 0.5f / _dt_ ) ) / _C1_ )
+#define _C32 ( ( ( _a02 * 0.25f ) + ( _a12 * 0.5f / _dt_ ) ) / _C2_ )
 #define _C41 ( _a01 * 0.5f / _C1_ )
 #define _C42 ( _a02 * 0.5f / _C2_ )
-#define _C51 ( ( _a01 * 0.25f ) - ( _a11 * 0.5f / _dt ) ) / _C1_
-#define _C52 ( ( _a02 * 0.25f ) - ( _a12 * 0.5f / _dt ) ) / _C2_
+#define _C51 ( ( _a01 * 0.25f ) - ( _a11 * 0.5f / _dt_ ) ) / _C1_
+#define _C52 ( ( _a02 * 0.25f ) - ( _a12 * 0.5f / _dt_ ) ) / _C2_
+#define _C4p ( _C41 + _C42 )
 #define _C5p ( _C51 + _C52 )
 
+//#define _dq_ ( ( 1.0f / _dt_ / _dt_ ) + ( _gamma_D  * 0.5f / _dt_ ) )
+//#define _d1q ( 2.0f / _dq_ / _dt_ / _dt_ )
+//#define _d2q ( ( _gamma_D * 0.5f / _dt_ ) - ( 1 / _dt_ / _dt_ ) ) / _dq_
+//#define _d3q_div_eps0 ( _omega_D * _omega_D * 0.25f / _dq_ )
+//#define _d4q_div_eps0 ( _omega_D * _omega_D * 0.5f / _dq_ )
+//#define _d5q_div_eps0 _d3q_div_eps0
 //single drude pole
-#define _dq_ ( ( 1.0f / _dt / _dt ) + ( _gamma_D  * 0.5f / _dt ) )
-#define _d1q ( 2.0f / _dq_ / _dt / _dt )
-#define _d2q ( ( _gamma_D * 0.5f / _dt ) - ( 1 / _dt / _dt ) ) / _dq_
-#define _d3q_div_eps0 ( _omega_D * _omega_D * 0.25f / _dq_ )
-#define _d4q_div_eps0 ( _omega_D * _omega_D * 0.5f / _dq_ )
-#define _d5q_div_eps0 _d3q_div_eps0
+//check eq24 --> slightly different from drude eq
+#define _gamma__ (_gamma_D)
+//FIXME : gamma = gamma_D ?  check
+#define _d1 ( ( 2.0f - _gamma__ * _dt_ ) / ( 2 + _gamma__ * _dt_) )
+#define _d2 (_eps0_ * _omega_D * _omega_D  * _dt_ / (2 + _gamma__ * _dt_) / _gamma__ )
+#define _sigma_ (_eps0_ * _omega_D * _omega_D / _gamma__ )
 
 #include "stdio.h"
 #include "stdlib.h"
@@ -127,19 +134,28 @@ __declspec(align(32)) float eps0_c_Ez[_threadPerGrid] = { 0 };
 __declspec(align(32)) float eps0_c_Ex_old[_threadPerGrid] = { 0 };
 __declspec(align(32)) float eps0_c_Ey_old[_threadPerGrid] = { 0 };
 __declspec(align(32)) float eps0_c_Ez_old[_threadPerGrid] = { 0 };
-__declspec(align(32)) float Pdx[_threadPerGrid] = { 0 };
-__declspec(align(32)) float Pdy[_threadPerGrid] = { 0 };
-__declspec(align(32)) float Pdz[_threadPerGrid] = { 0 };
-__declspec(align(32)) float Pcp1x[_threadPerGrid] = { 0 };
-__declspec(align(32)) float Pcp1y[_threadPerGrid] = { 0 };
-__declspec(align(32)) float Pcp1z[_threadPerGrid] = { 0 };
-__declspec(align(32)) float Pcp2x[_threadPerGrid] = { 0 };
-__declspec(align(32)) float Pcp2y[_threadPerGrid] = { 0 };
-__declspec(align(32)) float Pcp2z[_threadPerGrid] = { 0 };
+__declspec(align(32)) float eps0_c_Pdx[_threadPerGrid] = { 0 };
+__declspec(align(32)) float eps0_c_Pdy[_threadPerGrid] = { 0 };
+__declspec(align(32)) float eps0_c_Pdz[_threadPerGrid] = { 0 };
+__declspec(align(32)) float eps0_c_Pcp1x[_threadPerGrid] = { 0 };
+__declspec(align(32)) float eps0_c_Pcp1y[_threadPerGrid] = { 0 };
+__declspec(align(32)) float eps0_c_Pcp1z[_threadPerGrid] = { 0 };
+__declspec(align(32)) float eps0_c_Pcp2x[_threadPerGrid] = { 0 };
+__declspec(align(32)) float eps0_c_Pcp2y[_threadPerGrid] = { 0 };
+__declspec(align(32)) float eps0_c_Pcp2z[_threadPerGrid] = { 0 };
+__declspec(align(32)) float eps0_c_Pcp1x_old[_threadPerGrid] = { 0 };
+__declspec(align(32)) float eps0_c_Pcp1y_old[_threadPerGrid] = { 0 };
+__declspec(align(32)) float eps0_c_Pcp1z_old[_threadPerGrid] = { 0 };
+__declspec(align(32)) float eps0_c_Pcp2x_old[_threadPerGrid] = { 0 };
+__declspec(align(32)) float eps0_c_Pcp2y_old[_threadPerGrid] = { 0 };
+__declspec(align(32)) float eps0_c_Pcp2z_old[_threadPerGrid] = { 0 };
 __declspec(align(32)) float Hx[_threadPerGrid] = { 0 };
 __declspec(align(32)) float Hy[_threadPerGrid] = { 0 };
 __declspec(align(32)) float Hz[_threadPerGrid] = { 0 };
 __declspec(align(32)) float eps_r_inv[_threadPerGrid] = { 0 };
+__declspec(align(32)) float tempx[_threadPerGrid] = { 0 };
+__declspec(align(32)) float tempy[_threadPerGrid] = { 0 };
+__declspec(align(32)) float tempz[_threadPerGrid] = { 0 };
 
 __m256* mEx = (__m256*)eps0_c_Ex;
 __m256* mEy = (__m256*)eps0_c_Ey;
@@ -165,7 +181,7 @@ int main(int argc, char* argv[])
 
 	printf("S       \t%01.2e\n", _S_factor);
 	printf("c0      \t%01.2e\n", _c0);
-	printf("dt      \t%01.2e\n", _dt);
+	printf("dt      \t%01.2e\n", _dt_);
 	printf("dx      \t%01.2e\n", _dx);
 	printf("\n");
 
@@ -181,12 +197,12 @@ int main(int argc, char* argv[])
 	time_t start;
 
 	start = clock();
-	for (int i = 0; i < 1; i++) { syncPadding(); Dielectric_HE_C(); }
+	for (int i = 0; i < 5; i++) { syncPadding(); DCP_HE_C(); }
 	printf("time : %f\n", (double)(clock() - start) / CLK_TCK);
 
-	start = clock();
-	for (int i = 0; i < 1; i++) { syncPadding(); Dielectric_HE(); }
-	printf("time : %f\n", (double)(clock() - start) / CLK_TCK);
+	//start = clock();
+	//for (int i = 0; i < 1; i++) { syncPadding(); Dielectric_HE(); }
+	//printf("time : %f\n", (double)(clock() - start) / CLK_TCK);
 
 
 	syncPadding();
@@ -304,44 +320,108 @@ void Dielectric_HE(void)
 
 void DCP_HE_C(void)
 {
+	// before --> after
+	// temp --> E
+	// E --> E_old
+	// pcp_old <--> pcp
+
 	for (unsigned __int64 offset = 0; offset < _threadPerGrid; offset += 1) {
+		// H
 		Hx[offset] -= (eps0_c_Ey[offset] - eps0_c_Ey[offset + _offsetZ] + eps0_c_Ez[offset + _offsetX] - eps0_c_Ez[offset + _offsetX]) * _cdt;
 		Hy[offset] -= (eps0_c_Ez[offset] - eps0_c_Ez[offset + _offsetX] + eps0_c_Ex[offset + _offsetZ] - eps0_c_Ex[offset]) * _cdt;
 		Hz[offset] -= (eps0_c_Ex[offset + _offsetZ] - eps0_c_Ex[offset + _offsetY + _offsetZ] + eps0_c_Ey[offset + _offsetZ] - eps0_c_Ey[offset - _offsetX + _offsetZ]) * _cdt;
 
-		//float temp;
-		//temp1 = eps0_c_Ex[offset] * _C5p;
-		//eps0_c_Ex[offset] += Pcp1x[offset] * A;
-		//Pcp1x[offset] += temp1 * B;
-		//temp1 = eps0_c_Ey[offset] * _C5p;
-		//eps0_c_Ey[offset] += Pcp1y[offset] * A;
-		//Pcp1x[offset] += temp1 * B;
-		//temp1 = eps0_c_Ey[offset] * _C5p;
-		//eps0_c_Ez[offset] += Pcp1z[offset] * A;
-		//Pcp1x[offset] += temp1 * B;
+		// E
+		tempx[offset] = (Hy[offset - _offsetZ] - Hy[offset] + Hz[offset - _offsetZ] - Hz[offset - _offsetY - _offsetZ]) * eps_r_inv[offset] * _cdt;//eq30term1
+		tempy[offset] = (Hz[offset - _offsetZ] - Hz[offset + _offsetX - _offsetZ] + Hx[offset] - Hx[offset - _offsetZ]) * eps_r_inv[offset] * _cdt;
+		tempz[offset] = (Hx[offset - _offsetX - _offsetY] - Hx[offset - _offsetX] + Hy[offset] - Hy[offset - _offsetX]) * eps_r_inv[offset] * _cdt;
+		tempx[offset] += eps0_c_Ex[offset] * (_eps0_ * _eps_inf - 0.5f * _sigma_ * _dt_ + _d2 - _C4p); //eq30term2
+		tempy[offset] += eps0_c_Ey[offset] * (_eps0_ * _eps_inf - 0.5f * _sigma_ * _dt_ + _d2 - _C4p);
+		tempz[offset] += eps0_c_Ez[offset] * (_eps0_ * _eps_inf - 0.5f * _sigma_ * _dt_ + _d2 - _C4p);
+		tempx[offset] -= eps0_c_Ex_old[offset] * _C5p; //eq30term3
+		tempy[offset] -= eps0_c_Ey_old[offset] * _C5p;
+		tempz[offset] -= eps0_c_Ez_old[offset] * _C5p;
+		tempx[offset] -= eps0_c_Pdx[offset] * (_d1 - 1); //eq30term4
+		tempy[offset] -= eps0_c_Pdy[offset] * (_d1 - 1);
+		tempz[offset] -= eps0_c_Pdz[offset] * (_d1 - 1);
+		tempz[offset] -= eps0_c_Pdz[offset] * (_d1 - 1);
+		tempx[offset] -= eps0_c_Pcp1x[offset] * (_C11 - 1); //eq30term5
+		tempy[offset] -= eps0_c_Pcp1y[offset] * (_C11 - 1);
+		tempz[offset] -= eps0_c_Pcp1z[offset] * (_C11 - 1);
+		tempx[offset] -= eps0_c_Pcp2x[offset] * (_C12 - 1);
+		tempy[offset] -= eps0_c_Pcp2y[offset] * (_C12 - 1);
+		tempz[offset] -= eps0_c_Pcp2z[offset] * (_C12 - 1);
+		tempx[offset] -= eps0_c_Pcp2x[offset] * (_C12 - 1);
+		tempy[offset] -= eps0_c_Pcp2y[offset] * (_C12 - 1);
+		tempz[offset] -= eps0_c_Pcp2z[offset] * (_C12 - 1);
+		tempx[offset] -= eps0_c_Pcp1x_old[offset] * _C21; //eq30term6
+		tempy[offset] -= eps0_c_Pcp1y_old[offset] * _C21;
+		tempz[offset] -= eps0_c_Pcp1z_old[offset] * _C21;
+		tempx[offset] -= eps0_c_Pcp2x_old[offset] * _C22;
+		tempy[offset] -= eps0_c_Pcp2y_old[offset] * _C22;
+		tempz[offset] -= eps0_c_Pcp2z_old[offset] * _C22;
 
-		//loop unrolling
-		//float temp1, temp2, temp3;
-		//temp1 = eps0_c_Ex[offset] * _C5p;
-		//temp2 = eps0_c_Ey[offset] * _C5p;
-		//temp3 = eps0_c_Ey[offset] * _C5p;
-		//eps0_c_Ex[offset] += Pcp1x[offset] * A;
-		//eps0_c_Ey[offset] += Pcp1y[offset] * A;
-		//eps0_c_Ez[offset] += Pcp1z[offset] * A;
-		//Pcp1x[offset] += temp1 * B;
-		//Pcp1x[offset] += temp2 * B;
-		//Pcp1x[offset] += temp3 * B;
+		//PCP
+		eps0_c_Pcp1x_old[offset] *= _C21; //eq14term2
+		eps0_c_Pcp1y_old[offset] *= _C21;
+		eps0_c_Pcp1z_old[offset] *= _C21;
+		eps0_c_Pcp2x_old[offset] *= _C22;
+		eps0_c_Pcp2y_old[offset] *= _C22;
+		eps0_c_Pcp2z_old[offset] *= _C22;
+		eps0_c_Pcp1x_old[offset] += eps0_c_Pcp1x[offset] * _C11; //eq14term1
+		eps0_c_Pcp1y_old[offset] += eps0_c_Pcp1y[offset] * _C11;
+		eps0_c_Pcp1z_old[offset] += eps0_c_Pcp1z[offset] * _C11;
+		eps0_c_Pcp2x_old[offset] += eps0_c_Pcp2x[offset] * _C12;
+		eps0_c_Pcp2y_old[offset] += eps0_c_Pcp2y[offset] * _C12;
+		eps0_c_Pcp2z_old[offset] += eps0_c_Pcp2z[offset] * _C12;
+		eps0_c_Pcp1x_old[offset] += tempx[offset] * _C31; //eq14term3
+		eps0_c_Pcp1y_old[offset] += tempy[offset] * _C31;
+		eps0_c_Pcp1z_old[offset] += tempz[offset] * _C31;
+		eps0_c_Pcp2x_old[offset] += tempx[offset] * _C32;
+		eps0_c_Pcp2y_old[offset] += tempy[offset] * _C32;
+		eps0_c_Pcp2z_old[offset] += tempz[offset] * _C32;
+		eps0_c_Pcp1x_old[offset] += eps0_c_Ex[offset] * _C41; //eq14term4
+		eps0_c_Pcp1y_old[offset] += eps0_c_Ey[offset] * _C41;
+		eps0_c_Pcp1z_old[offset] += eps0_c_Ez[offset] * _C41;
+		eps0_c_Pcp2x_old[offset] += eps0_c_Ex[offset] * _C42;
+		eps0_c_Pcp2y_old[offset] += eps0_c_Ey[offset] * _C42;
+		eps0_c_Pcp2z_old[offset] += eps0_c_Ez[offset] * _C42;
+		eps0_c_Pcp1x_old[offset] += eps0_c_Ex_old[offset] * _C51; //eq14term5
+		eps0_c_Pcp1y_old[offset] += eps0_c_Ey_old[offset] * _C51;
+		eps0_c_Pcp1z_old[offset] += eps0_c_Ez_old[offset] * _C51;
+		eps0_c_Pcp2x_old[offset] += eps0_c_Ex_old[offset] * _C52;
+		eps0_c_Pcp2y_old[offset] += eps0_c_Ey_old[offset] * _C52;
+		eps0_c_Pcp2z_old[offset] += eps0_c_Ez_old[offset] * _C52;
+		//eps0_c_Ex_old can be used as temp var here now
 
-		eps0_c_Ex[offset] += (Hy[offset - _offsetZ] - Hy[offset] + Hz[offset - _offsetZ] - Hz[offset - _offsetY - _offsetZ]) * eps_r_inv[offset] * _cdt;
-		eps0_c_Ey[offset] += (Hz[offset - _offsetZ] - Hz[offset + _offsetX - _offsetZ] + Hx[offset] - Hx[offset - _offsetZ]) * eps_r_inv[offset] * _cdt;
-		eps0_c_Ez[offset] += (Hx[offset - _offsetX - _offsetY] - Hx[offset - _offsetX] + Hy[offset] - Hy[offset - _offsetX]) * eps_r_inv[offset] * _cdt;
+		//PD
+		eps0_c_Pdx[offset] *= _d1; //eq27term1
+		eps0_c_Pdy[offset] *= _d1; 
+		eps0_c_Pdz[offset] *= _d1; 
+		eps0_c_Pdx[offset] -= tempx[offset] * _d2; //eq27term2
+		eps0_c_Pdy[offset] -= tempy[offset] * _d2;
+		eps0_c_Pdz[offset] -= tempz[offset] * _d2;
+		eps0_c_Pdx[offset] -= eps0_c_Ex[offset] * _d2; //eq27term3
+		eps0_c_Pdy[offset] -= eps0_c_Ey[offset] * _d2;
+		eps0_c_Pdz[offset] -= eps0_c_Ez[offset] * _d2;
 
-		
-		
 	}
-	SWAP(eps0_c_Ex, eps0_c_Ex_old);
-	SWAP(eps0_c_Ey, eps0_c_Ey_old);
-	SWAP(eps0_c_Ez, eps0_c_Ez_old);
+
+	SWAP(tempx, eps0_c_Ex);
+	SWAP(tempy, eps0_c_Ey);
+	SWAP(tempz, eps0_c_Ez);
+
+	SWAP(tempx, eps0_c_Ex_old);
+	SWAP(tempy, eps0_c_Ey_old);
+	SWAP(tempz, eps0_c_Ez_old);
+
+	SWAP(eps0_c_Pcp1x_old, eps0_c_Pcp1x);
+	SWAP(eps0_c_Pcp1y_old, eps0_c_Pcp1y);
+	SWAP(eps0_c_Pcp1z_old, eps0_c_Pcp1z);
+	SWAP(eps0_c_Pcp2x_old, eps0_c_Pcp2x);
+	SWAP(eps0_c_Pcp2y_old, eps0_c_Pcp2y);
+	SWAP(eps0_c_Pcp2z_old, eps0_c_Pcp2z);
+
 }
 
 #define _syncX_(FIELD) \

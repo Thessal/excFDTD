@@ -198,9 +198,10 @@ int main(int argc, char* argv[])
 	time_t start;
 
 	start = clock();
-	for (int i = 0; i < 200; i++) {
-		syncPadding(); Dielectric_HE_C();
-		eps0_c_Ex[_INDEX_XYZ(5, 6, 15)] += cos(2.0f * M_PI * _c0 / 1e-7 * (float)i * _dt_);
+//	eps0_c_Ex[_INDEX_XYZ(5, 11, 15)] += cos(2.0f * M_PI * _c0 / 1e-7 * (float)i * _dt_);
+	eps0_c_Ex[_INDEX_XYZ(3, 11, 15)] = 1.0f;
+	for (int i = 0; i < 1; i++) {
+		Dielectric_HE_C();
 	}
 	printf("time : %f\n", (double)(clock() - start) / CLK_TCK);
 
@@ -208,9 +209,6 @@ int main(int argc, char* argv[])
 	//for (int i = 0; i < 1; i++) { syncPadding(); Dielectric_HE(); }
 	//printf("time : %f\n", (double)(clock() - start) / CLK_TCK);
 
-
-	syncPadding();
-	
 	snapshot();
 
 	return 0;
@@ -218,10 +216,15 @@ int main(int argc, char* argv[])
 
 void Dielectric_HE_C(void)
 {
+	syncPadding();
+	//FIXME : Padding에 잘못된 값이 채워지면 한 루프 내에서 다시 참조되므로 Padding을 이때 업데이트하면 안됨
 	for (unsigned __int64 offset = 0; offset < _threadPerGrid; offset += 1) {
 		Hx[offset] -= (eps0_c_Ey[offset] - eps0_c_Ey[offset + _offsetZ] + eps0_c_Ez[offset + _offsetX] - eps0_c_Ez[offset + _offsetX]) * _cdt;
 		Hy[offset] -= (eps0_c_Ez[offset] - eps0_c_Ez[offset + _offsetX] + eps0_c_Ex[offset + _offsetZ] - eps0_c_Ex[offset]) *_cdt;
 		Hz[offset] -= (eps0_c_Ex[offset + _offsetZ] - eps0_c_Ex[offset + _offsetY + _offsetZ] + eps0_c_Ey[offset + _offsetZ] - eps0_c_Ey[offset - _offsetX + _offsetZ]) * _cdt;
+	}
+	syncPadding();
+	for (unsigned __int64 offset = 0; offset < _threadPerGrid; offset += 1) {
 		eps0_c_Ex[offset] += (Hy[offset - _offsetZ] - Hy[offset] + Hz[offset - _offsetZ] - Hz[offset - _offsetY - _offsetZ]) * eps_r_inv[offset] * _cdt;
 		eps0_c_Ey[offset] += (Hz[offset - _offsetZ] - Hz[offset + _offsetX - _offsetZ] + Hx[offset] - Hx[offset - _offsetZ]) * eps_r_inv[offset] * _cdt;
 		eps0_c_Ez[offset] += (Hx[offset - _offsetX - _offsetY] - Hx[offset - _offsetX] + Hy[offset] - Hy[offset - _offsetX]) * eps_r_inv[offset] * _cdt;
@@ -433,37 +436,25 @@ void DCP_HE_C(void)
 
 #define _syncX_(FIELD) \
 FIELD[_INDEX_THREAD(X - 1, Y, Z, _blockDimX - 1, yy, zz)] = FIELD[_INDEX_THREAD(X, Y, Z, 1, yy, zz)]; \
-FIELD[_INDEX_THREAD(X, Y, Z, 0, yy, zz)] = FIELD[_INDEX_THREAD(X - 1, Y, Z, _blockDimX - 2, yy, zz)]; 
+FIELD[_INDEX_THREAD(X, Y, Z, 0, yy, zz)] = FIELD[_INDEX_THREAD(X - 1, Y, Z, _blockDimX - 2, yy, zz)];
 #define _syncY_(FIELD) \
 FIELD[_INDEX_THREAD(X, Y - 1, Z, xx, _blockDimY - 1, zz)] = FIELD[_INDEX_THREAD(X, Y, Z, xx, 1, zz)]; \
 FIELD[_INDEX_THREAD(X, Y, Z, xx, 0, zz)] = FIELD[_INDEX_THREAD(X, Y - 1, Z, xx, _blockDimY - 2, zz)]; 
 #define _syncZ_(FIELD) \
 FIELD[_INDEX_THREAD(X, Y, Z - 1, xx, yy, _blockDimZ - 1)] = FIELD[_INDEX_THREAD(X, Y, Z, xx, yy, 1)]; \
 FIELD[_INDEX_THREAD(X, Y, Z, xx, yy, 0)] = FIELD[_INDEX_THREAD(X, Y, Z - 1, xx, yy, _blockDimZ - 2)];
-#define _syncXall _syncX_(eps0_c_Ex) _syncX_(eps0_c_Ey) _syncX_(eps0_c_Ez) \
-_syncX_(eps0_c_Ex_old) _syncX_(eps0_c_Ey_old) _syncX_(eps0_c_Ez_old)  \
+#define _syncXall _syncX_(eps0_c_Ex) _syncX_(eps0_c_Ey) _syncX_(eps0_c_Ez) _syncX_(Hx)  _syncX_(Hy) _syncX_(Hz) \
 _syncX_(eps0_c_Pdx) _syncX_(eps0_c_Pdy) _syncX_(eps0_c_Pdz)  \
 _syncX_(eps0_c_Pcp1x) _syncX_(eps0_c_Pcp1y) _syncX_(eps0_c_Pcp1z)  \
-_syncX_(eps0_c_Pcp2x) _syncX_(eps0_c_Pcp2y) _syncX_(eps0_c_Pcp2z)  \
-_syncX_(eps0_c_Pcp1x_old) _syncX_(eps0_c_Pcp1y_old) _syncX_(eps0_c_Pcp1z_old)  \
-_syncX_(eps0_c_Pcp2x_old) _syncX_(eps0_c_Pcp2y_old) _syncX_(eps0_c_Pcp2z_old)  \
-_syncX_(Hx)  _syncX_(Hy) _syncX_(Hz) 
-#define _syncYall _syncY_(eps0_c_Ex) _syncY_(eps0_c_Ey) _syncY_(eps0_c_Ez) \
-_syncY_(eps0_c_Ex_old) _syncY_(eps0_c_Ey_old) _syncY_(eps0_c_Ez_old)  \
+_syncX_(eps0_c_Pcp2x) _syncX_(eps0_c_Pcp2y) _syncX_(eps0_c_Pcp2z)  
+#define _syncYall _syncY_(eps0_c_Ex) _syncY_(eps0_c_Ey) _syncY_(eps0_c_Ez) _syncY_(Hx)  _syncY_(Hy) _syncY_(Hz) \
 _syncY_(eps0_c_Pdx) _syncY_(eps0_c_Pdy) _syncY_(eps0_c_Pdz)  \
 _syncY_(eps0_c_Pcp1x) _syncY_(eps0_c_Pcp1y) _syncY_(eps0_c_Pcp1z)  \
-_syncY_(eps0_c_Pcp2x) _syncY_(eps0_c_Pcp2y) _syncY_(eps0_c_Pcp2z)  \
-_syncY_(eps0_c_Pcp1x_old) _syncY_(eps0_c_Pcp1y_old) _syncY_(eps0_c_Pcp1z_old)  \
-_syncY_(eps0_c_Pcp2x_old) _syncY_(eps0_c_Pcp2y_old) _syncY_(eps0_c_Pcp2z_old)  \
-_syncY_(Hx)  _syncY_(Hy) _syncY_(Hz) 
-#define _syncZall _syncZ_(eps0_c_Ex) _syncZ_(eps0_c_Ey) _syncZ_(eps0_c_Ez) \
-_syncZ_(eps0_c_Ex_old) _syncZ_(eps0_c_Ey_old) _syncZ_(eps0_c_Ez_old)  \
+_syncY_(eps0_c_Pcp2x) _syncY_(eps0_c_Pcp2y) _syncY_(eps0_c_Pcp2z)  
+#define _syncZall _syncZ_(eps0_c_Ex) _syncZ_(eps0_c_Ey) _syncZ_(eps0_c_Ez) _syncZ_(Hx)  _syncZ_(Hy) _syncZ_(Hz) \
 _syncZ_(eps0_c_Pdx) _syncZ_(eps0_c_Pdy) _syncZ_(eps0_c_Pdz)  \
 _syncZ_(eps0_c_Pcp1x) _syncZ_(eps0_c_Pcp1y) _syncZ_(eps0_c_Pcp1z)  \
-_syncZ_(eps0_c_Pcp2x) _syncZ_(eps0_c_Pcp2y) _syncZ_(eps0_c_Pcp2z)  \
-_syncZ_(eps0_c_Pcp1x_old) _syncZ_(eps0_c_Pcp1y_old) _syncZ_(eps0_c_Pcp1z_old)  \
-_syncZ_(eps0_c_Pcp2x_old) _syncZ_(eps0_c_Pcp2y_old) _syncZ_(eps0_c_Pcp2z_old)  \
-_syncZ_(Hx)  _syncZ_(Hy) _syncZ_(Hz) 
+_syncZ_(eps0_c_Pcp2x) _syncZ_(eps0_c_Pcp2y) _syncZ_(eps0_c_Pcp2z)  
 
 
 //이거 안넣으면 boundary에서 index 1 shift 있음
@@ -471,8 +462,11 @@ _syncZ_(Hx)  _syncZ_(Hy) _syncZ_(Hz)
 //FIELD[_INDEX_THREAD(_gridDimX-1, Y, Z, _blockDimX - 1, yy, zz)] = FIELD[_INDEX_THREAD(0, Y, Z, 1, yy, zz)]; \
 //FIELD[_INDEX_THREAD(0, Y, Z, 0, yy, zz)] = FIELD[_INDEX_THREAD(_gridDimX-1, Y, Z, _blockDimX - 2, yy, zz)]; \
 //#define _syncBoundaryall _syncBoundary(eps0_c_Ex) _syncBoundary(eps0_c_Ey) _syncBoundary(eps0_c_Ez)  _syncBoundary(Hx)  _syncBoundary(Hy) _syncBoundary(Hz) 
+#define STR(x)   #x
+#define SHOW_DEFINE(x) printf("%s=%s\n", #x, STR(x))
 
 void syncPadding(void) {
+//	SHOW_DEFINE(_syncXall);
 	for (int X = 1; X < _gridDimX; X++)
 		for (int Y = 1; Y < _gridDimY; Y++)
 			for (int Z = 1; Z < _gridDimZ; Z++) {
@@ -532,6 +526,9 @@ int snapshot(void)
 		for (int X = 0; X < _DimX; X++) {
 			//if (X%_blockDimX == 0) { printf("%07.1f ", eps0_c_Ex[_INDEX_XYZ(-1, Y, Z)]);}
 			printf("%04.3e ", TEMP[_INDEX_XYZ(X, Y, Z) ]);
+			//printf("(%d,%d,%d,%d,%d,%d)=%d ", ((X)) / (_blockDimX - 2), ((Y)) / (_blockDimY - 2), ((Z)) / (_blockDimZ - 2), ((X)) % (_blockDimX - 2) + 1, ((Y)) % (_blockDimY - 2) + 1, ((Z)) % (_blockDimZ - 2) + 1, _INDEX_XYZ(X, Y, Z));
+			
+
 			//printf("%06.0f \t", eps0_c_Ex[_INDEX_XYZ(X, Y, Z)]);
 			//printf("%d \t", _INDEX_BLOCK(X/(_blockDimX-2), Y/(_blockDimY-2), Z/(_blockDimZ-2)));
 			//printf("%d \t",Y/_blockDimY);

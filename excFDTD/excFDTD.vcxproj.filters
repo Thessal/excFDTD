@@ -18,5 +18,13 @@
     <ClCompile Include="excFDTD.c">
       <Filter>소스 파일</Filter>
     </ClCompile>
+    <ClCompile Include="lodepng.c">
+      <Filter>소스 파일</Filter>
+    </ClCompile>
+  </ItemGroup>
+  <ItemGroup>
+    <ClInclude Include="lodepng.h">
+      <Filter>소스 파일</Filter>
+    </ClInclude>
   </ItemGroup>
 </Project>

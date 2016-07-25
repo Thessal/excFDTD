@@ -165,7 +165,7 @@ __declspec(align(32)) float eps0_c_Pcp2z_old[_threadPerGrid] = { 0.0f };
 __declspec(align(32)) float Hx[_threadPerGrid] = { 0.0f };
 __declspec(align(32)) float Hy[_threadPerGrid] = { 0.0f };
 __declspec(align(32)) float Hz[_threadPerGrid] = { 0.0f };
-__declspec(align(32)) float eps_r_inv[_threadPerGrid] = { 1.0f };
+__declspec(align(32)) float eps_r_inv[_threadPerGrid] = { 1.0f }; //1.0f not filled
 __declspec(align(32)) float tempx[_threadPerGrid] = { 0.0f };
 __declspec(align(32)) float tempy[_threadPerGrid] = { 0.0f };
 __declspec(align(32)) float tempz[_threadPerGrid] = { 0.0f };
@@ -183,7 +183,7 @@ __declspec(align(32)) float eps0_c_Sz[_threadPerGrid] = { 0.0f };
 __declspec(align(32)) float sigmaX[_threadPerGrid] = { 0.0f };
 __declspec(align(32)) float sigmaY[_threadPerGrid] = { 0.0f };
 __declspec(align(32)) float sigmaZ[_threadPerGrid] = { 0.0f };
-__declspec(align(32)) float kappaX[_threadPerGrid] = { 1.0f };
+__declspec(align(32)) float kappaX[_threadPerGrid] = { 1.0f }; //1.0f not filled
 __declspec(align(32)) float kappaY[_threadPerGrid] = { 1.0f };
 __declspec(align(32)) float kappaZ[_threadPerGrid] = { 1.0f };
 __declspec(align(32)) float alpha[_threadPerGrid] = { 0.0f };
@@ -286,22 +286,45 @@ void Dielectric_HE_C(void)
 	for (unsigned __int64 offset = 0; offset < _threadPerGrid; offset += 1)
 	{
 		//FIXME : for(if()) 보다 각 면에 대해 for문 6개 돌리는 것이 이득
-		if (((mask[offset] & (1 << 2)) >> 2) == 1) // PMLx
-		{
+		if (((mask[offset] & (1 << 1)) >> 1) == 1) // PML
+			{
 			//FIXME : constants need to be pre calculated
-			//FIXME : X만 계산하는 중임
-			//FIXME : div by 0 (kappaZ)
 			tempx[offset] = eps0_c_Sx[offset];
 
-			eps0_c_Sx[offset] *= (_eps0_ * kappaY[offset] - 0.5f * (sigmaY[offset] + alpha[offset] * kappaY[offset] * _dt_));
+			eps0_c_Sx[offset] *= (_eps0_ * kappaY[offset] - 0.5f * (sigmaY[offset] + alpha[offset] * kappaY[offset]) * _dt_);
 			eps0_c_Sx[offset] += (_eps0_ + 0.5f * alpha[offset] * _dt_) * (eps0_c_Rx[offset]);
 			eps0_c_Sx[offset] -= (_eps0_ - 0.5f * alpha[offset] * _dt_) * (eps0_c_Rx_old[offset]);
-			eps0_c_Sx[offset] /= (_eps0_ * kappaY[offset] + 0.5f * (sigmaY[offset] + alpha[offset] * kappaY[offset] * _dt_));
+			eps0_c_Sx[offset] /= (_eps0_ * kappaY[offset] + 0.5f * (sigmaY[offset] + alpha[offset] * kappaY[offset]) * _dt_);
 
-			eps0_c_Ex[offset] *= (_eps0_ * kappaZ[offset] - 0.5f * (sigmaZ[offset] + alpha[offset] * kappaZ[offset] * _dt_));
-			eps0_c_Ex[offset] += (_eps0_ * kappaX[offset] + 0.5f * (sigmaX[offset] + alpha[offset] * kappaX[offset] * _dt_)) * (eps0_c_Sx[offset]);
-			eps0_c_Ex[offset] -= (_eps0_ * kappaX[offset] + 0.5f * (sigmaX[offset] + alpha[offset] * kappaX[offset] * _dt_)) * (tempx[offset]);
-			eps0_c_Ex[offset] /= (_eps0_ * kappaZ[offset] + 0.5f * (sigmaZ[offset] + alpha[offset] * kappaZ[offset] * _dt_));
+			eps0_c_Ex[offset] *= (_eps0_ * kappaZ[offset] - 0.5f * (sigmaZ[offset] + alpha[offset] * kappaZ[offset]) * _dt_);
+			eps0_c_Ex[offset] += (_eps0_ * kappaX[offset] + 0.5f * (sigmaX[offset] + alpha[offset] * kappaX[offset]) * _dt_) * (eps0_c_Sx[offset]);
+			eps0_c_Ex[offset] -= (_eps0_ * kappaX[offset] + 0.5f * (sigmaX[offset] + alpha[offset] * kappaX[offset]) * _dt_) * (tempx[offset]);
+			eps0_c_Ex[offset] /= (_eps0_ * kappaZ[offset] + 0.5f * (sigmaZ[offset] + alpha[offset] * kappaZ[offset]) * _dt_);
+
+			tempy[offset] = eps0_c_Sy[offset];
+
+			eps0_c_Sy[offset] *= (_eps0_ * kappaZ[offset] - 0.5f * (sigmaZ[offset] + alpha[offset] * kappaZ[offset]) * _dt_);
+			eps0_c_Sy[offset] += (_eps0_ + 0.5f * alpha[offset] * _dt_) * (eps0_c_Ry[offset]);
+			eps0_c_Sy[offset] -= (_eps0_ - 0.5f * alpha[offset] * _dt_) * (eps0_c_Ry_old[offset]);
+			eps0_c_Sy[offset] /= (_eps0_ * kappaZ[offset] + 0.5f * (sigmaZ[offset] + alpha[offset] * kappaZ[offset]) * _dt_);
+
+			eps0_c_Ey[offset] *= (_eps0_ * kappaX[offset] - 0.5f * (sigmaX[offset] + alpha[offset] * kappaX[offset]) * _dt_);
+			eps0_c_Ey[offset] += (_eps0_ * kappaY[offset] + 0.5f * (sigmaY[offset] + alpha[offset] * kappaY[offset]) * _dt_) * (eps0_c_Sy[offset]);
+			eps0_c_Ey[offset] -= (_eps0_ * kappaY[offset] + 0.5f * (sigmaY[offset] + alpha[offset] * kappaY[offset]) * _dt_) * (tempy[offset]);
+			eps0_c_Ey[offset] /= (_eps0_ * kappaX[offset] + 0.5f * (sigmaX[offset] + alpha[offset] * kappaX[offset]) * _dt_);
+
+			tempz[offset] = eps0_c_Sz[offset];
+
+			eps0_c_Sz[offset] *= (_eps0_ * kappaX[offset] - 0.5f * (sigmaX[offset] + alpha[offset] * kappaX[offset]) * _dt_);
+			eps0_c_Sz[offset] += (_eps0_ + 0.5f * alpha[offset] * _dt_) * (eps0_c_Rz[offset]);
+			eps0_c_Sz[offset] -= (_eps0_ - 0.5f * alpha[offset] * _dt_) * (eps0_c_Rz_old[offset]);
+			eps0_c_Sz[offset] /= (_eps0_ * kappaX[offset] + 0.5f * (sigmaX[offset] + alpha[offset] * kappaX[offset]) * _dt_);
+
+			eps0_c_Ez[offset] *= (_eps0_ * kappaY[offset] - 0.5f * (sigmaY[offset] + alpha[offset] * kappaY[offset]) * _dt_);
+			eps0_c_Ez[offset] += (_eps0_ * kappaZ[offset] + 0.5f * (sigmaZ[offset] + alpha[offset] * kappaZ[offset]) * _dt_) * (eps0_c_Sz[offset]);
+			eps0_c_Ez[offset] -= (_eps0_ * kappaZ[offset] + 0.5f * (sigmaZ[offset] + alpha[offset] * kappaZ[offset]) * _dt_) * (tempz[offset]);
+			eps0_c_Ez[offset] /= (_eps0_ * kappaY[offset] + 0.5f * (sigmaY[offset] + alpha[offset] * kappaY[offset]) * _dt_);
+
 		}
 	}
 }
@@ -572,6 +595,9 @@ int init(void)
 	for (unsigned __int64 i = 0; i < _threadPerGrid; i++)
 	{
 		eps_r_inv[i] = 1.0f;
+		kappaX[i] = 1.0f;
+		kappaY[i] = 1.0f;
+		kappaZ[i] = 1.0f;
 		mask[i] = 0;
 
 		//Indexing
@@ -600,20 +626,23 @@ int init(void)
 		if ((X + 1 <= (pml_thick_x) || (_DimX)-(pml_thick_x) <= X)) {
 			mask[i] |= (1 << 1); // 1st bit : PML
 			mask[i] |= (1 << 2); // 2nd bit : PMLx
-			sigmaX[i] = pml_sigma_max * pow(fmin(fabs((pml_thick_x)-X), fabs((pml_thick_x)+X - (_DimX)+1)) / (pml_sigma_x), (pml_n));
-			kappaX[i] = 1 + (pml_kappa_max - 1) * pow(fmin(fabs((pml_thick_x)-X), fabs((pml_thick_x)+X - (_DimX)+1)) / (pml_sigma_x), (pml_n));
+			sigmaX[i] = pml_sigma_max * pow(fmin(fabs((pml_thick_x)-X), fabs((pml_thick_x)+X - (_DimX)+1)) / (pml_delta_x), (pml_n));
+			kappaX[i] = 1.0f + (pml_kappa_max - 1.0f) * pow(fmin(fabs((pml_thick_x)-X), fabs((pml_thick_x)+X - (_DimX)+1)) / (pml_delta_x), (pml_n));
+			alpha[i] = 1.0f;
 		}
 		if ((Y + 1 <= (pml_thick_y) || (_DimY)-(pml_thick_y) <= Y)) {
 			mask[i] |= (1 << 1); // 1st bit : PML
 			mask[i] |= (1 << 3); // 3rd bit : PMLy
-			sigmaY[i] = pml_sigma_max * pow(fmin(fabs((pml_thick_y)-Y), fabs((pml_thick_y)+Y - (_DimY)+1)) / (pml_sigma_y), (pml_n));
-			kappaY[i] = 1 + (pml_kappa_max - 1) * pow(fmin(fabs((pml_thick_y)-Y), fabs((pml_thick_y)+Y - (_DimY)+1)) / (pml_sigma_y), (pml_n));
+			sigmaY[i] = pml_sigma_max * pow(fmin(fabs((pml_thick_y)-Y), fabs((pml_thick_y)+Y - (_DimY)+1)) / (pml_delta_y), (pml_n));
+			kappaY[i] = 1.0f + (pml_kappa_max - 1.0f) * pow(fmin(fabs((pml_thick_y)-Y), fabs((pml_thick_y)+Y - (_DimY)+1)) / (pml_delta_y), (pml_n));
+			alpha[i] = 1.0f;
 		}
 		if ((Z + 1 <= (pml_thick_z) || (_DimZ)-(pml_thick_z) <= Z)) {
 			mask[i] |= (1 << 1); // 1st bit : PML
 			mask[i] |= (1 << 4); // 4th bit : PMLz
-			sigmaZ[i] = pml_sigma_max * pow(fmin(fabs((pml_thick_z)-Z), fabs((pml_thick_z)+Z - (_DimZ)+1)) / (pml_sigma_z), (pml_n));
-			kappaZ[i] = 1 + (pml_kappa_max - 1) * pow(fmin(fabs((pml_thick_z)-Z), fabs((pml_thick_z)+Z - (_DimZ)+1)) / (pml_sigma_z), (pml_n));
+			sigmaZ[i] = pml_sigma_max * pow(fmin(fabs((pml_thick_z)-Z), fabs((pml_thick_z)+Z - (_DimZ)+1)) / (pml_delta_z), (pml_n));
+			kappaZ[i] = 1.0f + (pml_kappa_max - 1.0f) * pow(fmin(fabs((pml_thick_z)-Z), fabs((pml_thick_z)+Z - (_DimZ)+1)) / (pml_delta_z), (pml_n));
+			alpha[i] = 1.0f;
 		}
 	}
 	printf("init done!");
@@ -621,11 +650,16 @@ int init(void)
 }
 #define TEMP eps0_c_Ex
 //#define TEMP kappaZ
+//#define TEMP alpha
 int snapshot(void)
 {
 	printf("Z=20\n");
-	int Z = 20;
-	for (int Y = 0; Y < _DimY; Y++) {
+	//int Z = 20;
+	//for (int Y = 0; Y < _DimY; Y++) {
+	//	//if (Y%_blockDimY == 0) { for (int X = 0; X < _DimX; X++) { printf("%07.3f ", eps0_c_Ex[_INDEX_XYZ(X, -1, Z)]);  } 	printf("\n");}
+	//	for (int X = 0; X < _DimX; X++) {
+	int Y = 20;
+	for (int Z = 0; Z < _DimZ; Z++) {
 		//if (Y%_blockDimY == 0) { for (int X = 0; X < _DimX; X++) { printf("%07.3f ", eps0_c_Ex[_INDEX_XYZ(X, -1, Z)]);  } 	printf("\n");}
 		for (int X = 0; X < _DimX; X++) {
 			//if (X%_blockDimX == 0) { printf("%07.1f ", eps0_c_Ex[_INDEX_XYZ(-1, Y, Z)]);}
@@ -651,17 +685,17 @@ int snapshot(void)
 	/*generate some image*/
 	unsigned width = _DimX, height = _DimY;
 	unsigned char* image = malloc(width * height * 4);
-	unsigned x, y;
-	for (y = 0; y < height; y++)
+	unsigned x, z;
+	for (z = 0; z < height; z++)
 		for (x = 0; x < width; x++)
 		{
-			int value = TEMP[_INDEX_XYZ(x, y, Z)] * 255.0f * 50.0f;
+			int value = TEMP[_INDEX_XYZ(x, Y, z)] * 255.0f * 50.0f;
 			value = value > 255 ? 255 : value;
 			value = value < -255 ? -255 : value;
-			image[4 * width * y + 4 * x + 0] = (unsigned char)(value>0? value : 0);
-			image[4 * width * y + 4 * x + 1] = (unsigned char)(50.0f);
-			image[4 * width * y + 4 * x + 2] = (unsigned char)(value<0 ? -value : 0);
-			image[4 * width * y + 4 * x + 3] = 255;
+			image[4 * width * z + 4 * x + 0] = (unsigned char)(value>0? value : 0);
+			image[4 * width * z + 4 * x + 1] = (unsigned char)(50.0f);
+			image[4 * width * z + 4 * x + 2] = (unsigned char)(value<0 ? -value : 0);
+			image[4 * width * z + 4 * x + 3] = 255;
 		}
 
 	unsigned error = lodepng_encode32_file(filename, image, width, height);

@@ -276,8 +276,10 @@ void Dielectric_HE_C(void)
 		Hz[offset] -= (eps0_c_Ex[offset + _offsetZ] - eps0_c_Ex[offset + _offsetY + _offsetZ] + eps0_c_Ey[offset + _offsetZ] - eps0_c_Ey[offset - _offsetX + _offsetZ]) * _cdt_div_dx;
 	}
 	syncPadding();
+
 	for (unsigned __int64 offset = 0; offset < _threadPerGrid; offset += 1) {
 		if (((mask[offset] & (1 << 0)) >> 0) == 1) { continue; }
+		//FIXME : boundary에서 E랑 R이 걸치는 부분이 있으므로 한칸 더 계산해야 함.
 		if (((mask[offset] & (1 << 1)) >> 1) == 1) {// PML
 			eps0_c_Rx_old[offset] = eps0_c_Rx[offset];
 			eps0_c_Ry_old[offset] = eps0_c_Ry[offset];
@@ -336,9 +338,6 @@ void Dielectric_HE_C(void)
 			eps0_c_Ez[offset] -= (_eps0_ * kappaZ[offset] + 0.5f * (sigmaZ[offset] + alpha[offset] * kappaZ[offset]) * _dt_) * (tempzz);
 			eps0_c_Ez[offset] /= (_eps0_ * kappaY[offset] + 0.5f * (sigmaY[offset] + alpha[offset] * kappaY[offset]) * _dt_);
 
-			//eps0_c_Ex[offset] = 0.0f;
-			//eps0_c_Ey[offset] = 0.0f;
-			//eps0_c_Ez[offset] = 0.0f;
 		}
 	}
 }
@@ -659,6 +658,7 @@ int init(void)
 
 		//PML constants
 		float pml_eta = _mu0_ * _c0;
+		//float pml_eta = 1;
 		float pml_delta_x = (float)pml_thick_x;
 		float pml_delta_y = (float)pml_thick_y;
 		float pml_delta_z = (float)pml_thick_z;
@@ -736,10 +736,22 @@ int snapshot(void)
 			value = value > 255 ? 255 : value;
 			value = value < -255 ? -255 : value;
 			image[4 * width * z + 4 * y + 0] = (unsigned char)(value>0? value : 0);
-			image[4 * width * z + 4 * y + 1] = (unsigned char)(mask[_INDEX_XYZ(X,y,z)]+ y%(_blockDimY-2) + z % (_blockDimY - 2));
+			//image[4 * width * z + 4 * y + 1] = (unsigned char)(mask[_INDEX_XYZ(X,y,z)]+ y%(_blockDimY-2) + z % (_blockDimY - 2));
+			image[4 * width * z + 4 * y + 1] = (unsigned char)(+(float)alpha[_INDEX_XYZ(X, y, z)] * 8.0f);
 			image[4 * width * z + 4 * y + 2] = (unsigned char)(value<0 ? -value : 0);
 			image[4 * width * z + 4 * y + 3] = 255;
 		}
+
+	//eps0_c_Sx[offset] *= (_eps0_ * kappaY[offset] - 0.5f * (sigmaY[offset] + alpha[offset] * kappaY[offset]) * _dt_);
+	//eps0_c_Sx[offset] += (_eps0_ + 0.5f * alpha[offset] * _dt_) * (eps0_c_Rx[offset]);
+	//eps0_c_Sx[offset] -= (_eps0_ - 0.5f * alpha[offset] * _dt_) * (eps0_c_Rx_old[offset]);
+	//eps0_c_Sx[offset] /= (_eps0_ * kappaY[offset] + 0.5f * (sigmaY[offset] + alpha[offset] * kappaY[offset]) * _dt_);
+
+	//eps0_c_Ex[offset] *= (_eps0_ * kappaZ[offset] - 0.5f * (sigmaZ[offset] + alpha[offset] * kappaZ[offset]) * _dt_);
+	//eps0_c_Ex[offset] += (_eps0_ * kappaX[offset] + 0.5f * (sigmaX[offset] + alpha[offset] * kappaX[offset]) * _dt_) * (eps0_c_Sx[offset]);
+	//eps0_c_Ex[offset] -= (_eps0_ * kappaX[offset] + 0.5f * (sigmaX[offset] + alpha[offset] * kappaX[offset]) * _dt_) * (tempxx);
+	//eps0_c_Ex[offset] /= (_eps0_ * kappaZ[offset] + 0.5f * (sigmaZ[offset] + alpha[offset] * kappaZ[offset]) * _dt_);
+
 
 	unsigned error = lodepng_encode32_file(filename, image, width, height);
 	if (error) printf("error %u: %s\n", error, lodepng_error_text(error));

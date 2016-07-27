@@ -14,7 +14,6 @@ int pml_thick_y = 8;
 int pml_thick_z = 8;
 int pml_n = 3;
 float pml_R = 10e-4;
-float pml_sigma_max = 8.0f;
 float pml_kappa_max = 8.0f;
 
 #define _S_factor (2.0f)
@@ -669,25 +668,25 @@ int init(void)
 		float pml_delta_x = (float)pml_thick_x;
 		float pml_delta_y = (float)pml_thick_y;
 		float pml_delta_z = (float)pml_thick_z;
-		float pml_sigma_x = ((float)pml_n + 1.0f)*logf(pml_R) * 0.5f / pml_eta / pml_delta_x; //eq37
-		float pml_sigma_y = ((float)pml_n + 1.0f)*logf(pml_R) * 0.5f / pml_eta / pml_delta_y;
-		float pml_sigma_z = ((float)pml_n + 1.0f)*logf(pml_R) * 0.5f / pml_eta / pml_delta_z;
+		float pml_sigma_x_max = ((float)pml_n + 1.0f)*logf(pml_R) * 0.5f / pml_eta / pml_delta_x; //eq37
+		float pml_sigma_y_max = ((float)pml_n + 1.0f)*logf(pml_R) * 0.5f / pml_eta / pml_delta_y;
+		float pml_sigma_z_max = ((float)pml_n + 1.0f)*logf(pml_R) * 0.5f / pml_eta / pml_delta_z;
 		//if (eps_r_inv[i] != -1e38f) {
 		if ((X + 1 <= (pml_thick_x) || (_DimX)-(pml_thick_x) <= X)) {
 			mask[i] |= (1 << 1); // 1st bit : PML
-			sigmaX[i] = pml_sigma_max * pow(fmin(fabs((pml_thick_x)-X), fabs((pml_thick_x)+X - (_DimX)+1)) / (pml_delta_x), (pml_n));
+			sigmaX[i] = pml_sigma_x_max * pow(fmin(fabs((pml_thick_x)-X), fabs((pml_thick_x)+X - (_DimX)+1)) / (pml_delta_x), (pml_n));
 			kappaX[i] = 1.0f + (pml_kappa_max - 1.0f) * pow(fmin(fabs((pml_thick_x)-X), fabs((pml_thick_x)+X - (_DimX)+1)) / (pml_delta_x), (pml_n));
 			alpha[i] = 1.0f;
 		}
 		if ((Y + 1 <= (pml_thick_y) || (_DimY)-(pml_thick_y) <= Y)) {
 			mask[i] |= (1 << 1); // 1st bit : PML
-			sigmaY[i] = pml_sigma_max * pow(fmin(fabs((pml_thick_y)-Y), fabs((pml_thick_y)+Y - (_DimY)+1)) / (pml_delta_y), (pml_n));
+			sigmaY[i] = pml_sigma_y_max * pow(fmin(fabs((pml_thick_y)-Y), fabs((pml_thick_y)+Y - (_DimY)+1)) / (pml_delta_y), (pml_n));
 			kappaY[i] = 1.0f + (pml_kappa_max - 1.0f) * pow(fmin(fabs((pml_thick_y)-Y), fabs((pml_thick_y)+Y - (_DimY)+1)) / (pml_delta_y), (pml_n));
 			alpha[i] = 1.0f;
 		}
 		if ((Z + 1 <= (pml_thick_z) || (_DimZ)-(pml_thick_z) <= Z)) {
 			mask[i] |= (1 << 1); // 1st bit : PML
-			sigmaZ[i] = pml_sigma_max * pow(fmin(fabs((pml_thick_z)-Z), fabs((pml_thick_z)+Z - (_DimZ)+1)) / (pml_delta_z), (pml_n));
+			sigmaZ[i] = pml_sigma_z_max * pow(fmin(fabs((pml_thick_z)-Z), fabs((pml_thick_z)+Z - (_DimZ)+1)) / (pml_delta_z), (pml_n));
 			kappaZ[i] = 1.0f + (pml_kappa_max - 1.0f) * pow(fmin(fabs((pml_thick_z)-Z), fabs((pml_thick_z)+Z - (_DimZ)+1)) / (pml_delta_z), (pml_n));
 			alpha[i] = 1.0f;
 		}

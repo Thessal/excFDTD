@@ -2,6 +2,7 @@
 //Jongkook Choi
 //VS2015, ipsxe2016 Cluster Edition
 //reference : K.P.Prokopidis, 2013
+//reference : eecs.wsu.edu/~schneidj/ufdtd/
 
 
 #define _DimX (100)
@@ -12,12 +13,13 @@
 int pml_thick_x_px = 8;
 int pml_thick_y_px = 8;
 int pml_thick_z_px = 8;
+#define _PML_ALPHA_TUNING_ 0.5f
 int pml_n = 3;
 float pml_R = 10e-4;
 float pml_kappa_max = 8.0f;
 
 #define _S_factor (2.0f)
-#define _dx (2e-9)
+#define _dx (50e-9)
 
 #define _c0 299792458.0f
 #define _USE_MATH_DEFINES
@@ -215,46 +217,27 @@ void syncPadding(void);
 int snapshot(void);
 int main(int argc, char* argv[])
 {
-
-	printf("total area : block(%d,%d,%d) * grid(%d,%d,%d) = %d(%d,%d,%d)\n",_blockDimX,_blockDimY,_blockDimZ,_gridDimX,_gridDimY,_gridDimZ, _threadPerGrid, _blockDimX*_gridDimX, _blockDimY*_gridDimY, _blockDimZ*_gridDimZ);
-	printf("thread space (padding overhead) : %d(%d,%d,%d) \n", (_blockDimX - 2)*_gridDimX* (_blockDimY - 2)*_gridDimY* (_blockDimZ - 2)*_gridDimZ,(_blockDimX-2)*_gridDimX , (_blockDimY - 2)*_gridDimY, (_blockDimZ - 2)*_gridDimZ);
-	printf("xyz space (block overhead) : %d(%d,%d,%d) \n", _DimX*_DimY*_DimZ, _DimX, _DimY, _DimZ);
-	printf("unit : sizeof(float)\n");
-	printf("\n");
-
-	printf("S       \t%01.2e\n", _S_factor);
-	printf("c0      \t%01.2e\n", _c0);
-	printf("dt      \t%01.2e\n", _dt_);
-	printf("dx      \t%01.2e\n", _dx);
-	printf("\n");
-
-	printf("check:\n");
-	printf("a01/eps0\t%01.2e\n", _a01_div_eps0);
-	printf("a11/eps0\t%01.2e\n", _a11_div_eps0);
-	printf("b01     \t%01.2e\n", _b01);
-	printf("b11     \t%01.2e\n", _b11);
-	printf("b21     \t%01.2e\n", _b21);
-
 	init();
-
 	time_t start;
-
 	start = clock();
-	//eps0_c_Ex[_INDEX_XYZ(50, 50, 50)] = 10.0f;//cos((float)i / 5.0f);
-	for (int i = 0; i < 250; i++) {
-		//eps0_c_Ex[_INDEX_XYZ(50, 50, 50)] = sin((float)i / 5.0f)/(1+(float)i/100);
-		eps0_c_Ex[_INDEX_XYZ(50, 50, 50)] += sin((float)i / 2.5f);
+	for (int i = 0; i < 400; i++) {
+		eps0_c_Ex[_INDEX_XYZ(50, 65, 50)] += sin(2.0f * M_PI * _c0 / 500e-9 * (float)i * _dt_);
 		printf("%f\n", cos((float)i / 5.0f));
-		Dielectric_HE_C();
+		DCP_HE_C();
 	}
 	printf("time : %f\n", (double)(clock() - start) / CLK_TCK);
-
 	snapshot();
-
 	return 0;
 }
 
+int dielectric_flag = 0;
 void Dielectric_HE_C(void)
+{
+	dielectric_flag = 1;
+	DCP_HE_C();
+}
+
+void DCP_HE_C(void)
 {
 	syncPadding();
 	for (unsigned __int64 offset = 0; offset < _threadPerGrid; offset += 1) {
@@ -270,12 +253,110 @@ void Dielectric_HE_C(void)
 		if (((mask[offset] & (1 << 0)) >> 0) == 1) { continue; } // skip padding
 		if (((mask[offset] & (1 << 1)) >> 1) == 0)
 		{// NON PML // can be merged to PML
+			if (dielectric_flag== 0 && ((mask[offset] & (0b1111 << 4)) >> 4) > 0) // metal
+			{	
+				//// E
+
+				tempx[offset] = (Hy[offset - _offsetZ] - Hy[offset] + Hz[offset - _offsetZ] - Hz[offset - _offsetY - _offsetZ]) * eps_r_inv[offset] * _cdt_div_dx; //eq30term1
+				tempy[offset] = (Hz[offset - _offsetZ] - Hz[offset + _offsetX - _offsetZ] + Hx[offset] - Hx[offset - _offsetZ]) * eps_r_inv[offset] * _cdt_div_dx;
+				tempz[offset] = (Hx[offset - _offsetX - _offsetY] - Hx[offset - _offsetX] + Hy[offset] - Hy[offset - _offsetX]) * eps_r_inv[offset] * _cdt_div_dx;
+				tempx[offset] += eps0_c_Ex[offset] * (_eps0_ * _eps_inf - 0.5f * _sigma_ * _dt_ + _d2 - _C4p) / _eps0_; //eq30term2
+				tempy[offset] += eps0_c_Ey[offset] * (_eps0_ * _eps_inf - 0.5f * _sigma_ * _dt_ + _d2 - _C4p) / _eps0_; //FIXME : div_eps0 coeffs cleanup
+				tempz[offset] += eps0_c_Ez[offset] * (_eps0_ * _eps_inf - 0.5f * _sigma_ * _dt_ + _d2 - _C4p) / _eps0_;
+				tempx[offset] -= eps0_c_Ex_old[offset] * _C5p / _eps0_; //eq30term3
+				tempy[offset] -= eps0_c_Ey_old[offset] * _C5p / _eps0_;
+				tempz[offset] -= eps0_c_Ez_old[offset] * _C5p / _eps0_;
+				tempx[offset] -= eps0_c_Pdx[offset] * (_d1 - 1.0f) / _eps0_; //eq30term4
+				tempy[offset] -= eps0_c_Pdy[offset] * (_d1 - 1.0f) / _eps0_;
+				tempz[offset] -= eps0_c_Pdz[offset] * (_d1 - 1.0f) / _eps0_;
+				tempx[offset] -= eps0_c_Pcp1x[offset] * (_C11 - 1.0f) / _eps0_; //eq30term5
+				tempy[offset] -= eps0_c_Pcp1y[offset] * (_C11 - 1.0f) / _eps0_;
+				tempz[offset] -= eps0_c_Pcp1z[offset] * (_C11 - 1.0f) / _eps0_;
+				tempx[offset] -= eps0_c_Pcp2x[offset] * (_C12 - 1.0f) / _eps0_;
+				tempy[offset] -= eps0_c_Pcp2y[offset] * (_C12 - 1.0f) / _eps0_;
+				tempz[offset] -= eps0_c_Pcp2z[offset] * (_C12 - 1.0f) / _eps0_;
+				tempx[offset] -= eps0_c_Pcp1x_old[offset] * _C21 / _eps0_; //eq30term6
+				tempy[offset] -= eps0_c_Pcp1y_old[offset] * _C21 / _eps0_;
+				tempz[offset] -= eps0_c_Pcp1z_old[offset] * _C21 / _eps0_;
+				tempx[offset] -= eps0_c_Pcp2x_old[offset] * _C22 / _eps0_;
+				tempy[offset] -= eps0_c_Pcp2y_old[offset] * _C22 / _eps0_;
+				tempz[offset] -= eps0_c_Pcp2z_old[offset] * _C22 / _eps0_;
+				tempx[offset] /= (_eps0_ * _eps_inf + 0.5f * _sigma_ * _dt_ - _d2 + _C3p) / _eps0_; //eq30term0
+				tempy[offset] /= (_eps0_ * _eps_inf + 0.5f * _sigma_ * _dt_ - _d2 + _C3p) / _eps0_;
+				tempz[offset] /= (_eps0_ * _eps_inf + 0.5f * _sigma_ * _dt_ - _d2 + _C3p) / _eps0_;
+
+				//PCP
+				eps0_c_Pcp1x_old[offset] *= _C21; //eq14term2
+				eps0_c_Pcp1y_old[offset] *= _C21;
+				eps0_c_Pcp1z_old[offset] *= _C21;
+				eps0_c_Pcp2x_old[offset] *= _C22;
+				eps0_c_Pcp2y_old[offset] *= _C22;
+				eps0_c_Pcp2z_old[offset] *= _C22;
+				eps0_c_Pcp1x_old[offset] += eps0_c_Pcp1x[offset] * _C11; //eq14term1
+				eps0_c_Pcp1y_old[offset] += eps0_c_Pcp1y[offset] * _C11;
+				eps0_c_Pcp1z_old[offset] += eps0_c_Pcp1z[offset] * _C11;
+				eps0_c_Pcp2x_old[offset] += eps0_c_Pcp2x[offset] * _C12;
+				eps0_c_Pcp2y_old[offset] += eps0_c_Pcp2y[offset] * _C12;
+				eps0_c_Pcp2z_old[offset] += eps0_c_Pcp2z[offset] * _C12;
+				eps0_c_Pcp1x_old[offset] += tempx[offset] * _C31; //eq14term3
+				eps0_c_Pcp1y_old[offset] += tempy[offset] * _C31;
+				eps0_c_Pcp1z_old[offset] += tempz[offset] * _C31;
+				eps0_c_Pcp2x_old[offset] += tempx[offset] * _C32;
+				eps0_c_Pcp2y_old[offset] += tempy[offset] * _C32;
+				eps0_c_Pcp2z_old[offset] += tempz[offset] * _C32;
+				eps0_c_Pcp1x_old[offset] += eps0_c_Ex[offset] * _C41; //eq14term4
+				eps0_c_Pcp1y_old[offset] += eps0_c_Ey[offset] * _C41;
+				eps0_c_Pcp1z_old[offset] += eps0_c_Ez[offset] * _C41;
+				eps0_c_Pcp2x_old[offset] += eps0_c_Ex[offset] * _C42;
+				eps0_c_Pcp2y_old[offset] += eps0_c_Ey[offset] * _C42;
+				eps0_c_Pcp2z_old[offset] += eps0_c_Ez[offset] * _C42;
+				eps0_c_Pcp1x_old[offset] += eps0_c_Ex_old[offset] * _C51; //eq14term5
+				eps0_c_Pcp1y_old[offset] += eps0_c_Ey_old[offset] * _C51;
+				eps0_c_Pcp1z_old[offset] += eps0_c_Ez_old[offset] * _C51;
+				eps0_c_Pcp2x_old[offset] += eps0_c_Ex_old[offset] * _C52;
+				eps0_c_Pcp2y_old[offset] += eps0_c_Ey_old[offset] * _C52;
+				eps0_c_Pcp2z_old[offset] += eps0_c_Ez_old[offset] * _C52;
+				//eps0_c_Ex_old can be used as temp var here now
+
+				//PD
+				eps0_c_Pdx[offset] *= _d1; //eq27term1
+				eps0_c_Pdy[offset] *= _d1;
+				eps0_c_Pdz[offset] *= _d1;
+				eps0_c_Pdx[offset] -= tempx[offset] * _d2; //eq27term2
+				eps0_c_Pdy[offset] -= tempy[offset] * _d2;
+				eps0_c_Pdz[offset] -= tempz[offset] * _d2;
+				eps0_c_Pdx[offset] -= eps0_c_Ex[offset] * _d2; //eq27term3
+				eps0_c_Pdy[offset] -= eps0_c_Ey[offset] * _d2;
+				eps0_c_Pdz[offset] -= eps0_c_Ez[offset] * _d2;
+
+
+				//FIXME : can be simpler than this?
+				eps0_c_Ex_old[offset] = eps0_c_Ex[offset];
+				eps0_c_Ey_old[offset] = eps0_c_Ey[offset];
+				eps0_c_Ez_old[offset] = eps0_c_Ez[offset];
+
+				eps0_c_Ex[offset] = tempx[offset]; //FIXME : tempx size can be reduced: conider CUDA
+				eps0_c_Ey[offset] = tempy[offset];
+				eps0_c_Ez[offset] = tempz[offset];
+
+				eps0_c_Pcp1x_old[offset] = eps0_c_Pcp1x[offset];
+				eps0_c_Pcp1y_old[offset] = eps0_c_Pcp1y[offset];
+				eps0_c_Pcp1z_old[offset] = eps0_c_Pcp1z[offset];
+
+				eps0_c_Pcp2x_old[offset] = eps0_c_Pcp2x[offset];
+				eps0_c_Pcp2y_old[offset] = eps0_c_Pcp2y[offset];
+				eps0_c_Pcp2z_old[offset] = eps0_c_Pcp2z[offset];
+
+				continue;
+			}
+
+			// non metal
 			eps0_c_Ex[offset] += (Hy[offset - _offsetZ] - Hy[offset] + Hz[offset - _offsetZ] - Hz[offset - _offsetY - _offsetZ]) * eps_r_inv[offset] * _cdt_div_dx;
 			eps0_c_Ey[offset] += (Hz[offset - _offsetZ] - Hz[offset + _offsetX - _offsetZ] + Hx[offset] - Hx[offset - _offsetZ]) * eps_r_inv[offset] * _cdt_div_dx;
 			eps0_c_Ez[offset] += (Hx[offset - _offsetX - _offsetY] - Hx[offset - _offsetX] + Hy[offset] - Hy[offset - _offsetX]) * eps_r_inv[offset] * _cdt_div_dx;
 			continue;
 		}
-		//PML
+		//PML //chap11.pdf
 		psiXY_dx[offset] *= b_Y[offset];
 		psiXY_dx[offset] += C_Y[offset] * (Hz[offset - _offsetZ] - Hz[offset - _offsetY - _offsetZ]) ;
 		psiXZ_dx[offset] *= b_Z[offset];
@@ -302,11 +383,41 @@ void Dielectric_HE_C(void)
 
 int init(void)
 {
+	//tile info
+	printf("total area : block(%d,%d,%d) * grid(%d,%d,%d) = %d(%d,%d,%d)\n", _blockDimX, _blockDimY, _blockDimZ, _gridDimX, _gridDimY, _gridDimZ, _threadPerGrid, _blockDimX*_gridDimX, _blockDimY*_gridDimY, _blockDimZ*_gridDimZ);
+	printf("thread space (padding overhead) : %d(%d,%d,%d) \n", (_blockDimX - 2)*_gridDimX* (_blockDimY - 2)*_gridDimY* (_blockDimZ - 2)*_gridDimZ, (_blockDimX - 2)*_gridDimX, (_blockDimY - 2)*_gridDimY, (_blockDimZ - 2)*_gridDimZ);
+	printf("xyz space (block overhead) : %d(%d,%d,%d) \n", _DimX*_DimY*_DimZ, _DimX, _DimY, _DimZ);
+	printf("unit : sizeof(float)\n");
+	printf("\n");
+
+	printf("S       \t%01.2e\n", _S_factor);
+	printf("c0      \t%01.2e\n", _c0);
+	printf("dt      \t%01.2e\n", _dt_);
+	printf("dx      \t%01.2e\n", _dx);
+	printf("\n");
+
+	printf("check:\n");
+	printf("a01/eps0\t%01.2e\n", _a01_div_eps0);
+	printf("a11/eps0\t%01.2e\n", _a11_div_eps0);
+	printf("b01     \t%01.2e\n", _b01);
+	printf("b11     \t%01.2e\n", _b11);
+	printf("b21     \t%01.2e\n", _b21);
+	printf("\n");
+
+
+	//DCP info
+	printf("DCP : \n");
+	printf("eq30term2 x : %e\n", (_eps0_ * _eps_inf - 0.5f * _sigma_ * _dt_ + _d2 - _C4p) / _eps0_);
+	printf("eq30term3 x : %e\n", (_C5p) / _eps0_);
+	printf("eq30term0 x : %e\n", (_eps0_ * _eps_inf + 0.5f * _sigma_ * _dt_ - _d2 + _C3p) / _eps0_);
+	printf("\n");
+
 	//PML constants
 	float pml_eps0 = _eps0_;
 	float pml_sigma_x_dt_div_eps0_max = -((float)pml_n + 1.0f)*logf(pml_R) * 0.5f / pml_thick_x_px / _S_factor; //eq37
 	float pml_sigma_y_dt_div_eps0_max = -((float)pml_n + 1.0f)*logf(pml_R) * 0.5f / pml_thick_y_px / _S_factor;
 	float pml_sigma_z_dt_div_eps0_max = -((float)pml_n + 1.0f)*logf(pml_R) * 0.5f / pml_thick_z_px / _S_factor;
+	printf("PML : \n");
 	printf("_eps0_ = %e\n", _eps0_);
 	printf("pml_eps0 = %e\n", pml_eps0);
 	printf("pml_thick_x_px = %d\n", pml_thick_x_px);
@@ -314,7 +425,7 @@ int init(void)
 	printf("pml_R = %e\n", pml_R);
 	printf("pml_kappa_max = %e\n", pml_kappa_max);
 	printf("pml_sigma_x_dt_div_eps0_max = %e\n", pml_sigma_x_dt_div_eps0_max);
-
+	printf("\n");
 
 	for (unsigned __int64 i = 0; i < _threadPerGrid; i++)
 	{
@@ -338,7 +449,7 @@ int init(void)
 		Y += (tmp % _gridDimY) * (_blockDimY - 2); tmp /= _gridDimY;
 		Z += (tmp % _gridDimZ) * (_blockDimZ - 2); tmp /= _gridDimZ;
 
-		alpha_dt_div_eps0[i] = 0.1f; // FIXME 
+		alpha_dt_div_eps0[i] = (_PML_ALPHA_TUNING_); // FIXME 
 
 		//FIXME : check PML area
 		if ((X + 1 <= (pml_thick_x_px) || (_DimX)-(pml_thick_x_px) <= X)) {
@@ -367,6 +478,12 @@ int init(void)
 		}
 		if (((mask[i] & (1 << 0)) >> 0) == 1) { // PML : exclude padding area
 			mask[i] &= ~(1 << 1);
+		}
+
+		//4th~7th bit : metal
+		if ((X - _DimX / 2)*(X - _DimX / 2) + (Y - _DimY / 2)* (Y - _DimY / 2) + (Z - _DimZ / 2)*(Z - _DimZ / 2) < 10 * 10)
+		{
+			mask[i] |= (1 << 4);
 		}
 
 	}
@@ -467,120 +584,6 @@ void Dielectric_HE(void)
 				mEz[offset])
 		);
 	}
-}
-
-void DCP_HE_C(void)
-{
-	// before --> after
-	// temp --> E
-	// E --> E_old
-	// pcp_old <--> pcp
-//	printf("%e\n", (_eps0_ * _eps_inf + 0.5f * _sigma_ * _dt_ - _d2 + _C3p));
-
-	syncPadding();
-	for (unsigned __int64 offset = 0; offset < _threadPerGrid; offset += 1) {
-		//// H
-		Hx[offset] -= (eps0_c_Ey[offset] - eps0_c_Ey[offset + _offsetZ] + eps0_c_Ez[offset + _offsetX] - eps0_c_Ez[offset + _offsetX]) * _cdt_div_dx;
-		Hy[offset] -= (eps0_c_Ez[offset] - eps0_c_Ez[offset + _offsetX] + eps0_c_Ex[offset + _offsetZ] - eps0_c_Ex[offset]) *_cdt_div_dx;
-		Hz[offset] -= (eps0_c_Ex[offset + _offsetZ] - eps0_c_Ex[offset + _offsetY + _offsetZ] + eps0_c_Ey[offset + _offsetZ] - eps0_c_Ey[offset - _offsetX + _offsetZ]) * _cdt_div_dx;
-
-		eps0_c_Ex[offset] = (Hy[offset - _offsetZ] - Hy[offset] + Hz[offset - _offsetZ] - Hz[offset - _offsetY - _offsetZ]) * eps_r_inv[offset] * _cdt_div_dx; //eq30term1
-		eps0_c_Ey[offset] = (Hz[offset - _offsetZ] - Hz[offset + _offsetX - _offsetZ] + Hx[offset] - Hx[offset - _offsetZ]) * eps_r_inv[offset] * _cdt_div_dx;
-		eps0_c_Ez[offset] = (Hx[offset - _offsetX - _offsetY] - Hx[offset - _offsetX] + Hy[offset] - Hy[offset - _offsetX]) * eps_r_inv[offset] * _cdt_div_dx;
-	}
-
-	syncPadding();
-	for (unsigned __int64 offset = 0; offset < _threadPerGrid; offset += 1) {
-		//// E
-		tempx[offset] = (Hy[offset - _offsetZ] - Hy[offset] + Hz[offset - _offsetZ] - Hz[offset - _offsetY - _offsetZ]) * eps_r_inv[offset] * _cdt_div_dx; //eq30term1
-		tempy[offset] = (Hz[offset - _offsetZ] - Hz[offset + _offsetX - _offsetZ] + Hx[offset] - Hx[offset - _offsetZ]) * eps_r_inv[offset] * _cdt_div_dx;
-		tempz[offset] = (Hx[offset - _offsetX - _offsetY] - Hx[offset - _offsetX] + Hy[offset] - Hy[offset - _offsetX]) * eps_r_inv[offset] * _cdt_div_dx;
-		tempx[offset] += eps0_c_Ex[offset] * (_eps0_ * _eps_inf - 0.5f * _sigma_ * _dt_ + _d2 - _C4p); //eq30term2
-		tempy[offset] += eps0_c_Ey[offset] * (_eps0_ * _eps_inf - 0.5f * _sigma_ * _dt_ + _d2 - _C4p);
-		tempz[offset] += eps0_c_Ez[offset] * (_eps0_ * _eps_inf - 0.5f * _sigma_ * _dt_ + _d2 - _C4p);
-		tempx[offset] -= eps0_c_Ex_old[offset] * _C5p; //eq30term3
-		tempy[offset] -= eps0_c_Ey_old[offset] * _C5p;
-		tempz[offset] -= eps0_c_Ez_old[offset] * _C5p;
-		tempx[offset] -= eps0_c_Pdx[offset] * (_d1 - 1.0f); //eq30term4
-		tempy[offset] -= eps0_c_Pdy[offset] * (_d1 - 1.0f);
-		tempz[offset] -= eps0_c_Pdz[offset] * (_d1 - 1.0f);
-		tempx[offset] -= eps0_c_Pcp1x[offset] * (_C11 - 1.0f); //eq30term5
-		tempy[offset] -= eps0_c_Pcp1y[offset] * (_C11 - 1.0f);
-		tempz[offset] -= eps0_c_Pcp1z[offset] * (_C11 - 1.0f);
-		tempx[offset] -= eps0_c_Pcp2x[offset] * (_C12 - 1.0f);
-		tempy[offset] -= eps0_c_Pcp2y[offset] * (_C12 - 1.0f);
-		tempz[offset] -= eps0_c_Pcp2z[offset] * (_C12 - 1.0f);
-		tempx[offset] -= eps0_c_Pcp1x_old[offset] * _C21; //eq30term6
-		tempy[offset] -= eps0_c_Pcp1y_old[offset] * _C21;
-		tempz[offset] -= eps0_c_Pcp1z_old[offset] * _C21;
-		tempx[offset] -= eps0_c_Pcp2x_old[offset] * _C22;
-		tempy[offset] -= eps0_c_Pcp2y_old[offset] * _C22;
-		tempz[offset] -= eps0_c_Pcp2z_old[offset] * _C22;
-		tempx[offset] /= (_eps0_ * _eps_inf + 0.5f * _sigma_ * _dt_ - _d2 + _C3p); //eq30term0
-		tempy[offset] /= (_eps0_ * _eps_inf + 0.5f * _sigma_ * _dt_ - _d2 + _C3p);
-		tempz[offset] /= (_eps0_ * _eps_inf + 0.5f * _sigma_ * _dt_ - _d2 + _C3p);
-
-		//PCP
-		eps0_c_Pcp1x_old[offset] *= _C21; //eq14term2
-		eps0_c_Pcp1y_old[offset] *= _C21;
-		eps0_c_Pcp1z_old[offset] *= _C21;
-		eps0_c_Pcp2x_old[offset] *= _C22;
-		eps0_c_Pcp2y_old[offset] *= _C22;
-		eps0_c_Pcp2z_old[offset] *= _C22;
-		eps0_c_Pcp1x_old[offset] += eps0_c_Pcp1x[offset] * _C11; //eq14term1
-		eps0_c_Pcp1y_old[offset] += eps0_c_Pcp1y[offset] * _C11;
-		eps0_c_Pcp1z_old[offset] += eps0_c_Pcp1z[offset] * _C11;
-		eps0_c_Pcp2x_old[offset] += eps0_c_Pcp2x[offset] * _C12;
-		eps0_c_Pcp2y_old[offset] += eps0_c_Pcp2y[offset] * _C12;
-		eps0_c_Pcp2z_old[offset] += eps0_c_Pcp2z[offset] * _C12;
-		eps0_c_Pcp1x_old[offset] += tempx[offset] * _C31; //eq14term3
-		eps0_c_Pcp1y_old[offset] += tempy[offset] * _C31;
-		eps0_c_Pcp1z_old[offset] += tempz[offset] * _C31;
-		eps0_c_Pcp2x_old[offset] += tempx[offset] * _C32;
-		eps0_c_Pcp2y_old[offset] += tempy[offset] * _C32;
-		eps0_c_Pcp2z_old[offset] += tempz[offset] * _C32;
-		eps0_c_Pcp1x_old[offset] += eps0_c_Ex[offset] * _C41; //eq14term4
-		eps0_c_Pcp1y_old[offset] += eps0_c_Ey[offset] * _C41;
-		eps0_c_Pcp1z_old[offset] += eps0_c_Ez[offset] * _C41;
-		eps0_c_Pcp2x_old[offset] += eps0_c_Ex[offset] * _C42;
-		eps0_c_Pcp2y_old[offset] += eps0_c_Ey[offset] * _C42;
-		eps0_c_Pcp2z_old[offset] += eps0_c_Ez[offset] * _C42;
-		eps0_c_Pcp1x_old[offset] += eps0_c_Ex_old[offset] * _C51; //eq14term5
-		eps0_c_Pcp1y_old[offset] += eps0_c_Ey_old[offset] * _C51;
-		eps0_c_Pcp1z_old[offset] += eps0_c_Ez_old[offset] * _C51;
-		eps0_c_Pcp2x_old[offset] += eps0_c_Ex_old[offset] * _C52;
-		eps0_c_Pcp2y_old[offset] += eps0_c_Ey_old[offset] * _C52;
-		eps0_c_Pcp2z_old[offset] += eps0_c_Ez_old[offset] * _C52;
-		//eps0_c_Ex_old can be used as temp var here now
-
-		//PD
-		eps0_c_Pdx[offset] *= _d1; //eq27term1
-		eps0_c_Pdy[offset] *= _d1; 
-		eps0_c_Pdz[offset] *= _d1; 
-		eps0_c_Pdx[offset] -= tempx[offset] * _d2; //eq27term2
-		eps0_c_Pdy[offset] -= tempy[offset] * _d2;
-		eps0_c_Pdz[offset] -= tempz[offset] * _d2;
-		eps0_c_Pdx[offset] -= eps0_c_Ex[offset] * _d2; //eq27term3
-		eps0_c_Pdy[offset] -= eps0_c_Ey[offset] * _d2;
-		eps0_c_Pdz[offset] -= eps0_c_Ez[offset] * _d2;
-
-	}
-
-	SWAP(tempx, eps0_c_Ex);
-	SWAP(tempy, eps0_c_Ey);
-	SWAP(tempz, eps0_c_Ez);
-
-	SWAP(tempx, eps0_c_Ex_old);
-	SWAP(tempy, eps0_c_Ey_old);
-	SWAP(tempz, eps0_c_Ez_old);
-
-	SWAP(eps0_c_Pcp1x_old, eps0_c_Pcp1x);
-	SWAP(eps0_c_Pcp1y_old, eps0_c_Pcp1y);
-	SWAP(eps0_c_Pcp1z_old, eps0_c_Pcp1z);
-	SWAP(eps0_c_Pcp2x_old, eps0_c_Pcp2x);
-	SWAP(eps0_c_Pcp2y_old, eps0_c_Pcp2y);
-	SWAP(eps0_c_Pcp2z_old, eps0_c_Pcp2z);
-
 }
 
 #define _syncX_(FIELD) \
@@ -703,7 +706,7 @@ int snapshot(void)
 		{
 			int offset = _INDEX_XYZ(X, y, z);
 			//int value = (psiXY_dx[offset] - psiXZ_dx[offset]) * 255.0f *50.0f *1000.0f;// *_c0;
-			int value = (0.0f) *50.0f ;// *_c0;
+			int value = (((mask[offset] & (0b1111 << 4)) >> 4)) *50.0f ;// *_c0;
 			value = value > 255 ? 255 : value;
 			value = value < -255 ? -255 : value;
 			int val2 = (eps0_c_Ex[offset]) * 255.0f * 50.0f;

@@ -9,7 +9,7 @@
 #define _DimY (100)
 #define _DimZ (100)
 
-#define _STEP (300)
+#define _STEP (500)
 
 //eq35
 #define _PML_PX_X_ (8)
@@ -46,7 +46,7 @@ float stability_factor_inv = 1.0f / _S_factor;
 #define _phi2_L (-0.08734)
 
 // RFT NTFF frequency
-#define RFT_WINDOW 50
+#define RFT_WINDOW 200
 #if RFT_WINDOW > _STEP
 	#define RFT_WINDOW _STEP
 #endif
@@ -435,30 +435,153 @@ void DCP_HE_C(void)
 int RFT_counter = 0;
 void RFT(void) {
 	if (RFT_counter < _STEP - RFT_WINDOW) {	RFT_counter++; return; }
-	unsigned __int64 surf_x, surf_y, surf_z, index;
+	unsigned __int64 surf_x, surf_y, surf_z, offset;
 	for (int i = 0; i < _SURF_SIZE_; i++) {
 		for (int j = 0; j < FREQ_N; j++) {
 			_SET_SURF_XYZ_INDEX(i);
-			index = _INDEX_XYZ(surf_x, surf_y, surf_z);
-			FT_eps0cE[i][j][0][1] -= eps0_c_Ex[index] / (RFT_WINDOW - 1) * sinf(2 * M_PI*K_LIST_CALCULATED[j] / RFT_WINDOW*RFT_counter);
-			FT_eps0cE[i][j][1][1] -= eps0_c_Ey[index] / (RFT_WINDOW - 1) * sinf(2 * M_PI*K_LIST_CALCULATED[j] / RFT_WINDOW*RFT_counter);
-			FT_eps0cE[i][j][2][1] -= eps0_c_Ez[index] / (RFT_WINDOW - 1) * sinf(2 * M_PI*K_LIST_CALCULATED[j] / RFT_WINDOW*RFT_counter);
-			FT_H[i][j][0][1] -= Hx[index] / (RFT_WINDOW - 1) * sinf(2 * M_PI*K_LIST_CALCULATED[j] / RFT_WINDOW*RFT_counter);
-			FT_H[i][j][1][1] -= Hy[index] / (RFT_WINDOW - 1) * sinf(2 * M_PI*K_LIST_CALCULATED[j] / RFT_WINDOW*RFT_counter);
-			FT_H[i][j][2][1] -= Hz[index] / (RFT_WINDOW - 1) * sinf(2 * M_PI*K_LIST_CALCULATED[j] / RFT_WINDOW*RFT_counter);
+			offset = _INDEX_XYZ(surf_x, surf_y, surf_z);
+			// FIXME : There must be a better way to do this
+			//imag
+			FT_eps0cE[i][j][0][1] -= 0.5f * (eps0_c_Ex[offset-_offsetX]          + eps0_c_Ex[offset]           ) / (RFT_WINDOW - 1) * sinf(2 * M_PI*K_LIST_CALCULATED[j] / RFT_WINDOW*RFT_counter);
+			FT_eps0cE[i][j][1][1] -= 0.5f * (eps0_c_Ey[offset-_offsetX-_offsetY] + eps0_c_Ey[offset - _offsetX]) / (RFT_WINDOW - 1) * sinf(2 * M_PI*K_LIST_CALCULATED[j] / RFT_WINDOW*RFT_counter);
+			FT_eps0cE[i][j][2][1] -= 0.5f * (eps0_c_Ez[offset-_offsetZ]          + eps0_c_Ez[offset]           ) / (RFT_WINDOW - 1) * sinf(2 * M_PI*K_LIST_CALCULATED[j] / RFT_WINDOW*RFT_counter);
+			FT_H[i][j][0][1] -= 0.25f * (Hx[offset-_offsetX-_offsetY-_offsetZ]+ Hx[offset - _offsetX - _offsetY]+ Hx[offset - _offsetX - _offsetZ]+ Hx[offset - _offsetX]) / (RFT_WINDOW - 1) * sinf(2 * M_PI*K_LIST_CALCULATED[j] / RFT_WINDOW*RFT_counter);
+			FT_H[i][j][1][1] -= 0.25f * (Hy[offset-_offsetX-_offsetZ]+ Hy[offset-_offsetX]+ Hy[offset-_offsetZ]+ Hy[offset]) / (RFT_WINDOW - 1) * sinf(2 * M_PI*K_LIST_CALCULATED[j] / RFT_WINDOW*RFT_counter);
+			FT_H[i][j][2][1] -= 0.25f * (Hz[offset-_offsetZ-_offsetX-_offsetY]+ Hz[offset - _offsetZ - _offsetX]+ Hz[offset - _offsetZ - _offsetY]+ Hz[offset - _offsetZ]) / (RFT_WINDOW - 1) * sinf(2 * M_PI*K_LIST_CALCULATED[j] / RFT_WINDOW*RFT_counter);
 			if (RFT_counter == _STEP) { break; }
-			FT_eps0cE[i][j][0][0] += eps0_c_Ex[index] / RFT_WINDOW * cosf(2 * M_PI*K_LIST_CALCULATED[j] / RFT_WINDOW*RFT_counter); //RFT_counter is not q but it shoud not matter
-			FT_eps0cE[i][j][1][0] += eps0_c_Ey[index] / RFT_WINDOW * cosf(2 * M_PI*K_LIST_CALCULATED[j] / RFT_WINDOW*RFT_counter);
-			FT_eps0cE[i][j][2][0] += eps0_c_Ez[index] / RFT_WINDOW * cosf(2 * M_PI*K_LIST_CALCULATED[j] / RFT_WINDOW*RFT_counter); 
-			FT_H[i][j][0][0] += Hx[index] / RFT_WINDOW * cosf(2 * M_PI*K_LIST_CALCULATED[j] / RFT_WINDOW*RFT_counter); //RFT_counter is not q but it shoud not matter
-			FT_H[i][j][1][0] += Hy[index] / RFT_WINDOW * cosf(2 * M_PI*K_LIST_CALCULATED[j] / RFT_WINDOW*RFT_counter);
-			FT_H[i][j][2][0] += Hz[index] / RFT_WINDOW * cosf(2 * M_PI*K_LIST_CALCULATED[j] / RFT_WINDOW*RFT_counter);
+			//real
+			FT_eps0cE[i][j][0][0] += 0.5f * (eps0_c_Ex[offset - _offsetX] + eps0_c_Ex[offset]) / RFT_WINDOW * cosf(2 * M_PI*K_LIST_CALCULATED[j] / RFT_WINDOW*RFT_counter); //RFT_counter is not q but it shoud not matter
+			FT_eps0cE[i][j][1][0] += 0.5f * (eps0_c_Ey[offset - _offsetX - _offsetY] + eps0_c_Ey[offset - _offsetX]) / RFT_WINDOW * cosf(2 * M_PI*K_LIST_CALCULATED[j] / RFT_WINDOW*RFT_counter);
+			FT_eps0cE[i][j][2][0] += 0.5f * (eps0_c_Ez[offset - _offsetZ] + eps0_c_Ez[offset]) / RFT_WINDOW * cosf(2 * M_PI*K_LIST_CALCULATED[j] / RFT_WINDOW*RFT_counter);
+			FT_H[i][j][0][0] += 0.25f * (Hx[offset - _offsetX - _offsetY - _offsetZ] + Hx[offset - _offsetX - _offsetY] + Hx[offset - _offsetX - _offsetZ] + Hx[offset - _offsetX]) / RFT_WINDOW * cosf(2 * M_PI*K_LIST_CALCULATED[j] / RFT_WINDOW*RFT_counter); //RFT_counter is not q but it shoud not matter
+			FT_H[i][j][1][0] += 0.25f * (Hy[offset - _offsetX - _offsetZ] + Hy[offset - _offsetX] + Hy[offset - _offsetZ] + Hy[offset]) / RFT_WINDOW * cosf(2 * M_PI*K_LIST_CALCULATED[j] / RFT_WINDOW*RFT_counter);
+			FT_H[i][j][2][0] += 0.25f * (Hz[offset - _offsetZ - _offsetX - _offsetY] + Hz[offset - _offsetZ - _offsetX] + Hz[offset - _offsetZ - _offsetY] + Hz[offset - _offsetZ]) / RFT_WINDOW * cosf(2 * M_PI*K_LIST_CALCULATED[j] / RFT_WINDOW*RFT_counter);
 		}
 	}
 	RFT_counter++;
 }
+//if Yee cell is ignored,
+//FT_eps0cE[i][j][0][1] -= eps0_c_Ex[offset] / (RFT_WINDOW - 1) * sinf(2 * M_PI*K_LIST_CALCULATED[j] / RFT_WINDOW*RFT_counter);
+//FT_eps0cE[i][j][1][1] -= eps0_c_Ey[offset] / (RFT_WINDOW - 1) * sinf(2 * M_PI*K_LIST_CALCULATED[j] / RFT_WINDOW*RFT_counter);
+//FT_eps0cE[i][j][2][1] -= eps0_c_Ez[offset] / (RFT_WINDOW - 1) * sinf(2 * M_PI*K_LIST_CALCULATED[j] / RFT_WINDOW*RFT_counter);
+//FT_H[i][j][0][1] -= Hx[offset] / (RFT_WINDOW - 1) * sinf(2 * M_PI*K_LIST_CALCULATED[j] / RFT_WINDOW*RFT_counter);
+//FT_H[i][j][1][1] -= Hy[offset] / (RFT_WINDOW - 1) * sinf(2 * M_PI*K_LIST_CALCULATED[j] / RFT_WINDOW*RFT_counter);
+//FT_H[i][j][2][1] -= Hz[offset] / (RFT_WINDOW - 1) * sinf(2 * M_PI*K_LIST_CALCULATED[j] / RFT_WINDOW*RFT_counter);
+//if (RFT_counter == _STEP) { break; }
+//FT_eps0cE[i][j][0][0] += eps0_c_Ex[offset] / RFT_WINDOW * cosf(2 * M_PI*K_LIST_CALCULATED[j] / RFT_WINDOW*RFT_counter); //RFT_counter is not q but it shoud not matter
+//FT_eps0cE[i][j][1][0] += eps0_c_Ey[offset] / RFT_WINDOW * cosf(2 * M_PI*K_LIST_CALCULATED[j] / RFT_WINDOW*RFT_counter);
+//FT_eps0cE[i][j][2][0] += eps0_c_Ez[offset] / RFT_WINDOW * cosf(2 * M_PI*K_LIST_CALCULATED[j] / RFT_WINDOW*RFT_counter);
+//FT_H[i][j][0][0] += Hx[offset] / RFT_WINDOW * cosf(2 * M_PI*K_LIST_CALCULATED[j] / RFT_WINDOW*RFT_counter); //RFT_counter is not q but it shoud not matter
+//FT_H[i][j][1][0] += Hy[offset] / RFT_WINDOW * cosf(2 * M_PI*K_LIST_CALCULATED[j] / RFT_WINDOW*RFT_counter);
+//FT_H[i][j][2][0] += Hz[offset] / RFT_WINDOW * cosf(2 * M_PI*K_LIST_CALCULATED[j] / RFT_WINDOW*RFT_counter);
 
+#define FF_IMG_SIZE 500
 void NTFF(void) {
+	//unsigned char* image = malloc(FF_IMG_SIZE * FF_IMG_SIZE * 4); 
+	//image[4 * width * z + 4 * y + 0]
+	float FF_E[FREQ_N][FF_IMG_SIZE][FF_IMG_SIZE][2][2]; //upper half, lower half, real, imag;
+	float FF_theta[FF_IMG_SIZE][FF_IMG_SIZE], FF_phi[FF_IMG_SIZE][FF_IMG_SIZE];
+	//theta (0~2pi), phi_upz (0~pi), phi_downz(=-phi_upz, -pi~0)
+
+	unsigned __int64 surf_x, surf_y, surf_z;
+	float k_vector, rho, cosPsi, theta, phi;
+	float centerX = ((float)(_SURF_StartX_)+(float)(_SURF_EndX_)) * 0.5f;
+	float centerY = ((float)(_SURF_StartY_)+(float)(_SURF_EndY_)) * 0.5f;
+	float centerZ = ((float)(_SURF_StartZ_)+(float)(_SURF_EndZ_)) * 0.5f;
+	//complex fields
+	float expDist[2], expDist2[2];;
+	float FF_eps0cMx[2], FF_eps0cMy[2], FF_eps0cMz[2], FF_Jx[2], FF_Jy[2], FF_Jz[2], FF_eps0_c_Fx[2], FF_eps0_c_Fy[2], FF_eps0_c_Fz[2];
+	float FF_Nx[2], FF_Ny[2], FF_Nz[2], FF_eps0cLx[2], FF_eps0cLy[2], FF_eps0cLz[2];
+	//float FF_Ax[2], FF_Ay[2], FF_Az[2];
+	//float FF_E_Ax[2], FF_E_Ay[2], FF_E_Az[2], FF_H_Ax[2], FF_H_Ay[2], FF_H_Az[2];
+	//float FF_E_Fx[2], FF_E_Fy[2], FF_E_Fz[2], FF_H_Fx[2], FF_H_Fy[2], FF_H_Fz[2];
+	//float FF_E_far[2], FF_H_far[2], FF_EH_r[2];
+	//float FF_eta = sqrt(_mu0_ / _eps0_);
+	int nx, ny, nz; //n prime
+
+	for (int freqN = 0; freqN < FREQ_N; freqN++) //each frequency
+	{
+		k_vector = K_LIST_CALCULATED[freqN];
+		for (int i = 0; i < FF_IMG_SIZE; i++) //each pixel
+			for (int j = 0; j < FF_IMG_SIZE; j++)
+			{//FIXME : skip unused pixels
+
+				for (int updown = 0; updown <2; updown++){
+
+					theta = FF_theta[i][j];
+					phi = FF_phi[i][j] * roundf(2.0f * (0.5f - (float)(updown)));
+
+					FF_Nx[0] = 0; 
+					FF_Nx[1] = 0;
+					FF_Ny[0] = 0;
+					FF_Ny[1] = 0;
+					FF_Nz[0] = 0;
+					FF_Nz[1] = 0;
+
+					FF_eps0cLx[0] = 0;
+					FF_eps0cLx[1] = 0;
+					FF_eps0cLy[0] = 0;
+					FF_eps0cLy[1] = 0;
+					FF_eps0cLz[0] = 0;
+					FF_eps0cLz[1] = 0;
+
+
+					for (int k = 0; k < _SURF_SIZE_; k++) //over surface
+					{
+						_SET_SURF_XYZ_INDEX(k);
+						nx = (surf_x == _SURF_StartX_) ? -1 : ((surf_x == _SURF_EndX_) ? 1 : 0);
+						ny = (surf_y == _SURF_StartY_) ? -1 : ((surf_y == _SURF_EndY_) ? 1 : 0);
+						nz = (surf_z == _SURF_StartZ_) ? -1 : ((surf_z == _SURF_EndZ_) ? 1 : 0);
+						//FIXME : edge 부분 sqrt1/2 sqrt1/3 처리
+
+						rho = sqrtf((surf_x - centerX) * (surf_x - centerX) + (surf_y - centerY) * (surf_y - centerY) + (surf_z - centerZ) * (surf_z - centerZ)); //rho prime
+						FF_eps0cMx[0] = -(ny * FT_eps0cE[k][freqN][2][0] - nz * FT_eps0cE[k][freqN][1][0]);
+						FF_eps0cMx[1] = -(ny * FT_eps0cE[k][freqN][2][1] - nz * FT_eps0cE[k][freqN][1][1]);
+						FF_eps0cMy[0] = -(nz * FT_eps0cE[k][freqN][0][0] - nx * FT_eps0cE[k][freqN][2][0]);
+						FF_eps0cMy[1] = -(nz * FT_eps0cE[k][freqN][0][1] - nx * FT_eps0cE[k][freqN][2][1]);
+						FF_eps0cMz[0] = -(nx * FT_eps0cE[k][freqN][1][0] - ny * FT_eps0cE[k][freqN][0][0]);
+						FF_eps0cMz[1] = -(nx * FT_eps0cE[k][freqN][1][1] - ny * FT_eps0cE[k][freqN][0][1]);
+
+						FF_Jx[0] = (ny * FT_H[k][freqN][2][0] - nz * FT_H[k][freqN][1][0]);
+						FF_Jx[1] = (ny * FT_H[k][freqN][2][1] - nz * FT_H[k][freqN][1][1]);
+						FF_Jy[0] = (nz * FT_H[k][freqN][0][0] - nx * FT_H[k][freqN][2][0]);
+						FF_Jy[1] = (nz * FT_H[k][freqN][0][1] - nx * FT_H[k][freqN][2][1]);
+						FF_Jz[0] = (nx * FT_H[k][freqN][1][0] - ny * FT_H[k][freqN][0][0]);
+						FF_Jz[1] = (nx * FT_H[k][freqN][1][1] - ny * FT_H[k][freqN][0][1]);
+
+						//inner product
+						cosPsi = ((surf_x - centerX) / rho) * (cosf(theta) * cosf(phi))
+							+ ((surf_y - centerY) / rho) * (sinf(theta) * cosf(phi))
+							+ ((surf_z - centerZ) / rho) * (sinf(phi));
+
+						expDist[0] = cosf(k_vector * rho * cosPsi);
+						expDist[1] = sinf(k_vector * rho * cosPsi);
+
+						//eq 14.55
+						FF_Nx[0] += FF_Jx[0] * expDist[0] - FF_Jx[1] * expDist[1];
+						FF_Nx[1] += FF_Jx[0] * expDist[1] + FF_Jx[1] * expDist[0];
+						FF_Ny[0] += FF_Jy[0] * expDist[0] - FF_Jy[1] * expDist[1];
+						FF_Ny[1] += FF_Jy[0] * expDist[1] + FF_Jy[1] * expDist[0];
+						FF_Nz[0] += FF_Jz[0] * expDist[0] - FF_Jz[1] * expDist[1];
+						FF_Nz[1] += FF_Jz[0] * expDist[1] + FF_Jz[1] * expDist[0];
+
+						//eq 14.56
+						FF_eps0cLx[0] += FF_eps0cMx[0] * expDist[0] - FF_eps0cMx[1] * expDist[1];
+						FF_eps0cLx[1] += FF_eps0cMx[0] * expDist[1] + FF_eps0cMx[1] * expDist[0];
+						FF_eps0cLy[0] += FF_eps0cMy[0] * expDist[0] - FF_eps0cMy[1] * expDist[1];
+						FF_eps0cLy[1] += FF_eps0cMy[0] * expDist[1] + FF_eps0cMy[1] * expDist[0];
+						FF_eps0cLz[0] += FF_eps0cMz[0] * expDist[0] - FF_eps0cMz[1] * expDist[1];
+						FF_eps0cLz[1] += FF_eps0cMz[0] * expDist[1] + FF_eps0cMz[1] * expDist[0];
+
+						//eq. 14.54, set rho = 1
+						expDist2[0] = cosf(k_vector);
+						expDist2[1] = -sinf(k_vector);
+						FF_E[freqN][i][j][updown][0] = sqrtf(0.125f / M_PI / k_vector) * (12341234);
+						//FIXME
+					}
+				}
+			}
+	}
 }
 
 int init(void)
@@ -802,7 +925,8 @@ int snapshot(void)
 			_SET_SURF_XYZ_INDEX(surf_index);
 			int offset = _INDEX_XYZ(X, y, z);
 			int value =0;
-			if (surf_index !=-1) value = FT_eps0cE[_SURF_INDEX_XYZ(X, y, z)][0][0][0] * 255.0f * 5000.0f;
+			//if (surf_index !=-1) value = (FT_eps0cE[_SURF_INDEX_XYZ(X, y, z)][1][0][0]* FT_eps0cE[_SURF_INDEX_XYZ(X, y, z)][1][0][0]+ FT_eps0cE[_SURF_INDEX_XYZ(X, y, z)][1][0][1]* FT_eps0cE[_SURF_INDEX_XYZ(X, y, z)][1][0][1]) * 255.0f * 5000.0f * 5000.0f;
+			if (surf_index != -1) value = (FT_eps0cE[_SURF_INDEX_XYZ(X, y, z)][1][0][1]) * 255.0f * 5000.0f ;
 			//int value = (((mask[offset] & (0b1111 << 4)) >> 4)) *50.0f ;
 			value = value > 255 ? 255 : value;
 			value = value < -255 ? -255 : value;

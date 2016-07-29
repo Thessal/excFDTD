@@ -10,11 +10,11 @@
 #define _DimZ (100)
 
 //eq35
-int pml_thick_x_px = 8;
-int pml_thick_y_px = 8;
-int pml_thick_z_px = 8;
+#define _PML_PX_X_ (8)
+#define _PML_PX_Y_ (8)
+#define _PML_PX_Z_ (8)
 #define _PML_ALPHA_TUNING_ 0.5f
-int pml_n = 3;
+int pml_n = 3; //consider using macro
 float pml_R = 10e-4;
 float pml_kappa_max = 8.0f;
 
@@ -28,7 +28,7 @@ float pml_kappa_max = 8.0f;
 #define _dt_ (_dx / _c0 / _S_factor)
 #define _cdt__ (_dx / _S_factor)
 #define _cdt_div_dx (1 / _S_factor)
-float stability_factor_inv = 1.0f / _S_factor; 
+float stability_factor_inv = 1.0f / _S_factor;
 
 // doi:10.1088/0022-3727/40/22/043, Au
 #define _eps_inf (1.0300 )
@@ -81,14 +81,49 @@ float stability_factor_inv = 1.0f / _S_factor;
 		_INDEX_THREAD( ((x))/(_blockDimX-2), ((y))/(_blockDimY-2), ((z))/(_blockDimZ-2), ((x))%(_blockDimX-2)+1 , ((y))%(_blockDimY-2)+1 , ((z))%(_blockDimZ-2)+1 ) \
 		)
 
-//copy by value
-#include <string.h>
-#define SWAP(x,y) do \
-{ unsigned __int64 swap_temp[sizeof(x) == sizeof(y) ? (signed)sizeof(x) : -1]; \
-memcpy(swap_temp, &y, sizeof(x)); \
-memcpy(&y, &x, sizeof(x)); \
-memcpy(&x, swap_temp, sizeof(x)); \
-} while (0)
+// === surface memory for runningDFT and NTFF
+#define _SURF_Margin_ 3
+#define _SURF_StartX_ ((_PML_PX_X_)+_SURF_Margin_)
+#define _SURF_StartY_ ((_PML_PX_Y_)+_SURF_Margin_)
+#define _SURF_StartZ_ ((_PML_PX_Z_)+_SURF_Margin_)
+#define _SURF_EndX_ ((_DimX-1)-(_PML_PX_X_)-_SURF_Margin_) 
+#define _SURF_EndY_ ((_DimY-1)-(_PML_PX_Y_)-_SURF_Margin_)
+#define _SURF_EndZ_ ((_DimZ-1)-(_PML_PX_Z_)-_SURF_Margin_)
+#define _SURF_DX_ ((_SURF_EndX_)-(_SURF_StartX_)+1) 
+#define _SURF_DY_ ((_SURF_EndY_)-(_SURF_StartY_)+1)
+#define _SURF_DZ_ ((_SURF_EndZ_)-(_SURF_StartZ_)+1)
+#define _SURF_SIZE_ (2*((_SURF_DX_)*(_SURF_DY_)+(_SURF_DZ_-2)*(_SURF_DX_)+(_SURF_DY_-2)*(_SURF_DZ_-2)))
+
+//using this function inside for loop is not efficient. consider expanding for loop
+#define _SURF_INDEX_XYZ(x,y,z) \
+( \
+(x < _SURF_StartX_ || _SURF_EndX_ < x || y < _SURF_StartY_ || _SURF_EndY_ < y || z < _SURF_StartZ_ || _SURF_EndZ_ < z) ? -1 : ( \
+z == _SURF_StartZ_ ? _SURF_DX_*(y-_SURF_StartY_)+(x-_SURF_StartX_) : ( \
+z == _SURF_EndZ_   ? _SURF_DX_*(y-_SURF_StartY_)+(x-_SURF_StartX_) + (_SURF_DX_*_SURF_DY_) : ( \
+y == _SURF_StartY_ ? (_SURF_DZ_-2)*(x-_SURF_StartX_)+(z-_SURF_StartZ_-1) + 2*(_SURF_DX_*_SURF_DY_) : ( \
+y == _SURF_EndY_   ? (_SURF_DZ_-2)*(x-_SURF_StartX_)+(z-_SURF_StartZ_-1) + 2*(_SURF_DX_*_SURF_DY_) + (_SURF_DZ_-2)*(_SURF_DX_) : ( \
+x == _SURF_StartX_ ? (_SURF_DY_-2)*(z-_SURF_StartZ_-1)+(y-_SURF_StartY_-1) + 2*(_SURF_DX_*_SURF_DY_+(_SURF_DZ_-2)*(_SURF_DX_)) : ( \
+x == _SURF_EndX_   ? (_SURF_DY_-2)*(z-_SURF_StartZ_-1)+(y-_SURF_StartY_-1) + 2*(_SURF_DX_*_SURF_DY_+(_SURF_DZ_-2)*(_SURF_DX_)) + (_SURF_DY_-2)*(_SURF_DZ_-2) : ( \
+-1))))))) \
+)  
+
+#define _SET_SURF_XYZ_INDEX(surf_index) \
+do{ \
+unsigned __int64 temp_idx = surf_index; \
+if ( temp_idx                         <  (_SURF_DX_*_SURF_DY_) ) { \
+	surf_z = _SURF_StartZ_; surf_x = _SURF_StartX_ + temp_idx % (_SURF_DX_ - 2); surf_y = _SURF_StartY_ + temp_idx / (_SURF_DX_ - 2); break; } \
+if ((temp_idx-=(_SURF_DX_*_SURF_DY_)) <  (_SURF_DX_*_SURF_DY_) ) { \
+	surf_z = _SURF_EndZ_; surf_x = _SURF_StartX_ + temp_idx % (_SURF_DX_ - 2); surf_y = _SURF_StartY_ + temp_idx / (_SURF_DX_ - 2); break; } \
+if ((temp_idx-=(_SURF_DX_*_SURF_DY_)) <  (_SURF_DZ_-2)*(_SURF_DX_) ) { \
+	surf_y = _SURF_StartY_; surf_z = 1 + _SURF_StartZ_ + temp_idx % (_SURF_DZ_ - 2); surf_x = _SURF_StartX_ + temp_idx / (_SURF_DZ_ - 2); break; }\
+if ((temp_idx-=(_SURF_DZ_-2)*(_SURF_DX_)) <  (_SURF_DZ_-2)*(_SURF_DX_) ) { \
+	surf_y = _SURF_EndY_; surf_z = 1 + _SURF_StartZ_ + temp_idx % (_SURF_DZ_ - 2); surf_x = _SURF_StartX_ + temp_idx / (_SURF_DZ_ - 2); break; }\
+if ((temp_idx-=(_SURF_DZ_-2)*(_SURF_DX_)) <  (_SURF_DY_-2)*(_SURF_DZ_-2) ) { \
+	surf_x = _SURF_StartX_; surf_y = 1 + _SURF_StartY_ + temp_idx % (_SURF_DY_ - 2); surf_z = 1 + _SURF_StartZ_ + temp_idx / (_SURF_DY_ - 2); break; }\
+if ((temp_idx-=(_SURF_DY_-2)*(_SURF_DZ_-2)) <  (_SURF_DY_-2)*(_SURF_DZ_-2) ) { \
+	surf_x = _SURF_EndX_; surf_y = 1 + _SURF_StartY_ + temp_idx % (_SURF_DY_ - 2); surf_z = 1 + _SURF_StartZ_ + temp_idx / (_SURF_DY_ - 2); break; }\
+surf_x = -1; surf_y = -1; surf_z = -1; \
+} while(0)
 
 
 
@@ -220,7 +255,7 @@ int main(int argc, char* argv[])
 	init();
 	time_t start;
 	start = clock();
-	for (int i = 0; i < 400; i++) {
+	for (int i = 0; i < 4; i++) {
 		eps0_c_Ex[_INDEX_XYZ(50, 65, 50)] += sin(2.0f * M_PI * _c0 / 500e-9 * (float)i * _dt_);
 		printf("%f\n", cos((float)i / 5.0f));
 		DCP_HE_C();
@@ -414,13 +449,13 @@ int init(void)
 
 	//PML constants
 	float pml_eps0 = _eps0_;
-	float pml_sigma_x_dt_div_eps0_max = -((float)pml_n + 1.0f)*logf(pml_R) * 0.5f / pml_thick_x_px / _S_factor; //eq37
-	float pml_sigma_y_dt_div_eps0_max = -((float)pml_n + 1.0f)*logf(pml_R) * 0.5f / pml_thick_y_px / _S_factor;
-	float pml_sigma_z_dt_div_eps0_max = -((float)pml_n + 1.0f)*logf(pml_R) * 0.5f / pml_thick_z_px / _S_factor;
+	float pml_sigma_x_dt_div_eps0_max = -((float)pml_n + 1.0f)*logf(pml_R) * 0.5f / (_PML_PX_X_) / _S_factor; //eq37
+	float pml_sigma_y_dt_div_eps0_max = -((float)pml_n + 1.0f)*logf(pml_R) * 0.5f / (_PML_PX_Y_) / _S_factor;
+	float pml_sigma_z_dt_div_eps0_max = -((float)pml_n + 1.0f)*logf(pml_R) * 0.5f / (_PML_PX_Z_) / _S_factor;
 	printf("PML : \n");
 	printf("_eps0_ = %e\n", _eps0_);
 	printf("pml_eps0 = %e\n", pml_eps0);
-	printf("pml_thick_x_px = %d\n", pml_thick_x_px);
+	printf("(_PML_PX_X_) = %d\n", (_PML_PX_X_));
 	printf("pml_n = %d\n", pml_n);
 	printf("pml_R = %e\n", pml_R);
 	printf("pml_kappa_max = %e\n", pml_kappa_max);
@@ -452,27 +487,27 @@ int init(void)
 		alpha_dt_div_eps0[i] = (_PML_ALPHA_TUNING_); // FIXME 
 
 		//FIXME : check PML area
-		if ((X + 1 <= (pml_thick_x_px) || (_DimX)-(pml_thick_x_px) <= X)) {
-			//if ((X + 1 <= (pml_thick_x_px) || (_DimX)-(pml_thick_x_px) <= X) && (pml_thick_y_px) < Y+1 && Y < (_DimY)-(pml_thick_y_px) && (pml_thick_z_px) < Z + 1 && Z < (_DimZ)-(pml_thick_z_px) ) {
+		if ((X + 1 <= ((_PML_PX_X_)) || (_DimX)-((_PML_PX_X_)) <= X)) {
+			//if ((X + 1 <= ((_PML_PX_X_)) || (_DimX)-((_PML_PX_X_)) <= X) && ((_PML_PX_Y_)) < Y+1 && Y < (_DimY)-((_PML_PX_Y_)) && ((_PML_PX_Z_)) < Z + 1 && Z < (_DimZ)-((_PML_PX_Z_)) ) {
 			mask[i] |= (1 << 1); // 1st bit : PML
-			sigmaX_dt_div_eps0[i] = pml_sigma_x_dt_div_eps0_max * pow(fmin(fabs((pml_thick_x_px)-X), fabs((pml_thick_x_px)+X - (_DimX)+1)) / (pml_thick_x_px), (pml_n));
-			kappaX[i] = 1.0f + (pml_kappa_max - 1.0f) * pow((fmin(fabs((pml_thick_x_px)-X), fabs((pml_thick_x_px)+X - (_DimX)+1)) - 1.0f)/ (pml_thick_x_px), (pml_n)); //FIXME : 0.5f? -1.0f? check 
+			sigmaX_dt_div_eps0[i] = pml_sigma_x_dt_div_eps0_max * pow(fmin(fabs(((_PML_PX_X_))-X), fabs(((_PML_PX_X_))+X - (_DimX)+1)) / ((_PML_PX_X_)), (pml_n));
+			kappaX[i] = 1.0f + (pml_kappa_max - 1.0f) * pow((fmin(fabs(((_PML_PX_X_))-X), fabs(((_PML_PX_X_))+X - (_DimX)+1)) - 1.0f)/ ((_PML_PX_X_)), (pml_n)); //FIXME : 0.5f? -1.0f? check 
 			b_X[i] = expf( -alpha_dt_div_eps0[i] - sigmaX_dt_div_eps0[i]/kappaX[i] ); //close to 0
 			C_X[i] = sigmaX_dt_div_eps0[i] / (sigmaX_dt_div_eps0[i] * kappaX[i] + alpha_dt_div_eps0[i] * kappaX[i] * kappaX[i] ) * (b_X[i] - 1.0f); //close to 1
 		}
-		if ((Y + 1 <= (pml_thick_y_px) || (_DimY)-(pml_thick_y_px) <= Y)) {
-			//if ((Y + 1 <= (pml_thick_y_px) || (_DimY)-(pml_thick_y_px) <= Y) && (pml_thick_z_px) < Z + 1 && Z < (_DimY)-(pml_thick_z_px) && (pml_thick_x_px) < X + 1 && X < (_DimX)-(pml_thick_x_px) ) {
+		if ((Y + 1 <= ((_PML_PX_Y_)) || (_DimY)-((_PML_PX_Y_)) <= Y)) {
+			//if ((Y + 1 <= ((_PML_PX_Y_)) || (_DimY)-((_PML_PX_Y_)) <= Y) && ((_PML_PX_Z_)) < Z + 1 && Z < (_DimY)-((_PML_PX_Z_)) && ((_PML_PX_X_)) < X + 1 && X < (_DimX)-((_PML_PX_X_)) ) {
 			mask[i] |= (1 << 1); // 1st bit : PML
-			sigmaY_dt_div_eps0[i] = pml_sigma_y_dt_div_eps0_max * pow(fmin(fabs((pml_thick_y_px)-Y), fabs((pml_thick_y_px)+Y - (_DimY)+1)) / (pml_thick_y_px), (pml_n));
-			kappaY[i] = 1.0f + (pml_kappa_max - 1.0f) * pow((fmin(fabs((pml_thick_y_px)-Y), fabs((pml_thick_y_px)+Y - (_DimY)+1)) - 1.0f)/ (pml_thick_y_px), (pml_n));
+			sigmaY_dt_div_eps0[i] = pml_sigma_y_dt_div_eps0_max * pow(fmin(fabs(((_PML_PX_Y_))-Y), fabs(((_PML_PX_Y_))+Y - (_DimY)+1)) / ((_PML_PX_Y_)), (pml_n));
+			kappaY[i] = 1.0f + (pml_kappa_max - 1.0f) * pow((fmin(fabs(((_PML_PX_Y_))-Y), fabs(((_PML_PX_Y_))+Y - (_DimY)+1)) - 1.0f)/ ((_PML_PX_Y_)), (pml_n));
 			b_Y[i] = expf(-alpha_dt_div_eps0[i] - sigmaY_dt_div_eps0[i] / kappaY[i]);
 			C_Y[i] = sigmaY_dt_div_eps0[i] / (sigmaY_dt_div_eps0[i] * kappaY[i] + alpha_dt_div_eps0[i] * kappaY[i] * kappaY[i]) * (b_Y[i] - 1.0f);
 		}
-		if ((Z + 1 <= (pml_thick_z_px) || (_DimZ)-(pml_thick_z_px) <= Z)) {
-			//if ((Z + 1 <= (pml_thick_z_px) || (_DimZ)-(pml_thick_z_px) <= Z) && (pml_thick_x_px) < X + 1 && X < (_DimX)-(pml_thick_x_px) && (pml_thick_y_px) < Y + 1 && Y < (_DimY)-(pml_thick_y_px) ) {
+		if ((Z + 1 <= ((_PML_PX_Z_)) || (_DimZ)-((_PML_PX_Z_)) <= Z)) {
+			//if ((Z + 1 <= ((_PML_PX_Z_)) || (_DimZ)-((_PML_PX_Z_)) <= Z) && ((_PML_PX_X_)) < X + 1 && X < (_DimX)-((_PML_PX_X_)) && ((_PML_PX_Y_)) < Y + 1 && Y < (_DimY)-((_PML_PX_Y_)) ) {
 			mask[i] |= (1 << 1); // 1st bit : PML
-			sigmaZ_dt_div_eps0[i] = pml_sigma_z_dt_div_eps0_max * pow(fmin(fabs((pml_thick_z_px)-Z), fabs((pml_thick_z_px)+Z - (_DimZ)+1)) / (pml_thick_z_px), (pml_n));
-			kappaZ[i] = 1.0f + (pml_kappa_max - 1.0f) * pow((fmin(fabs((pml_thick_z_px)-Z), fabs((pml_thick_z_px)+Z - (_DimZ)+1)) - 1.0f)/ (pml_thick_z_px), (pml_n));
+			sigmaZ_dt_div_eps0[i] = pml_sigma_z_dt_div_eps0_max * pow(fmin(fabs(((_PML_PX_Z_))-Z), fabs(((_PML_PX_Z_))+Z - (_DimZ)+1)) / ((_PML_PX_Z_)), (pml_n));
+			kappaZ[i] = 1.0f + (pml_kappa_max - 1.0f) * pow((fmin(fabs(((_PML_PX_Z_))-Z), fabs(((_PML_PX_Z_))+Z - (_DimZ)+1)) - 1.0f)/ ((_PML_PX_Z_)), (pml_n));
 			b_Z[i] = expf(-alpha_dt_div_eps0[i] - sigmaZ_dt_div_eps0[i] / kappaZ[i]);
 			C_Z[i] = sigmaZ_dt_div_eps0[i] / (sigmaZ_dt_div_eps0[i] * kappaZ[i] + alpha_dt_div_eps0[i] * kappaZ[i] * kappaZ[i]) * (b_Z[i] - 1.0f);
 		}
@@ -704,13 +739,14 @@ int snapshot(void)
 	for (z = 0; z < height; z++)
 		for (y = 0; y < width; y++)
 		{
+			int surf_x, surf_y, surf_z;
+			_SET_SURF_XYZ_INDEX(_SURF_INDEX_XYZ(X, y, z));
 			int offset = _INDEX_XYZ(X, y, z);
-			//int value = (psiXY_dx[offset] - psiXZ_dx[offset]) * 255.0f *50.0f *1000.0f;// *_c0;
-			int value = (((mask[offset] & (0b1111 << 4)) >> 4)) *50.0f ;// *_c0;
+			int value = (surf_y) * 5.0f;// *_c0;
+			//int value = (((mask[offset] & (0b1111 << 4)) >> 4)) *50.0f ;// *_c0;
 			value = value > 255 ? 255 : value;
 			value = value < -255 ? -255 : value;
 			int val2 = (eps0_c_Ex[offset]) * 255.0f * 50.0f;
-			//int val2 = (exp(-alpha_dt_div_eps0[offset] - sigmaY_dt_div_eps0[offset] / kappaY[offset] ) )* 255.0f * 1.0f;
 			val2 = val2 > 255 ? 255 : val2;
 			val2 = val2 < -255 ? -255 : val2;
 			image[4 * width * z + 4 * y + 0] = (unsigned char)(value>0? value : 0);

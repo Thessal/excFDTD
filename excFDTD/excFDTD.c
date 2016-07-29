@@ -9,6 +9,8 @@
 #define _DimY (100)
 #define _DimZ (100)
 
+#define _STEP (300)
+
 //eq35
 #define _PML_PX_X_ (8)
 #define _PML_PX_Y_ (8)
@@ -42,6 +44,15 @@ float stability_factor_inv = 1.0f / _S_factor;
 #define _Gamma2_L (6.7371e14)
 #define _Delta_eps2_L (1.3700)
 #define _phi2_L (-0.08734)
+
+// RFT NTFF frequency
+#define RFT_WINDOW 50
+#if RFT_WINDOW > _STEP
+	#define RFT_WINDOW _STEP
+#endif
+#define FREQ_N 3
+float FREQ_LIST_DESIRED[FREQ_N] = { _c0 / 300e-9, _c0 / 500e-9, _c0 / 800e-9 };
+float K_LIST_CALCULATED[FREQ_N];
 
 
 // == loop tiling ==
@@ -94,7 +105,7 @@ float stability_factor_inv = 1.0f / _S_factor;
 #define _SURF_DZ_ ((_SURF_EndZ_)-(_SURF_StartZ_)+1)
 #define _SURF_SIZE_ (2*((_SURF_DX_)*(_SURF_DY_)+(_SURF_DZ_-2)*(_SURF_DX_)+(_SURF_DY_-2)*(_SURF_DZ_-2)))
 
-//using this function inside for loop is not efficient. consider expanding for loop
+//using this function inside for loop is not efficient
 #define _SURF_INDEX_XYZ(x,y,z) \
 ( \
 (x < _SURF_StartX_ || _SURF_EndX_ < x || y < _SURF_StartY_ || _SURF_EndY_ < y || z < _SURF_StartZ_ || _SURF_EndZ_ < z) ? -1 : ( \
@@ -125,6 +136,8 @@ if ((temp_idx-=(_SURF_DY_-2)*(_SURF_DZ_-2)) <  (_SURF_DY_-2)*(_SURF_DZ_-2) ) { \
 surf_x = -1; surf_y = -1; surf_z = -1; \
 } while(0)
 
+static float FT_eps0cE[_SURF_SIZE_][FREQ_N][3][2]; //XYZ,Re,Im
+static float FT_H[_SURF_SIZE_][FREQ_N][3][2]; //XYZ,Re,Im
 
 
 // === DCP coefficients
@@ -249,16 +262,19 @@ void Dielectric_HE(void);
 void Dielectric_HE_C(void);
 void DCP_HE_C(void);
 void syncPadding(void);
+void RFT(void);
+void NTFF(void);
 int snapshot(void);
 int main(int argc, char* argv[])
 {
 	init();
 	time_t start;
 	start = clock();
-	for (int i = 0; i < 4; i++) {
-		eps0_c_Ex[_INDEX_XYZ(50, 65, 50)] += sin(2.0f * M_PI * _c0 / 500e-9 * (float)i * _dt_);
+	for (int i = 0; i <= _STEP; i++) {
+		eps0_c_Ex[_INDEX_XYZ(50, 65, 50)] += sin(2.0f * M_PI * _c0 / 500e-9 * (float)i * _dt_) * exp(- 0.000001 * (i-100)*(i-100));
 		printf("%f\n", cos((float)i / 5.0f));
 		DCP_HE_C();
+		RFT();
 	}
 	printf("time : %f\n", (double)(clock() - start) / CLK_TCK);
 	snapshot();
@@ -416,6 +432,35 @@ void DCP_HE_C(void)
 	}
 }
 
+int RFT_counter = 0;
+void RFT(void) {
+	if (RFT_counter < _STEP - RFT_WINDOW) {	RFT_counter++; return; }
+	unsigned __int64 surf_x, surf_y, surf_z, index;
+	for (int i = 0; i < _SURF_SIZE_; i++) {
+		for (int j = 0; j < FREQ_N; j++) {
+			_SET_SURF_XYZ_INDEX(i);
+			index = _INDEX_XYZ(surf_x, surf_y, surf_z);
+			FT_eps0cE[i][j][0][1] -= eps0_c_Ex[index] / (RFT_WINDOW - 1) * sinf(2 * M_PI*K_LIST_CALCULATED[j] / RFT_WINDOW*RFT_counter);
+			FT_eps0cE[i][j][1][1] -= eps0_c_Ey[index] / (RFT_WINDOW - 1) * sinf(2 * M_PI*K_LIST_CALCULATED[j] / RFT_WINDOW*RFT_counter);
+			FT_eps0cE[i][j][2][1] -= eps0_c_Ez[index] / (RFT_WINDOW - 1) * sinf(2 * M_PI*K_LIST_CALCULATED[j] / RFT_WINDOW*RFT_counter);
+			FT_H[i][j][0][1] -= Hx[index] / (RFT_WINDOW - 1) * sinf(2 * M_PI*K_LIST_CALCULATED[j] / RFT_WINDOW*RFT_counter);
+			FT_H[i][j][1][1] -= Hy[index] / (RFT_WINDOW - 1) * sinf(2 * M_PI*K_LIST_CALCULATED[j] / RFT_WINDOW*RFT_counter);
+			FT_H[i][j][2][1] -= Hz[index] / (RFT_WINDOW - 1) * sinf(2 * M_PI*K_LIST_CALCULATED[j] / RFT_WINDOW*RFT_counter);
+			if (RFT_counter == _STEP) { break; }
+			FT_eps0cE[i][j][0][0] += eps0_c_Ex[index] / RFT_WINDOW * cosf(2 * M_PI*K_LIST_CALCULATED[j] / RFT_WINDOW*RFT_counter); //RFT_counter is not q but it shoud not matter
+			FT_eps0cE[i][j][1][0] += eps0_c_Ey[index] / RFT_WINDOW * cosf(2 * M_PI*K_LIST_CALCULATED[j] / RFT_WINDOW*RFT_counter);
+			FT_eps0cE[i][j][2][0] += eps0_c_Ez[index] / RFT_WINDOW * cosf(2 * M_PI*K_LIST_CALCULATED[j] / RFT_WINDOW*RFT_counter); 
+			FT_H[i][j][0][0] += Hx[index] / RFT_WINDOW * cosf(2 * M_PI*K_LIST_CALCULATED[j] / RFT_WINDOW*RFT_counter); //RFT_counter is not q but it shoud not matter
+			FT_H[i][j][1][0] += Hy[index] / RFT_WINDOW * cosf(2 * M_PI*K_LIST_CALCULATED[j] / RFT_WINDOW*RFT_counter);
+			FT_H[i][j][2][0] += Hz[index] / RFT_WINDOW * cosf(2 * M_PI*K_LIST_CALCULATED[j] / RFT_WINDOW*RFT_counter);
+		}
+	}
+	RFT_counter++;
+}
+
+void NTFF(void) {
+}
+
 int init(void)
 {
 	//tile info
@@ -446,6 +491,15 @@ int init(void)
 	printf("eq30term3 x : %e\n", (_C5p) / _eps0_);
 	printf("eq30term0 x : %e\n", (_eps0_ * _eps_inf + 0.5f * _sigma_ * _dt_ - _d2 + _C3p) / _eps0_);
 	printf("\n");
+
+	//RFT/NTFF setup
+	printf("RFT/NTFF freqs : ");
+	for (int i = 0; i < FREQ_N; i++)
+	{
+		K_LIST_CALCULATED[i] = roundf(FREQ_LIST_DESIRED[i] * _dt_ * RFT_WINDOW);
+		printf("%e(%e), ", K_LIST_CALCULATED[i] / _dt_ / RFT_WINDOW, _c0 / K_LIST_CALCULATED[i] * _dt_ * RFT_WINDOW);
+	}
+	printf("\n\n");
 
 	//PML constants
 	float pml_eps0 = _eps0_;
@@ -514,6 +568,10 @@ int init(void)
 		if (((mask[i] & (1 << 0)) >> 0) == 1) { // PML : exclude padding area
 			mask[i] &= ~(1 << 1);
 		}
+		//NOT USED
+		//if (_SURF_INDEX_XYZ(X, Y, Z) != -1) {
+		//	mask[i] |= (1 << 3); // 3rd bit : RFT / NTFF
+		//}
 
 		//4th~7th bit : metal
 		if ((X - _DimX / 2)*(X - _DimX / 2) + (Y - _DimY / 2)* (Y - _DimY / 2) + (Z - _DimZ / 2)*(Z - _DimZ / 2) < 10 * 10)
@@ -740,10 +798,12 @@ int snapshot(void)
 		for (y = 0; y < width; y++)
 		{
 			int surf_x, surf_y, surf_z;
-			_SET_SURF_XYZ_INDEX(_SURF_INDEX_XYZ(X, y, z));
+			int surf_index = _SURF_INDEX_XYZ(X, y, z);
+			_SET_SURF_XYZ_INDEX(surf_index);
 			int offset = _INDEX_XYZ(X, y, z);
-			int value = (surf_y) * 5.0f;// *_c0;
-			//int value = (((mask[offset] & (0b1111 << 4)) >> 4)) *50.0f ;// *_c0;
+			int value =0;
+			if (surf_index !=-1) value = FT_eps0cE[_SURF_INDEX_XYZ(X, y, z)][0][0][0] * 255.0f * 5000.0f;
+			//int value = (((mask[offset] & (0b1111 << 4)) >> 4)) *50.0f ;
 			value = value > 255 ? 255 : value;
 			value = value < -255 ? -255 : value;
 			int val2 = (eps0_c_Ex[offset]) * 255.0f * 50.0f;

@@ -3,6 +3,7 @@
 //VS2015, ipsxe2016 Cluster Edition
 //reference : K.P.Prokopidis, 2013
 //reference : eecs.wsu.edu/~schneidj/ufdtd/
+//reference : Torok et al, 2006 (doi: 10.1364/JOSAA.23.000713)
 
 
 #define _DimX (100)
@@ -535,6 +536,8 @@ void NTFF(void) {
 						//FIXME : edge 부분 sqrt1/2 sqrt1/3 처리
 
 						rho = sqrtf((surf_x - centerX) * (surf_x - centerX) + (surf_y - centerY) * (surf_y - centerY) + (surf_z - centerZ) * (surf_z - centerZ)); //rho prime
+
+						//eq 14.3
 						FF_eps0cMx[0] = -(ny * FT_eps0cE[k][freqN][2][0] - nz * FT_eps0cE[k][freqN][1][0]);
 						FF_eps0cMx[1] = -(ny * FT_eps0cE[k][freqN][2][1] - nz * FT_eps0cE[k][freqN][1][1]);
 						FF_eps0cMy[0] = -(nz * FT_eps0cE[k][freqN][0][0] - nx * FT_eps0cE[k][freqN][2][0]);
@@ -542,6 +545,7 @@ void NTFF(void) {
 						FF_eps0cMz[0] = -(nx * FT_eps0cE[k][freqN][1][0] - ny * FT_eps0cE[k][freqN][0][0]);
 						FF_eps0cMz[1] = -(nx * FT_eps0cE[k][freqN][1][1] - ny * FT_eps0cE[k][freqN][0][1]);
 
+						//eq 14.4
 						FF_Jx[0] = (ny * FT_H[k][freqN][2][0] - nz * FT_H[k][freqN][1][0]);
 						FF_Jx[1] = (ny * FT_H[k][freqN][2][1] - nz * FT_H[k][freqN][1][1]);
 						FF_Jy[0] = (nz * FT_H[k][freqN][0][0] - nx * FT_H[k][freqN][2][0]);
@@ -558,20 +562,20 @@ void NTFF(void) {
 						expDist[1] = sinf(k_vector * rho * cosPsi);
 
 						//eq 14.55
-						FF_Nx[0] += FF_Jx[0] * expDist[0] - FF_Jx[1] * expDist[1];
-						FF_Nx[1] += FF_Jx[0] * expDist[1] + FF_Jx[1] * expDist[0];
-						FF_Ny[0] += FF_Jy[0] * expDist[0] - FF_Jy[1] * expDist[1];
-						FF_Ny[1] += FF_Jy[0] * expDist[1] + FF_Jy[1] * expDist[0];
-						FF_Nz[0] += FF_Jz[0] * expDist[0] - FF_Jz[1] * expDist[1];
-						FF_Nz[1] += FF_Jz[0] * expDist[1] + FF_Jz[1] * expDist[0];
+						FF_Nx[0] += FF_Jx[0] * expDist[0] - FF_Jx[1] * expDist[1] * _dx * _dx;
+						FF_Nx[1] += FF_Jx[0] * expDist[1] + FF_Jx[1] * expDist[0] * _dx * _dx;
+						FF_Ny[0] += FF_Jy[0] * expDist[0] - FF_Jy[1] * expDist[1] * _dx * _dx;
+						FF_Ny[1] += FF_Jy[0] * expDist[1] + FF_Jy[1] * expDist[0] * _dx * _dx;
+						FF_Nz[0] += FF_Jz[0] * expDist[0] - FF_Jz[1] * expDist[1] * _dx * _dx;
+						FF_Nz[1] += FF_Jz[0] * expDist[1] + FF_Jz[1] * expDist[0] * _dx * _dx;
 
 						//eq 14.56
-						FF_eps0cLx[0] += FF_eps0cMx[0] * expDist[0] - FF_eps0cMx[1] * expDist[1];
-						FF_eps0cLx[1] += FF_eps0cMx[0] * expDist[1] + FF_eps0cMx[1] * expDist[0];
-						FF_eps0cLy[0] += FF_eps0cMy[0] * expDist[0] - FF_eps0cMy[1] * expDist[1];
-						FF_eps0cLy[1] += FF_eps0cMy[0] * expDist[1] + FF_eps0cMy[1] * expDist[0];
-						FF_eps0cLz[0] += FF_eps0cMz[0] * expDist[0] - FF_eps0cMz[1] * expDist[1];
-						FF_eps0cLz[1] += FF_eps0cMz[0] * expDist[1] + FF_eps0cMz[1] * expDist[0];
+						FF_eps0cLx[0] += FF_eps0cMx[0] * expDist[0] - FF_eps0cMx[1] * expDist[1] * _dx * _dx;
+						FF_eps0cLx[1] += FF_eps0cMx[0] * expDist[1] + FF_eps0cMx[1] * expDist[0] * _dx * _dx;
+						FF_eps0cLy[0] += FF_eps0cMy[0] * expDist[0] - FF_eps0cMy[1] * expDist[1] * _dx * _dx;
+						FF_eps0cLy[1] += FF_eps0cMy[0] * expDist[1] + FF_eps0cMy[1] * expDist[0] * _dx * _dx;
+						FF_eps0cLz[0] += FF_eps0cMz[0] * expDist[0] - FF_eps0cMz[1] * expDist[1] * _dx * _dx;
+						FF_eps0cLz[1] += FF_eps0cMz[0] * expDist[1] + FF_eps0cMz[1] * expDist[0] * _dx * _dx;
 
 						//eq. 14.54, set rho = 1
 						expDist2[0] = cosf(k_vector);

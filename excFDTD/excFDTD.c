@@ -47,15 +47,15 @@ float stability_factor_inv = 1.0f / _S_factor;
 #define _phi2_L (-0.08734)
 
 // RFT NTFF frequency
-#define RFT_WINDOW 200
-#if RFT_WINDOW > _STEP
-	#define RFT_WINDOW _STEP
-#endif
-//#define FREQ_N 3
-//float FREQ_LIST_DESIRED[FREQ_N] = { _c0 / 300e-9, _c0 / 500e-9, _c0 / 800e-9 };
+#define RFT_WINDOW _STEP
+//#if RFT_WINDOW > _STEP
+//	#define RFT_WINDOW _STEP
+//#endif
 #define FREQ_N 1
 float FREQ_LIST_DESIRED[FREQ_N] = {_c0 / 500e-9};
-float K_LIST_CALCULATED[FREQ_N];
+//#define FREQ_N 3
+//float FREQ_LIST_DESIRED[FREQ_N] = { _c0 / 300e-9, _c0 / 500e-9, _c0 / 800e-9 };
+float RFT_K_LIST_CALCULATED[FREQ_N];
 
 
 // == loop tiling ==
@@ -275,7 +275,8 @@ int main(int argc, char* argv[])
 	start = clock();
 	printf("\nCalculating field \n");
 	for (int i = 0; i <= _STEP; i++) {
-		eps0_c_Ex[_INDEX_XYZ(50, 65, 50)] += sin(2.0f * M_PI * _c0 / 500e-9 * (float)i * _dt_) * exp(- 0.000001 * (i-100)*(i-100));
+		//		eps0_c_Ex[_INDEX_XYZ(50, 65, 50)] += sin(2.0f * M_PI * _c0 / 500e-9 * (float)i * _dt_) * exp(- 0.000001 * (i-100)*(i-100));
+		eps0_c_Ex[_INDEX_XYZ(50, 50, 50)] += sin(2.0f * M_PI * _c0 / 500e-9 * (float)i * _dt_) * exp(-((float)i-250.0f)*((float)i-250.0f)/250.0f /250.0f);
 		printf("%f%%\r", 100.0f*(float)i/_STEP);
 		DCP_HE_C();
 		RFT();
@@ -445,43 +446,45 @@ void RFT(void) {
 		for (int j = 0; j < FREQ_N; j++) {
 			_SET_SURF_XYZ_INDEX(i);
 			offset = _INDEX_XYZ(surf_x, surf_y, surf_z);
-			// FIXME : There must be a better way to do this
+			// FIXME : Yee cell 1/2 mismatch
 			//imag
-			FT_eps0cE[i][j][0][1] -= 0.5f * (eps0_c_Ex[offset-_offsetX]          + eps0_c_Ex[offset]           ) / (RFT_WINDOW - 1) * sinf(2 * M_PI*K_LIST_CALCULATED[j] / RFT_WINDOW*RFT_counter);
-			FT_eps0cE[i][j][1][1] -= 0.5f * (eps0_c_Ey[offset-_offsetX-_offsetY] + eps0_c_Ey[offset - _offsetX]) / (RFT_WINDOW - 1) * sinf(2 * M_PI*K_LIST_CALCULATED[j] / RFT_WINDOW*RFT_counter);
-			FT_eps0cE[i][j][2][1] -= 0.5f * (eps0_c_Ez[offset-_offsetZ]          + eps0_c_Ez[offset]           ) / (RFT_WINDOW - 1) * sinf(2 * M_PI*K_LIST_CALCULATED[j] / RFT_WINDOW*RFT_counter);
-			FT_H[i][j][0][1] -= 0.25f * (Hx[offset-_offsetX-_offsetY-_offsetZ]+ Hx[offset - _offsetX - _offsetY]+ Hx[offset - _offsetX - _offsetZ]+ Hx[offset - _offsetX]) / (RFT_WINDOW - 1) * sinf(2 * M_PI*K_LIST_CALCULATED[j] / RFT_WINDOW*RFT_counter);
-			FT_H[i][j][1][1] -= 0.25f * (Hy[offset-_offsetX-_offsetZ]+ Hy[offset-_offsetX]+ Hy[offset-_offsetZ]+ Hy[offset]) / (RFT_WINDOW - 1) * sinf(2 * M_PI*K_LIST_CALCULATED[j] / RFT_WINDOW*RFT_counter);
-			FT_H[i][j][2][1] -= 0.25f * (Hz[offset-_offsetZ-_offsetX-_offsetY]+ Hz[offset - _offsetZ - _offsetX]+ Hz[offset - _offsetZ - _offsetY]+ Hz[offset - _offsetZ]) / (RFT_WINDOW - 1) * sinf(2 * M_PI*K_LIST_CALCULATED[j] / RFT_WINDOW*RFT_counter);
+			FT_eps0cE[i][j][0][1] -= eps0_c_Ex[offset] / (RFT_WINDOW - 1) * sinf(2 * M_PI*RFT_K_LIST_CALCULATED[j] / RFT_WINDOW*RFT_counter);
+			FT_eps0cE[i][j][1][1] -= eps0_c_Ey[offset] / (RFT_WINDOW - 1) * sinf(2 * M_PI*RFT_K_LIST_CALCULATED[j] / RFT_WINDOW*RFT_counter);
+			FT_eps0cE[i][j][2][1] -= eps0_c_Ez[offset] / (RFT_WINDOW - 1) * sinf(2 * M_PI*RFT_K_LIST_CALCULATED[j] / RFT_WINDOW*RFT_counter);
+			FT_H[i][j][0][1] -= Hx[offset] / (RFT_WINDOW - 1) * sinf(2 * M_PI*RFT_K_LIST_CALCULATED[j] / RFT_WINDOW*RFT_counter);
+			FT_H[i][j][1][1] -= Hy[offset] / (RFT_WINDOW - 1) * sinf(2 * M_PI*RFT_K_LIST_CALCULATED[j] / RFT_WINDOW*RFT_counter);
+			FT_H[i][j][2][1] -= Hz[offset] / (RFT_WINDOW - 1) * sinf(2 * M_PI*RFT_K_LIST_CALCULATED[j] / RFT_WINDOW*RFT_counter);
 			if (RFT_counter == _STEP) { break; }
 			//real
-			FT_eps0cE[i][j][0][0] += 0.5f * (eps0_c_Ex[offset - _offsetX] + eps0_c_Ex[offset]) / RFT_WINDOW * cosf(2 * M_PI*K_LIST_CALCULATED[j] / RFT_WINDOW*RFT_counter); //RFT_counter is not q but it shoud not matter
-			FT_eps0cE[i][j][1][0] += 0.5f * (eps0_c_Ey[offset - _offsetX - _offsetY] + eps0_c_Ey[offset - _offsetX]) / RFT_WINDOW * cosf(2 * M_PI*K_LIST_CALCULATED[j] / RFT_WINDOW*RFT_counter);
-			FT_eps0cE[i][j][2][0] += 0.5f * (eps0_c_Ez[offset - _offsetZ] + eps0_c_Ez[offset]) / RFT_WINDOW * cosf(2 * M_PI*K_LIST_CALCULATED[j] / RFT_WINDOW*RFT_counter);
-			FT_H[i][j][0][0] += 0.25f * (Hx[offset - _offsetX - _offsetY - _offsetZ] + Hx[offset - _offsetX - _offsetY] + Hx[offset - _offsetX - _offsetZ] + Hx[offset - _offsetX]) / RFT_WINDOW * cosf(2 * M_PI*K_LIST_CALCULATED[j] / RFT_WINDOW*RFT_counter); //RFT_counter is not q but it shoud not matter
-			FT_H[i][j][1][0] += 0.25f * (Hy[offset - _offsetX - _offsetZ] + Hy[offset - _offsetX] + Hy[offset - _offsetZ] + Hy[offset]) / RFT_WINDOW * cosf(2 * M_PI*K_LIST_CALCULATED[j] / RFT_WINDOW*RFT_counter);
-			FT_H[i][j][2][0] += 0.25f * (Hz[offset - _offsetZ - _offsetX - _offsetY] + Hz[offset - _offsetZ - _offsetX] + Hz[offset - _offsetZ - _offsetY] + Hz[offset - _offsetZ]) / RFT_WINDOW * cosf(2 * M_PI*K_LIST_CALCULATED[j] / RFT_WINDOW*RFT_counter);
+			FT_eps0cE[i][j][0][0] += eps0_c_Ex[offset] / RFT_WINDOW * cosf(2 * M_PI*RFT_K_LIST_CALCULATED[j] / RFT_WINDOW*RFT_counter); //RFT_counter is not q but it shoud not matter
+			FT_eps0cE[i][j][1][0] += eps0_c_Ey[offset] / RFT_WINDOW * cosf(2 * M_PI*RFT_K_LIST_CALCULATED[j] / RFT_WINDOW*RFT_counter);
+			FT_eps0cE[i][j][2][0] += eps0_c_Ez[offset] / RFT_WINDOW * cosf(2 * M_PI*RFT_K_LIST_CALCULATED[j] / RFT_WINDOW*RFT_counter);
+			FT_H[i][j][0][0] += Hx[offset] / RFT_WINDOW * cosf(2 * M_PI*RFT_K_LIST_CALCULATED[j] / RFT_WINDOW*RFT_counter); 
+			FT_H[i][j][1][0] += Hy[offset] / RFT_WINDOW * cosf(2 * M_PI*RFT_K_LIST_CALCULATED[j] / RFT_WINDOW*RFT_counter);
+			FT_H[i][j][2][0] += Hz[offset] / RFT_WINDOW * cosf(2 * M_PI*RFT_K_LIST_CALCULATED[j] / RFT_WINDOW*RFT_counter);
 		}
 	}
 	RFT_counter++;
 }
-//if Yee cell is ignored,
-//FT_eps0cE[i][j][0][1] -= eps0_c_Ex[offset] / (RFT_WINDOW - 1) * sinf(2 * M_PI*K_LIST_CALCULATED[j] / RFT_WINDOW*RFT_counter);
-//FT_eps0cE[i][j][1][1] -= eps0_c_Ey[offset] / (RFT_WINDOW - 1) * sinf(2 * M_PI*K_LIST_CALCULATED[j] / RFT_WINDOW*RFT_counter);
-//FT_eps0cE[i][j][2][1] -= eps0_c_Ez[offset] / (RFT_WINDOW - 1) * sinf(2 * M_PI*K_LIST_CALCULATED[j] / RFT_WINDOW*RFT_counter);
-//FT_H[i][j][0][1] -= Hx[offset] / (RFT_WINDOW - 1) * sinf(2 * M_PI*K_LIST_CALCULATED[j] / RFT_WINDOW*RFT_counter);
-//FT_H[i][j][1][1] -= Hy[offset] / (RFT_WINDOW - 1) * sinf(2 * M_PI*K_LIST_CALCULATED[j] / RFT_WINDOW*RFT_counter);
-//FT_H[i][j][2][1] -= Hz[offset] / (RFT_WINDOW - 1) * sinf(2 * M_PI*K_LIST_CALCULATED[j] / RFT_WINDOW*RFT_counter);
+//IS THIS WRONG?,
+////imag
+//FT_eps0cE[i][j][0][1] -= 0.5f * (eps0_c_Ex[offset - _offsetX] + eps0_c_Ex[offset]) / (RFT_WINDOW - 1) * sinf(2 * M_PI*RFT_K_LIST_CALCULATED[j] / RFT_WINDOW*RFT_counter);
+//FT_eps0cE[i][j][1][1] -= 0.5f * (eps0_c_Ey[offset - _offsetX - _offsetY] + eps0_c_Ey[offset - _offsetX]) / (RFT_WINDOW - 1) * sinf(2 * M_PI*RFT_K_LIST_CALCULATED[j] / RFT_WINDOW*RFT_counter);
+//FT_eps0cE[i][j][2][1] -= 0.5f * (eps0_c_Ez[offset - _offsetZ] + eps0_c_Ez[offset]) / (RFT_WINDOW - 1) * sinf(2 * M_PI*RFT_K_LIST_CALCULATED[j] / RFT_WINDOW*RFT_counter);
+//FT_H[i][j][0][1] -= 0.25f * (Hx[offset - _offsetX - _offsetY - _offsetZ] + Hx[offset - _offsetX - _offsetY] + Hx[offset - _offsetX - _offsetZ] + Hx[offset - _offsetX]) / (RFT_WINDOW - 1) * sinf(2 * M_PI*RFT_K_LIST_CALCULATED[j] / RFT_WINDOW*RFT_counter);
+//FT_H[i][j][1][1] -= 0.25f * (Hy[offset - _offsetX - _offsetZ] + Hy[offset - _offsetX] + Hy[offset - _offsetZ] + Hy[offset]) / (RFT_WINDOW - 1) * sinf(2 * M_PI*RFT_K_LIST_CALCULATED[j] / RFT_WINDOW*RFT_counter);
+//FT_H[i][j][2][1] -= 0.25f * (Hz[offset - _offsetZ - _offsetX - _offsetY] + Hz[offset - _offsetZ - _offsetX] + Hz[offset - _offsetZ - _offsetY] + Hz[offset - _offsetZ]) / (RFT_WINDOW - 1) * sinf(2 * M_PI*RFT_K_LIST_CALCULATED[j] / RFT_WINDOW*RFT_counter);
 //if (RFT_counter == _STEP) { break; }
-//FT_eps0cE[i][j][0][0] += eps0_c_Ex[offset] / RFT_WINDOW * cosf(2 * M_PI*K_LIST_CALCULATED[j] / RFT_WINDOW*RFT_counter); //RFT_counter is not q but it shoud not matter
-//FT_eps0cE[i][j][1][0] += eps0_c_Ey[offset] / RFT_WINDOW * cosf(2 * M_PI*K_LIST_CALCULATED[j] / RFT_WINDOW*RFT_counter);
-//FT_eps0cE[i][j][2][0] += eps0_c_Ez[offset] / RFT_WINDOW * cosf(2 * M_PI*K_LIST_CALCULATED[j] / RFT_WINDOW*RFT_counter);
-//FT_H[i][j][0][0] += Hx[offset] / RFT_WINDOW * cosf(2 * M_PI*K_LIST_CALCULATED[j] / RFT_WINDOW*RFT_counter); //RFT_counter is not q but it shoud not matter
-//FT_H[i][j][1][0] += Hy[offset] / RFT_WINDOW * cosf(2 * M_PI*K_LIST_CALCULATED[j] / RFT_WINDOW*RFT_counter);
-//FT_H[i][j][2][0] += Hz[offset] / RFT_WINDOW * cosf(2 * M_PI*K_LIST_CALCULATED[j] / RFT_WINDOW*RFT_counter);
+////real
+//FT_eps0cE[i][j][0][0] += 0.5f * (eps0_c_Ex[offset - _offsetX] + eps0_c_Ex[offset]) / RFT_WINDOW * cosf(2 * M_PI*RFT_K_LIST_CALCULATED[j] / RFT_WINDOW*RFT_counter); //RFT_counter is not q but it shoud not matter
+//FT_eps0cE[i][j][1][0] += 0.5f * (eps0_c_Ey[offset - _offsetX - _offsetY] + eps0_c_Ey[offset - _offsetX]) / RFT_WINDOW * cosf(2 * M_PI*RFT_K_LIST_CALCULATED[j] / RFT_WINDOW*RFT_counter);
+//FT_eps0cE[i][j][2][0] += 0.5f * (eps0_c_Ez[offset - _offsetZ] + eps0_c_Ez[offset]) / RFT_WINDOW * cosf(2 * M_PI*RFT_K_LIST_CALCULATED[j] / RFT_WINDOW*RFT_counter);
+//FT_H[i][j][0][0] += 0.25f * (Hx[offset - _offsetX - _offsetY - _offsetZ] + Hx[offset - _offsetX - _offsetY] + Hx[offset - _offsetX - _offsetZ] + Hx[offset - _offsetX]) / RFT_WINDOW * cosf(2 * M_PI*RFT_K_LIST_CALCULATED[j] / RFT_WINDOW*RFT_counter); //RFT_counter is not q but it shoud not matter
+//FT_H[i][j][1][0] += 0.25f * (Hy[offset - _offsetX - _offsetZ] + Hy[offset - _offsetX] + Hy[offset - _offsetZ] + Hy[offset]) / RFT_WINDOW * cosf(2 * M_PI*RFT_K_LIST_CALCULATED[j] / RFT_WINDOW*RFT_counter);
+//FT_H[i][j][2][0] += 0.25f * (Hz[offset - _offsetZ - _offsetX - _offsetY] + Hz[offset - _offsetZ - _offsetX] + Hz[offset - _offsetZ - _offsetY] + Hz[offset - _offsetZ]) / RFT_WINDOW * cosf(2 * M_PI*RFT_K_LIST_CALCULATED[j] / RFT_WINDOW*RFT_counter);
 
 
-#define FF_IMG_SIZE 100
+#define FF_IMG_SIZE 30
 // images
 float FF_Er[FREQ_N][FF_IMG_SIZE][FF_IMG_SIZE][2][2]; //upper half, lower half, real, imag;
 float FF_Etheta[FREQ_N][FF_IMG_SIZE][FF_IMG_SIZE][2][2];
@@ -508,7 +511,7 @@ void NTFF(void) {
 
 
 	// coordinate mapping OVER IMAGE
-	//theta (0~2pi), phi_upz (0~pi), phi_downz(=-phi_upz, -pi~0)
+	//theta (0~2pi), phi_upz (0~pi/2), phi_downz(=-phi_upz, -pi/2~0)
 	float k_vector;
 	float centerX = ((float)(_SURF_StartX_)+(float)(_SURF_EndX_)) * 0.5f;
 	float centerY = ((float)(_SURF_StartY_)+(float)(_SURF_EndY_)) * 0.5f;
@@ -521,17 +524,18 @@ void NTFF(void) {
 			float rr = sqrtf(xx*xx + yy*yy);
 			if (FF_IMG_SIZE / 2.0f < rr) { continue; }
 			FF_theta[i][j] = atan2f(yy, xx) + (atan2f(yy, xx) >= 0 ? 0 : 2.0f*M_PI);
-			FF_phi[i][j] = (radius - rr) * M_PI / radius;
+			FF_phi[i][j] = (radius - rr) * 0.5 * M_PI / radius;
 		}
 	}
 
 
 	for (int freqN = 0; freqN < FREQ_N; freqN++) //each frequency
 	{
-		k_vector = K_LIST_CALCULATED[freqN];
+		//k_vector = RFT_K_LIST_CALCULATED[freqN]; //NO!
+		k_vector = RFT_K_LIST_CALCULATED[freqN] * 2.0f * M_PI / RFT_WINDOW / _c0 / _dt_;
+		printf("NTFF wavelength : %e\n", 2.0f * M_PI / k_vector);
 
-
-		if (1 == 1) { //debug
+		if (1 == 1) { //DEBUG
 
 			// precalculation OVER THE SURFACE
 			// FF_eps0cMtheta, FF_eps0cMphi, FF_Jtheta, FF_Jphi, G, gradG
@@ -596,7 +600,8 @@ void NTFF(void) {
 
 			for (int i = 0; i < FF_IMG_SIZE; i++) {//each pixel //FIXME : skip unused pixels
 				for (int j = 0; j < FF_IMG_SIZE; j++) {
-					for (int updown = 0; updown < 2; updown++) {
+					//for (int updown = 0; updown < 2; updown++) { //DEBUG
+					for (int updown = 0; updown < 1; updown++) {
 						float theta = FF_theta[i][j];
 						float phi = FF_phi[i][j] * roundf(2.0f * (0.5f - (float)(updown)));
 						for (int k = 0; k < _SURF_SIZE_; k++) {//over surface
@@ -662,11 +667,11 @@ void NTFF(void) {
 									+ (-FF_Jtheta[k][0] * gradG_r[k][1] - FF_Jtheta[k][1] * gradG_r[k][0])
 									);
 						}
-						FF_EHr[freqN][i][j][updown] = abs(FF_Ephi[freqN][i][j][updown][0]) + abs(FF_Ephi[freqN][i][j][updown][1]) + abs(FF_Etheta[freqN][i][j][updown][0]) + abs(FF_Etheta[freqN][i][j][updown][1]);
-						//FF_phi[freqN][i][j][updown] = 
-						// (FF_Etheta[freqN][i][j][updown][0] * FF_Hphi[freqN][i][j][updown][0] - FF_Htheta[freqN][i][j][updown][0] * FF_Ephi[freqN][i][j][updown][0]) ;
-						// -( FF_Etheta[freqN][i][j][updown][1] * FF_Hphi[freqN][i][j][updown][1] - FF_Htheta[freqN][i][j][updown][1] * FF_Ephi[freqN][i][j][updown][1]) ;
-						// need check
+						FF_EHr[freqN][i][j][updown] =
+							(FF_Etheta[freqN][i][j][updown][0] * FF_Hphi[freqN][i][j][updown][0]
+								- FF_Etheta[freqN][i][j][updown][1] * FF_Hphi[freqN][i][j][updown][1])
+							- (FF_Ephi[freqN][i][j][updown][0] * FF_Htheta[freqN][i][j][updown][0]
+								- FF_Ephi[freqN][i][j][updown][1] * FF_Htheta[freqN][i][j][updown][1]);
 					}
 				}
 			}
@@ -757,8 +762,8 @@ int init(void)
 	printf("RFT/NTFF freqs : ");
 	for (int i = 0; i < FREQ_N; i++)
 	{
-		K_LIST_CALCULATED[i] = roundf(FREQ_LIST_DESIRED[i] * _dt_ * RFT_WINDOW);
-		printf("%e(%e), ", K_LIST_CALCULATED[i] / _dt_ / RFT_WINDOW, _c0 / K_LIST_CALCULATED[i] * _dt_ * RFT_WINDOW);
+		RFT_K_LIST_CALCULATED[i] = roundf(FREQ_LIST_DESIRED[i] * _dt_ * RFT_WINDOW);
+		printf("%e(%e), ", RFT_K_LIST_CALCULATED[i] / _dt_ / RFT_WINDOW, _c0 / RFT_K_LIST_CALCULATED[i] * _dt_ * RFT_WINDOW);
 	}
 	printf("\n\n");
 
@@ -837,7 +842,7 @@ int init(void)
 		//4th~7th bit : metal
 		if ((X - _DimX / 2)*(X - _DimX / 2) + (Y - _DimY / 2)* (Y - _DimY / 2) + (Z - _DimZ / 2)*(Z - _DimZ / 2) < 10 * 10)
 		{
-			mask[i] |= (1 << 4);
+			//mask[i] |= (1 << 4);
 		}
 
 	}
@@ -1063,8 +1068,16 @@ int snapshot(void)
 			_SET_SURF_XYZ_INDEX(surf_index);
 			int offset = _INDEX_XYZ(X, y, z);
 			int value =0;
+
 			//if (surf_index !=-1) value = (FT_eps0cE[_SURF_INDEX_XYZ(X, y, z)][1][0][0]* FT_eps0cE[_SURF_INDEX_XYZ(X, y, z)][1][0][0]+ FT_eps0cE[_SURF_INDEX_XYZ(X, y, z)][1][0][1]* FT_eps0cE[_SURF_INDEX_XYZ(X, y, z)][1][0][1]) * 255.0f * 5000.0f * 5000.0f;
-			if (surf_index != -1) value = (FT_eps0cE[_SURF_INDEX_XYZ(X, y, z)][1][0][1]) * 255.0f * 5000.0f ;
+			if (surf_index != -1) value = 255.0f * 200.0f * 200.0f*(0
+				+ (FT_eps0cE[surf_index][0][0][0]) * (FT_eps0cE[surf_index][0][0][0])
+				+ (FT_eps0cE[surf_index][0][0][1]) * (FT_eps0cE[surf_index][0][0][1])
+				//+ (FT_eps0cE[surf_index][0][1][0]) * (FT_eps0cE[surf_index][0][1][0])
+				//+ (FT_eps0cE[surf_index][0][1][1]) * (FT_eps0cE[surf_index][0][1][1])
+				//+ (FT_eps0cE[surf_index][0][2][0]) * (FT_eps0cE[surf_index][0][2][0])
+				//+ (FT_eps0cE[surf_index][0][2][1]) * (FT_eps0cE[surf_index][0][2][1])
+				);
 			//int value = (((mask[offset] & (0b1111 << 4)) >> 4)) *50.0f ;
 			value = value > 255 ? 255 : value;
 			value = value < -255 ? -255 : value;
@@ -1072,9 +1085,8 @@ int snapshot(void)
 			val2 = val2 > 255 ? 255 : val2;
 			val2 = val2 < -255 ? -255 : val2;
 			image[4 * width * z + 4 * y + 0] = (unsigned char)(value>0? value : 0);
-			image[4 * width * z + 4 * y + 0] += (unsigned char)(val2>0 ? val2 : 0);
 			image[4 * width * z + 4 * y + 1] = (unsigned char)(val2<0 ? -val2 : 0);
-			image[4 * width * z + 4 * y + 2] = (unsigned char)(value<0 ? -value : 0);
+			image[4 * width * z + 4 * y + 2] = (unsigned char)(val2>0 ? val2 : 0);
 			image[4 * width * z + 4 * y + 3] = 255;
 		}
 	unsigned error = lodepng_encode32_file(filename, image, width, height);

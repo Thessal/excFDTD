@@ -2,7 +2,7 @@
 //Jongkook Choi
 //VS2015, ipsxe2016 Cluster Edition
 //reference : K.P.Prokopidis, 2013
-//reference : eecs.wsu.edu/~schneidj/ufdtd/
+//reference : uFDTD  (eecs.wsu.edu/~schneidj/ufdtd/)
 //reference : Torok et al, 2006 (doi: 10.1364/JOSAA.23.000713) formulation used for NTFF
 
 
@@ -51,8 +51,10 @@ float stability_factor_inv = 1.0f / _S_factor;
 #if RFT_WINDOW > _STEP
 	#define RFT_WINDOW _STEP
 #endif
-#define FREQ_N 3
-float FREQ_LIST_DESIRED[FREQ_N] = { _c0 / 300e-9, _c0 / 500e-9, _c0 / 800e-9 };
+//#define FREQ_N 3
+//float FREQ_LIST_DESIRED[FREQ_N] = { _c0 / 300e-9, _c0 / 500e-9, _c0 / 800e-9 };
+#define FREQ_N 1
+float FREQ_LIST_DESIRED[FREQ_N] = {_c0 / 500e-9};
 float K_LIST_CALCULATED[FREQ_N];
 
 
@@ -94,7 +96,7 @@ float K_LIST_CALCULATED[FREQ_N];
 		)
 
 // === surface memory for runningDFT and NTFF
-#define _SURF_Margin_ 3
+#define _SURF_Margin_ 30
 #define _SURF_StartX_ ((_PML_PX_X_)+_SURF_Margin_)
 #define _SURF_StartY_ ((_PML_PX_Y_)+_SURF_Margin_)
 #define _SURF_StartZ_ ((_PML_PX_Z_)+_SURF_Margin_)
@@ -271,14 +273,16 @@ int main(int argc, char* argv[])
 	init();
 	time_t start;
 	start = clock();
+	printf("\nCalculating field \n");
 	for (int i = 0; i <= _STEP; i++) {
 		eps0_c_Ex[_INDEX_XYZ(50, 65, 50)] += sin(2.0f * M_PI * _c0 / 500e-9 * (float)i * _dt_) * exp(- 0.000001 * (i-100)*(i-100));
-		printf("%f\n", cos((float)i / 5.0f));
+		printf("%f%%\r", 100.0f*(float)i/_STEP);
 		DCP_HE_C();
 		RFT();
 	}
-	printf("time : %f\n", (double)(clock() - start) / CLK_TCK);
+	printf("\ntime : %f\n", (double)(clock() - start) / CLK_TCK);
 	snapshot();
+	NTFF();
 	return 0;
 }
 
@@ -476,189 +480,246 @@ void RFT(void) {
 //FT_H[i][j][1][0] += Hy[offset] / RFT_WINDOW * cosf(2 * M_PI*K_LIST_CALCULATED[j] / RFT_WINDOW*RFT_counter);
 //FT_H[i][j][2][0] += Hz[offset] / RFT_WINDOW * cosf(2 * M_PI*K_LIST_CALCULATED[j] / RFT_WINDOW*RFT_counter);
 
-#define FF_IMG_SIZE 500
-void NTFF(void) {
-	// Images
-	//unsigned char* image = malloc(FF_IMG_SIZE * FF_IMG_SIZE * 4); 
-	//image[4 * width * z + 4 * y + 0]
-	float FF_Er[FREQ_N][FF_IMG_SIZE][FF_IMG_SIZE][2][2]; //upper half, lower half, real, imag;
-	float FF_Etheta[FREQ_N][FF_IMG_SIZE][FF_IMG_SIZE][2][2]; 
-	float FF_Ephi[FREQ_N][FF_IMG_SIZE][FF_IMG_SIZE][2][2];
-	float FF_Hr[FREQ_N][FF_IMG_SIZE][FF_IMG_SIZE][2][2];
-	float FF_Htheta[FREQ_N][FF_IMG_SIZE][FF_IMG_SIZE][2][2];
-	float FF_Hphi[FREQ_N][FF_IMG_SIZE][FF_IMG_SIZE][2][2];
-	float FF_EHr[FREQ_N][FF_IMG_SIZE][FF_IMG_SIZE][2];
 
-	// coordinate mapping
+#define FF_IMG_SIZE 100
+// images
+float FF_Er[FREQ_N][FF_IMG_SIZE][FF_IMG_SIZE][2][2]; //upper half, lower half, real, imag;
+float FF_Etheta[FREQ_N][FF_IMG_SIZE][FF_IMG_SIZE][2][2];
+float FF_Ephi[FREQ_N][FF_IMG_SIZE][FF_IMG_SIZE][2][2];
+float FF_Hr[FREQ_N][FF_IMG_SIZE][FF_IMG_SIZE][2][2];
+float FF_Htheta[FREQ_N][FF_IMG_SIZE][FF_IMG_SIZE][2][2];
+float FF_Hphi[FREQ_N][FF_IMG_SIZE][FF_IMG_SIZE][2][2];
+float FF_EHr[FREQ_N][FF_IMG_SIZE][FF_IMG_SIZE][2];
+float FF_theta[FF_IMG_SIZE][FF_IMG_SIZE];
+float FF_phi[FF_IMG_SIZE][FF_IMG_SIZE];
+
+// memory over surface
+float FF_eps0cMr[_SURF_SIZE_][2], FF_eps0cMtheta[_SURF_SIZE_][2], FF_eps0cMphi[_SURF_SIZE_][2], FF_Jr[_SURF_SIZE_][2], FF_Jtheta[_SURF_SIZE_][2], FF_Jphi[_SURF_SIZE_][2];
+float G[_SURF_SIZE_][2], gradG_r[_SURF_SIZE_][2], FF_m_eps0cE[_SURF_SIZE_][2];
+
+void NTFF(void) {
+	printf("\nNTFF calculation\n");
+	float progress = 0;
+
+	// Images
+	char filename[] = "FF_00.png";
+	unsigned error;
+	unsigned char* image = malloc(FF_IMG_SIZE * FF_IMG_SIZE * 4);
+
+
+	// coordinate mapping OVER IMAGE
 	//theta (0~2pi), phi_upz (0~pi), phi_downz(=-phi_upz, -pi~0)
-	float FF_theta[FF_IMG_SIZE][FF_IMG_SIZE];
-	float FF_phi[FF_IMG_SIZE][FF_IMG_SIZE];
-	unsigned __int64 surf_x, surf_y, surf_z;
-	float k_vector, rho, cosPsi, theta, phi;
+	float k_vector;
 	float centerX = ((float)(_SURF_StartX_)+(float)(_SURF_EndX_)) * 0.5f;
 	float centerY = ((float)(_SURF_StartY_)+(float)(_SURF_EndY_)) * 0.5f;
 	float centerZ = ((float)(_SURF_StartZ_)+(float)(_SURF_EndZ_)) * 0.5f;
+	for (int i = 0; i < FF_IMG_SIZE; i++) {
+		for (int j = 0; j < FF_IMG_SIZE; j++) {
+			float radius = FF_IMG_SIZE / 2.0f;
+			float xx = ((float)i - radius);
+			float yy = ((float)j - radius);
+			float rr = sqrtf(xx*xx + yy*yy);
+			if (FF_IMG_SIZE / 2.0f < rr) { continue; }
+			FF_theta[i][j] = atan2f(yy, xx) + (atan2f(yy, xx) >= 0 ? 0 : 2.0f*M_PI);
+			FF_phi[i][j] = (radius - rr) * M_PI / radius;
+		}
+	}
 
-	// variables, complex, real
-	float expDist[2], expDist2[2];;
-	float FF_eps0cMx[2], FF_eps0cMy[2], FF_eps0cMz[2], FF_Jx[2], FF_Jy[2], FF_Jz[2];
-	float FF_eps0cMr[2], FF_eps0cMtheta[2], FF_eps0cMphi[2], FF_Jr[2], FF_Jtheta[2], FF_Jphi[2];
-	float G[2], gradG_r[2], FF_m_eps0cE[2];
-	float r, pos_x, pos_y, pos_z, rho_x, rho_y, rho_z, theta_x, theta_y, theta_z, phi_x, phi_y, phi_z;
-	float nx, ny, nz; //n prime, normal vector (int can be used instead of float)
 
 	for (int freqN = 0; freqN < FREQ_N; freqN++) //each frequency
 	{
 		k_vector = K_LIST_CALCULATED[freqN];
-		for (int i = 0; i < FF_IMG_SIZE; i++) //each pixel
-			for (int j = 0; j < FF_IMG_SIZE; j++)
-			{//FIXME : skip unused pixels
-
-				for (int updown = 0; updown <2; updown++){
-
-					theta = FF_theta[i][j];
-					phi = FF_phi[i][j] * roundf(2.0f * (0.5f - (float)(updown)));
-
-					FF_Etheta[freqN][i][j][updown][0] = 0;
-					FF_Etheta[freqN][i][j][updown][1] = 0;
-					FF_Ephi[freqN][i][j][updown][0] = 0;
-					FF_Ephi[freqN][i][j][updown][1] = 0;
-					FF_Htheta[freqN][i][j][updown][0] = 0;
-					FF_Htheta[freqN][i][j][updown][1] = 0;
-					FF_Hphi[freqN][i][j][updown][0] = 0;
-					FF_Hphi[freqN][i][j][updown][1] = 0;
-
-					for (int k = 0; k < _SURF_SIZE_; k++) //over surface
-					{
-						// massive recalculation, i dont care
-
-						_SET_SURF_XYZ_INDEX(k);
-						nx = (surf_x == _SURF_StartX_) ? -1 : ((surf_x == _SURF_EndX_) ? 1 : 0);
-						ny = (surf_y == _SURF_StartY_) ? -1 : ((surf_y == _SURF_EndY_) ? 1 : 0);
-						nz = (surf_z == _SURF_StartZ_) ? -1 : ((surf_z == _SURF_EndZ_) ? 1 : 0);
-						//FIXME : edge 何盒 sqrt1/2 sqrt1/3 贸府
-						pos_x = (surf_x - centerX);
-						pos_y = (surf_y - centerY);
-						pos_z = (surf_z - centerZ);
-						rho = sqrtf(pos_x *pos_x + pos_y * pos_y + pos_z * pos_z); //rho prime
-						//unit vectors in cartesian
-						rho_x = pos_x / rho;
-						rho_y = pos_y / rho;
-						rho_z = pos_z / rho;
-						theta_x = -pos_y /rho;
-						theta_y = pos_x/rho;
-						theta_z = 0;
-						phi_x = -pos_y * pos_z / rho / rho;
-						phi_y = -pos_x * pos_z / rho / rho;
-						phi_z = sqrtf(pos_x*pos_x + pos_y*pos_y) / rho;
-
-						//eq 14.3
-						FF_eps0cMx[0] = -(ny * FT_eps0cE[k][freqN][2][0] - nz * FT_eps0cE[k][freqN][1][0]);
-						FF_eps0cMx[1] = -(ny * FT_eps0cE[k][freqN][2][1] - nz * FT_eps0cE[k][freqN][1][1]);
-						FF_eps0cMy[0] = -(nz * FT_eps0cE[k][freqN][0][0] - nx * FT_eps0cE[k][freqN][2][0]);
-						FF_eps0cMy[1] = -(nz * FT_eps0cE[k][freqN][0][1] - nx * FT_eps0cE[k][freqN][2][1]);
-						FF_eps0cMz[0] = -(nx * FT_eps0cE[k][freqN][1][0] - ny * FT_eps0cE[k][freqN][0][0]);
-						FF_eps0cMz[1] = -(nx * FT_eps0cE[k][freqN][1][1] - ny * FT_eps0cE[k][freqN][0][1]);
-						FF_eps0cMr[0] = rho_x * FF_eps0cMx[0] + rho_y * FF_eps0cMy[0] + rho_z * FF_eps0cMz[0];
-						FF_eps0cMr[1] = rho_x * FF_eps0cMx[1] + rho_y * FF_eps0cMy[1] + rho_z * FF_eps0cMz[1];
-						FF_eps0cMtheta[0] = theta_x * FF_eps0cMx[0] + theta_y * FF_eps0cMy[0] + theta_z * FF_eps0cMz[0];
-						FF_eps0cMtheta[1] = theta_x * FF_eps0cMx[1] + theta_y * FF_eps0cMy[1] + theta_z * FF_eps0cMz[1];
-						FF_eps0cMphi[0] = phi_x * FF_eps0cMx[0] + phi_y * FF_eps0cMy[0] + phi_z * FF_eps0cMz[0];
-						FF_eps0cMphi[1] = phi_x * FF_eps0cMx[1] + phi_y * FF_eps0cMy[1] + phi_z * FF_eps0cMz[1];
-
-						//eq 14.4
-						FF_Jx[0] = (ny * FT_H[k][freqN][2][0] - nz * FT_H[k][freqN][1][0]);
-						FF_Jx[1] = (ny * FT_H[k][freqN][2][1] - nz * FT_H[k][freqN][1][1]);
-						FF_Jy[0] = (nz * FT_H[k][freqN][0][0] - nx * FT_H[k][freqN][2][0]);
-						FF_Jy[1] = (nz * FT_H[k][freqN][0][1] - nx * FT_H[k][freqN][2][1]);
-						FF_Jz[0] = (nx * FT_H[k][freqN][1][0] - ny * FT_H[k][freqN][0][0]);
-						FF_Jz[1] = (nx * FT_H[k][freqN][1][1] - ny * FT_H[k][freqN][0][1]);
-						FF_Jr[0] = rho_x * FF_Jx[0] + rho_y * FF_Jy[0] + rho_z * FF_Jz[0];
-						FF_Jr[1] = rho_x * FF_Jx[1] + rho_y * FF_Jy[1] + rho_z * FF_Jz[1];
-						FF_Jtheta[0] = theta_x * FF_Jx[0] + theta_y * FF_Jy[0] + theta_z * FF_Jz[0];
-						FF_Jtheta[1] = theta_x * FF_Jx[1] + theta_y * FF_Jy[1] + theta_z * FF_Jz[1];
-						FF_Jphi[0] = phi_x * FF_Jx[0] + phi_y * FF_Jy[0] + phi_z * FF_Jz[0];
-						FF_Jphi[1] = phi_x * FF_Jx[1] + phi_y * FF_Jy[1] + phi_z * FF_Jz[1];
-
-						//inner product
-						cosPsi = (pos_x / rho) * (cosf(theta) * cosf(phi))
-							+ (pos_y / rho) * (sinf(theta) * cosf(phi))
-							+ (pos_z / rho) * (sinf(phi));
 
 
-						//Stratton-Chu , Torok(18a), (18b)
-						//paraxial approx, 1st order approx(far).
-						r = rho * cosPsi;
-						G[0] = cos(k_vector * r) / r;
-						G[1] = sin(k_vector * r) / r;
-						
-						gradG_r[0] = -k_vector * sin(k_vector * r) / rho;
-						gradG_r[1] = k_vector * cos(k_vector * r) / rho;
+		if (1 == 1) { //debug
 
+			// precalculation OVER THE SURFACE
+			// FF_eps0cMtheta, FF_eps0cMphi, FF_Jtheta, FF_Jphi, G, gradG
+			for (int k = 0; k < _SURF_SIZE_; k++) {
+				int surf_x, surf_y, surf_z;
+				_SET_SURF_XYZ_INDEX(k);
+				//normal vector
+				//n prime, normal vector (int can be used instead of float)
+				float nx = (surf_x == _SURF_StartX_) ? -1 : ((surf_x == _SURF_EndX_) ? 1 : 0);
+				float ny = (surf_y == _SURF_StartY_) ? -1 : ((surf_y == _SURF_EndY_) ? 1 : 0);
+				float nz = (surf_z == _SURF_StartZ_) ? -1 : ((surf_z == _SURF_EndZ_) ? 1 : 0);
+				float pos_x = (surf_x - centerX);		//FIXME : edge 何盒 sqrt1/2 sqrt1/3 贸府
+				float pos_y = (surf_y - centerY);
+				float pos_z = (surf_z - centerZ);
+				float rho = sqrtf(pos_x *pos_x + pos_y * pos_y + pos_z * pos_z); //rho prime
+				//unit vectors in cartesian
+				float rho_x = pos_x / rho;
+				float rho_y = pos_y / rho;
+				float rho_z = pos_z / rho;
+				float theta_x = -pos_y / rho;
+				float theta_y = pos_x / rho;
+				float theta_z = 0;
+				float phi_x = -pos_y * pos_z / rho / rho;
+				float phi_y = -pos_x * pos_z / rho / rho;
+				float phi_z = sqrtf(pos_x*pos_x + pos_y*pos_y) / rho;
+				//uFDTD eq 14.3
+				float FF_eps0cMx[2] = {
+					-(ny * FT_eps0cE[k][freqN][2][0] - nz * FT_eps0cE[k][freqN][1][0]),
+					-(ny * FT_eps0cE[k][freqN][2][1] - nz * FT_eps0cE[k][freqN][1][1]) };
+				float FF_eps0cMy[2] = {
+					-(nz * FT_eps0cE[k][freqN][0][0] - nx * FT_eps0cE[k][freqN][2][0]),
+					-(nz * FT_eps0cE[k][freqN][0][1] - nx * FT_eps0cE[k][freqN][2][1]) };
+				float FF_eps0cMz[2] = {
+					-(nx * FT_eps0cE[k][freqN][1][0] - ny * FT_eps0cE[k][freqN][0][0]),
+					-(nx * FT_eps0cE[k][freqN][1][1] - ny * FT_eps0cE[k][freqN][0][1]) };
+				FF_eps0cMr[k][0] = rho_x * FF_eps0cMx[0] + rho_y * FF_eps0cMy[0] + rho_z * FF_eps0cMz[0];
+				FF_eps0cMr[k][1] = rho_x * FF_eps0cMx[1] + rho_y * FF_eps0cMy[1] + rho_z * FF_eps0cMz[1];
+				FF_eps0cMtheta[k][0] = theta_x * FF_eps0cMx[0] + theta_y * FF_eps0cMy[0] + theta_z * FF_eps0cMz[0];
+				FF_eps0cMtheta[k][1] = theta_x * FF_eps0cMx[1] + theta_y * FF_eps0cMy[1] + theta_z * FF_eps0cMz[1];
+				FF_eps0cMphi[k][0] = phi_x * FF_eps0cMx[0] + phi_y * FF_eps0cMy[0] + phi_z * FF_eps0cMz[0];
+				FF_eps0cMphi[k][1] = phi_x * FF_eps0cMx[1] + phi_y * FF_eps0cMy[1] + phi_z * FF_eps0cMz[1];
+				//uFDTD eq 14.4
+				float FF_Jx[2] = {
+					(ny * FT_H[k][freqN][2][0] - nz * FT_H[k][freqN][1][0]),
+					(ny * FT_H[k][freqN][2][1] - nz * FT_H[k][freqN][1][1]) };
+				float FF_Jy[2] = {
+					(nz * FT_H[k][freqN][0][0] - nx * FT_H[k][freqN][2][0]),
+					(nz * FT_H[k][freqN][0][1] - nx * FT_H[k][freqN][2][1]) };
+				float FF_Jz[2] = {
+					(nx * FT_H[k][freqN][1][0] - ny * FT_H[k][freqN][0][0]),
+					(nx * FT_H[k][freqN][1][1] - ny * FT_H[k][freqN][0][1]) };
+				FF_Jr[k][0] = rho_x * FF_Jx[0] + rho_y * FF_Jy[0] + rho_z * FF_Jz[0];
+				FF_Jr[k][1] = rho_x * FF_Jx[1] + rho_y * FF_Jy[1] + rho_z * FF_Jz[1];
+				FF_Jtheta[k][0] = theta_x * FF_Jx[0] + theta_y * FF_Jy[0] + theta_z * FF_Jz[0];
+				FF_Jtheta[k][1] = theta_x * FF_Jx[1] + theta_y * FF_Jy[1] + theta_z * FF_Jz[1];
+				FF_Jphi[k][0] = phi_x * FF_Jx[0] + phi_y * FF_Jy[0] + phi_z * FF_Jz[0];
+				FF_Jphi[k][1] = phi_x * FF_Jx[1] + phi_y * FF_Jy[1] + phi_z * FF_Jz[1];
+				//Stratton-Chu , Torok(18a), (18b)
+				FF_m_eps0cE[k][0] = nx * FT_eps0cE[k][freqN][0][0] + ny * FT_eps0cE[k][freqN][1][0] + nz * FT_eps0cE[k][freqN][2][0];
+				FF_m_eps0cE[k][1] = nx * FT_eps0cE[k][freqN][0][1] + ny * FT_eps0cE[k][freqN][1][1] + nz * FT_eps0cE[k][freqN][2][1];
+			}
 
-						FF_m_eps0cE[0] = nx * FT_eps0cE[k][freqN][0][0] + ny * FT_eps0cE[k][freqN][1][0] + nz * FT_eps0cE[k][freqN][2][0];
-						FF_m_eps0cE[1] = nx * FT_eps0cE[k][freqN][0][1] + ny * FT_eps0cE[k][freqN][1][1] + nz * FT_eps0cE[k][freqN][2][1];
+			for (int i = 0; i < FF_IMG_SIZE; i++) {//each pixel //FIXME : skip unused pixels
+				for (int j = 0; j < FF_IMG_SIZE; j++) {
+					for (int updown = 0; updown < 2; updown++) {
+						float theta = FF_theta[i][j];
+						float phi = FF_phi[i][j] * roundf(2.0f * (0.5f - (float)(updown)));
+						for (int k = 0; k < _SURF_SIZE_; k++) {//over surface
+							int surf_x, surf_y, surf_z;
+							_SET_SURF_XYZ_INDEX(k);
+							printf("%5f%%  \r", progress += 100.0f / _SURF_SIZE_ / 2.0f / FF_IMG_SIZE / FF_IMG_SIZE / FREQ_N);
 
+							//Torok(9a)
+							float pos_x = (surf_x - centerX);		//FIXME : edge 何盒 sqrt1/2 sqrt1/3 贸府
+							float pos_y = (surf_y - centerY);
+							float pos_z = (surf_z - centerZ);
+							float rho = sqrtf(pos_x *pos_x + pos_y * pos_y + pos_z * pos_z); //rho prime
+							float cosPsi = (pos_x / rho) * (cosf(theta) * cosf(phi))
+								+ (pos_y / rho) * (sinf(theta) * cosf(phi))
+								+ (pos_z / rho) * (sinf(phi));
+							float r = rho * cosPsi;
+							G[k][0] = cos(k_vector * r) / r;
+							G[k][1] = sin(k_vector * r) / r;
+							gradG_r[k][0] = -k_vector * sin(k_vector * r) / rho;
+							gradG_r[k][1] = k_vector * cos(k_vector * r) / rho;
 
+							//paraxial approx, 1st order approx(far).
+							//Stratton-Chu , Torok(18a), (18b)
+							FF_Etheta[freqN][i][j][updown][0] +=
+								-(0.25f / M_PI) * (
+								(-k_vector * _c0 * _mu0_ * (FF_Jtheta[k][0] * G[k][1] + FF_Jtheta[k][1] * G[k][0]))
+									+ (FF_eps0cMphi[k][0] * gradG_r[k][0] - FF_eps0cMphi[k][1] * gradG_r[k][1]) / _eps0_ / _c0  //need coeff cleaning
+									);
+							FF_Etheta[freqN][i][j][updown][1] +=
+								-(0.25f / M_PI) * (
+								(-k_vector * _c0 * _mu0_ * (FF_Jtheta[k][0] * G[k][0] - FF_Jtheta[k][1] * G[k][1]))
+									+ (FF_eps0cMphi[k][0] * gradG_r[k][1] + FF_eps0cMphi[k][1] * gradG_r[k][0]) / _eps0_ / _c0
+									);
+							FF_Ephi[freqN][i][j][updown][0] +=
+								-(0.25f / M_PI) * (
+								(-k_vector * _c0 * _mu0_ * (FF_Jphi[k][0] * G[k][1] + FF_Jphi[k][1] * G[k][0]))
+									+ (-FF_eps0cMtheta[k][0] * gradG_r[k][0] + FF_eps0cMtheta[k][1] * gradG_r[k][1]) / _eps0_ / _c0
+									);
+							FF_Ephi[freqN][i][j][updown][1] +=
+								-(0.25f / M_PI) * (
+								(-k_vector * _c0 * _mu0_ * (FF_Jphi[k][0] * G[k][0] - FF_Jphi[k][1] * G[k][1]))
+									+ (-FF_eps0cMtheta[k][0] * gradG_r[k][1] - FF_eps0cMtheta[k][1] * gradG_r[k][0]) / _eps0_ / _c0
+									);
 
-						FF_Etheta[freqN][i][j][updown][0] +=
-							-(0.25f / M_PI) * (
-								(-k_vector * _c0 * _mu0_ * (FF_Jtheta[0] * G[1] + FF_Jtheta[1] * G[0]))
-								+ (FF_eps0cMphi[0] * gradG_r[0] - FF_eps0cMphi[1] * gradG_r[1]) / _eps0_ / _c0  //need coeff cleaning
-								);
-
-						FF_Etheta[freqN][i][j][updown][1] +=
-							-(0.25f / M_PI) * (
-								(-k_vector * _c0 * _mu0_ * (FF_Jtheta[0] * G[0] - FF_Jtheta[1] * G[1]))
-								+ (FF_eps0cMphi[0] * gradG_r[1] + FF_eps0cMphi[1] * gradG_r[0]) / _eps0_ / _c0 
-								);
-
-						FF_Ephi[freqN][i][j][updown][0] +=
-							-(0.25f / M_PI) * (
-								(-k_vector * _c0 * _mu0_ * (FF_Jphi[0] * G[1] + FF_Jphi[1] * G[0]))
-								+ (- FF_eps0cMtheta[0] * gradG_r[0] + FF_eps0cMtheta[1] * gradG_r[1]) / _eps0_ / _c0 
-								);
-
-						FF_Ephi[freqN][i][j][updown][1] +=
-							-(0.25f / M_PI) * (
-								(-k_vector * _c0 * _mu0_ * (FF_Jphi[0] * G[0] - FF_Jphi[1] * G[1]))
-								+ (- FF_eps0cMtheta[0] * gradG_r[1] - FF_eps0cMtheta[1] * gradG_r[0]) / _eps0_ / _c0 
-								);
-
-
-						FF_Htheta[freqN][i][j][updown][0] +=
-							(0.25f / M_PI) * (
-							(-k_vector * (FF_eps0cMtheta[0] * G[1] + FF_eps0cMtheta[1] * G[0]))
-								+ (FF_Jphi[0] * gradG_r[0] - FF_Jphi[1] * gradG_r[1])  
-								);
-
-						FF_Htheta[freqN][i][j][updown][1] +=
-							(0.25f / M_PI) * (
-							(-k_vector * (FF_eps0cMtheta[0] * G[0] - FF_eps0cMtheta[1] * G[1]))
-								+ (FF_Jphi[0] * gradG_r[1] + FF_Jphi[1] * gradG_r[0]) 
-								);
-
-						FF_Hphi[freqN][i][j][updown][0] +=
-							(0.25f / M_PI) * (
-							(-k_vector * (FF_eps0cMphi[0] * G[1] + FF_eps0cMphi[1] * G[0]))
-								+ (-FF_Jtheta[0] * gradG_r[0] + FF_Jtheta[1] * gradG_r[1])  
-								);
-
-						FF_Hphi[freqN][i][j][updown][1] +=
-							(0.25f / M_PI) * (
-							(-k_vector * (FF_eps0cMphi[0] * G[0] - FF_eps0cMphi[1] * G[1]))
-								+ (-FF_Jtheta[0] * gradG_r[1] - FF_Jtheta[1] * gradG_r[0]) 
-								);
-
+							FF_Htheta[freqN][i][j][updown][0] +=
+								(0.25f / M_PI) * (
+								(-k_vector * (FF_eps0cMtheta[k][0] * G[k][1] + FF_eps0cMtheta[k][1] * G[k][0]))
+									+ (FF_Jphi[k][0] * gradG_r[k][0] - FF_Jphi[k][1] * gradG_r[k][1])
+									);
+							FF_Htheta[freqN][i][j][updown][1] +=
+								(0.25f / M_PI) * (
+								(-k_vector * (FF_eps0cMtheta[k][0] * G[k][0] - FF_eps0cMtheta[k][1] * G[k][1]))
+									+ (FF_Jphi[k][0] * gradG_r[k][1] + FF_Jphi[k][1] * gradG_r[k][0])
+									);
+							FF_Hphi[freqN][i][j][updown][0] +=
+								(0.25f / M_PI) * (
+								(-k_vector * (FF_eps0cMphi[k][0] * G[k][1] + FF_eps0cMphi[k][1] * G[k][0]))
+									+ (-FF_Jtheta[k][0] * gradG_r[k][0] + FF_Jtheta[k][1] * gradG_r[k][1])
+									);
+							FF_Hphi[freqN][i][j][updown][1] +=
+								(0.25f / M_PI) * (
+								(-k_vector * (FF_eps0cMphi[k][0] * G[k][0] - FF_eps0cMphi[k][1] * G[k][1]))
+									+ (-FF_Jtheta[k][0] * gradG_r[k][1] - FF_Jtheta[k][1] * gradG_r[k][0])
+									);
+						}
+						FF_EHr[freqN][i][j][updown] = abs(FF_Ephi[freqN][i][j][updown][0]) + abs(FF_Ephi[freqN][i][j][updown][1]) + abs(FF_Etheta[freqN][i][j][updown][0]) + abs(FF_Etheta[freqN][i][j][updown][1]);
+						//FF_phi[freqN][i][j][updown] = 
+						// (FF_Etheta[freqN][i][j][updown][0] * FF_Hphi[freqN][i][j][updown][0] - FF_Htheta[freqN][i][j][updown][0] * FF_Ephi[freqN][i][j][updown][0]) ;
+						// -( FF_Etheta[freqN][i][j][updown][1] * FF_Hphi[freqN][i][j][updown][1] - FF_Htheta[freqN][i][j][updown][1] * FF_Ephi[freqN][i][j][updown][1]) ;
+						// need check
 					}
-					FF_EHr[freqN][i][j][updown] = 0;
-					//FF_phi[freqN][i][j][updown] = 
-					// (FF_Etheta[freqN][i][j][updown][0] * FF_Hphi[freqN][i][j][updown][0] - FF_Htheta[freqN][i][j][updown][0] * FF_Ephi[freqN][i][j][updown][0]) ;
-					// -( FF_Etheta[freqN][i][j][updown][1] * FF_Hphi[freqN][i][j][updown][1] - FF_Htheta[freqN][i][j][updown][1] * FF_Ephi[freqN][i][j][updown][1]) ;
-					// need check
 				}
 			}
+
+		}
+
+
+
+		filename[4] = '0' + (char)(freqN);
+
+		//upside
+		filename[3] = 'u';
+		for (int i = 0; i < FF_IMG_SIZE; i++) 
+			for (int j = 0; j < FF_IMG_SIZE; j++) {
+				image[4 * FF_IMG_SIZE * j + 4 * i + 0] = FF_theta[i][j] * 30;
+				image[4 * FF_IMG_SIZE * j + 4 * i + 1] = 0;
+				image[4 * FF_IMG_SIZE * j + 4 * i + 2] = 0;
+				image[4 * FF_IMG_SIZE * j + 4 * i + 3] = 255;
+			}
+		error = lodepng_encode32_file(filename, image, FF_IMG_SIZE, FF_IMG_SIZE);
+		if (error) printf("error %u: %s\n", error, lodepng_error_text(error));;
+
+		//downside
+		filename[3] = 'd';
+		for (int i = 0; i < FF_IMG_SIZE; i++)
+			for (int j = 0; j < FF_IMG_SIZE; j++) {
+				image[4 * FF_IMG_SIZE * j + 4 * i + 0] = FF_phi[i][j] * 50;
+				image[4 * FF_IMG_SIZE * j + 4 * i + 1] = 0;
+				image[4 * FF_IMG_SIZE * j + 4 * i + 2] = 0;
+				image[4 * FF_IMG_SIZE * j + 4 * i + 3] = 255;
+			}
+		error = lodepng_encode32_file(filename, image, FF_IMG_SIZE, FF_IMG_SIZE);
+		if (error) printf("error %u: %s\n", error, lodepng_error_text(error));
+
+		filename[6] = 't'; 	filename[7] = 'x'; 	filename[8] = 't';
+		filename[3] = 'u';
+		FILE *f_up = fopen(filename, "w");
+		filename[3] = 'd';
+		FILE *f_down = fopen(filename, "w");
+		for (int i = 0; i < FF_IMG_SIZE; i++){
+			for (int j = 0; j < FF_IMG_SIZE; j++) {
+				fprintf(f_up, "%+04.3e\t", FF_EHr[freqN][i][j][0]);
+				fprintf(f_down, "%+04.3e\t", FF_EHr[freqN][i][j][1]);
+			}
+			fprintf(f_up, "\n");
+			fprintf(f_down, "\n");
+		}
+		fclose(f_up); fclose(f_down);
+		filename[6] = 'p'; 	filename[7] = 'n'; 	filename[8] = 'g';
 	}
+		
+
+	free(image);
 }
 
 int init(void)
@@ -974,7 +1035,7 @@ void syncPadding(void) {
 #define TEMP eps0_c_Ex
 int snapshot(void)
 {
-	printf("X=50\n");
+	printf("snapshot : X=50\n");
 	int X = 50;
 	FILE *f = fopen("test.txt", "w");
 	for (int Z = 0; Z < _DimZ; Z++) {

@@ -268,8 +268,59 @@ void syncPadding(void);
 void RFT(void);
 void NTFF(void);
 int snapshot(void);
+
+#include "mkl.h"
 int main(int argc, char* argv[])
 {
+	float *A, *B, *C;
+    A = (float *)mkl_malloc( 3*3*sizeof( float ), 32 );
+    B = (float *)mkl_malloc( 3*1*sizeof( float ), 32 );
+    C = (float *)mkl_malloc( 3*1*sizeof( float ), 32 );
+	for (int i = 0; i<9; i++) A[i] = ((float[9]) { 1, 0, 1, 0, 1, 0, 0, 0, 1 })[i];
+	for (int i = 0; i<3; i++) B[i] = ((float[3]) { 1, 2, 3 })[i];
+	for (int i = 0; i<3; i++) C[i] = ((float[3]) { 10, 0, 0 })[i];
+
+	cblas_sgemm(CblasRowMajor, CblasNoTrans, CblasNoTrans,
+		3, 1, 3, 1.0, A, 3, B, 1, 0.0, C, 1);
+
+	for (int i = 0; i < 3; i++) {
+		for (int j = 0; j < 3; j++) {printf("%f\t",A[i*3+j]);}
+		printf("*\t%f\t=\t[%e]\n",B[i],C[i]);
+	}
+
+	mkl_free(A);
+	mkl_free(B);
+	mkl_free(C);
+
+	MKL_Complex8 *Ac, *Bc, *Cc;
+	Ac = (MKL_Complex8*)mkl_malloc(3*3 * sizeof(MKL_Complex8),32);
+	Bc = (MKL_Complex8*)mkl_malloc(3 * 1 * sizeof(MKL_Complex8),32);
+	Cc = (MKL_Complex8*)mkl_malloc(3 * 1 * sizeof(MKL_Complex8),32);
+	//for (int i = 0; i < 9; i++) Ac[i] = (MKL_Complex8) {1,0};
+	for (int i = 0; i<9; i++) Ac[i].real = ((float[9]) { 1, 0, 1, 0, 1, 0, 0, 0, 1 })[i];
+	for (int i = 0; i<3; i++) Bc[i].real = ((float[3]) { 1, 2, 3 })[i];
+	for (int i = 0; i<3; i++) Cc[i].real = ((float[3]) { 10, 0, 0 })[i];
+	for (int i = 0; i<9; i++) Ac[i].imag = ((float[9]) { 1, 0, 1, 0, 1, 0, 0, 0, 1 })[i];
+	for (int i = 0; i<3; i++) Bc[i].imag = ((float[3]) { 1, 2, 3 })[i];
+	for (int i = 0; i<3; i++) Cc[i].imag = ((float[3]) { 10, 0, 0 })[i];
+
+	//MKL_Complex8 c[1] = { { 1.0f,0.0f } };
+	//MKL_Complex8 d[1] = { { 0.0f,0.0f } };
+	//cblas_cgemm(CblasRowMajor, CblasNoTrans, CblasNoTrans,
+		//3, 1, 3, c, Ac, 3, Bc, 1, d, Cc, 1);
+	cblas_cgemm(CblasRowMajor, CblasNoTrans, CblasNoTrans,
+		3, 1, 3, (MKL_Complex8[1]){ { 1.0f,0.0f } }, Ac, 3, Bc, 1, (MKL_Complex8[1]) { { 0.0f,0.0f } }, Cc, 1);
+
+	for (int i = 0; i < 3; i++) {
+		for (int j = 0; j < 3; j++) { printf("%f+%fi\t", Ac[i * 3  + j ].real, Ac[i * 3  + j  ].imag); }
+		printf("*\t%f+%fi\t=\t[%f+%fi]\n", Bc[i  ].real, Bc[i  ].imag, Cc[i  ].real, Cc[i  ].imag);
+	}
+
+	mkl_free(Ac);
+	mkl_free(Bc);
+	mkl_free(Cc);
+
+	return 0;
 	init();
 	time_t start;
 	start = clock();

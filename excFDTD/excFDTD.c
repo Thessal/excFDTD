@@ -492,6 +492,7 @@ void RFT(void) {
 #define _SURF_MidZ_ ((_SURF_StartZ_+_SURF_EndZ_)/2)
 
 #include "mkl.h"
+#include "ipp.h"
 //#include "mkl_vml_functions.h"
 
 void NTFF(void) {
@@ -502,33 +503,28 @@ void NTFF(void) {
 	char filename[] = "FF_00.png";
 	unsigned error;
 	unsigned char* image = malloc(NTFF_IMG_SIZE * NTFF_IMG_SIZE * 4);
-
-	//vsCos()
-	//	MKL_Complex8 *NF_cosPsi;
-	//NF_cosPsi = (MKL_Complex8*)mkl_malloc(3 * _SURF_SIZE_ * sizeof(MKL_Complex8), 32);
-	//Bc = (MKL_Complex8*)mkl_malloc(3 * 1 * sizeof(MKL_Complex8), 32);
-	//Cc = (MKL_Complex8*)mkl_malloc(3 * 1 * sizeof(MKL_Complex8), 32);
-	//mkl_free(A);
-	//mkl_free(B);
-	//mkl_free(C);
-
+	
 	int surf_x, surf_y, surf_z;
-	float *NF_eyePos, *NF_surfPos, *xyz_to_sph;
-	MKL_Complex8 *Hankel_rho_inv, *Hankel, *NF_ecE, *NF_H, *NF_minus_ecM, *NF_J, *normal, *NF_ecM_sph, *NF_J_sph;
-	NF_eyePos = malloc(NTFF_IMG_SIZE * 3 * sizeof(float));
+	float k_vector;
+	float *NF_eyePos, *NF_surfPos, *xyz_to_sph, *Hankel_rho_inv;
+	MKL_Complex8 *Hankel, *NF_ecE, *NF_H, *NF_minus_ecM, *NF_J, *normal, *NF_ecM_sph, *NF_J_sph,
+		*NF_ecL_sph, *NF_N_sph;
+	NF_eyePos = malloc(NTFF_IMG_SIZE*NTFF_IMG_SIZE * 3 * sizeof(float));
 	NF_surfPos = malloc(_SURF_SIZE_ * 3 * sizeof(float));
 	xyz_to_sph = malloc(_SURF_SIZE_ * 9 * sizeof(float));
-	Hankel_rho_inv = (MKL_Complex8*)mkl_malloc(_SURF_SIZE_ * sizeof(MKL_Complex8), 64);
+	Hankel_rho_inv = (float*)mkl_malloc(_SURF_SIZE_ * sizeof(float), 64);
 	Hankel = (MKL_Complex8*)mkl_malloc(_SURF_SIZE_ * sizeof(MKL_Complex8), 64);
 	NF_ecE = (MKL_Complex8*)mkl_malloc(3 * _SURF_SIZE_ * sizeof(MKL_Complex8), 64);
 	NF_H = (MKL_Complex8*)mkl_malloc(3 * _SURF_SIZE_ * sizeof(MKL_Complex8), 64);
 	NF_minus_ecM = (MKL_Complex8*)mkl_malloc(3 * _SURF_SIZE_ * sizeof(MKL_Complex8), 64);
 	NF_J = (MKL_Complex8*)mkl_malloc(3 * _SURF_SIZE_ * sizeof(MKL_Complex8), 64);
+	NF_ecM_sph = (MKL_Complex8*)mkl_malloc(3 * _SURF_SIZE_ * sizeof(MKL_Complex8), 64);
+	NF_J_sph = (MKL_Complex8*)mkl_malloc(3 * _SURF_SIZE_ * sizeof(MKL_Complex8), 64);
+	NF_ecL_sph = (MKL_Complex8*)mkl_malloc(3 * _SURF_SIZE_ * sizeof(MKL_Complex8), 64);
+	NF_N_sph = (MKL_Complex8*)mkl_malloc(3 * _SURF_SIZE_ * sizeof(MKL_Complex8), 64);
 	normal = (MKL_Complex8*)mkl_malloc(3 * _SURF_SIZE_ * sizeof(MKL_Complex8), 64);
-	//FIXME : free()
-
-	return(0);
-
+	//FIXME : mkl_free(C);
+		
 	//precalculation per image
 	//theta (0~2pi), phi_upz (0~pi/2), phi_downz(=-phi_upz, -pi/2~0)
 	for (int i = 0; i < NTFF_IMG_SIZE; i++) {
@@ -544,35 +540,34 @@ void NTFF(void) {
 			NF_eyePos[2 * NTFF_IMG_SIZE *NTFF_IMG_SIZE + i*NTFF_IMG_SIZE + j] = sinf(NF_phi);				//
 		}
 	}
-	for (int k = 0; k < _SURF_SIZE_; k++) {
-		_SET_SURF_XYZ_INDEX(k);
-		float radial_inv = 1.0f / sqrtf((surf_x - _SURF_MidX_)*(surf_x - _SURF_MidX_) + (surf_y - _SURF_MidY_)*(surf_y - _SURF_MidY_));
-		xyz_to_sph[_SURF_SIZE_*k + 0] = Hankel_rho_inv[k].real * (float)(surf_x - _SURF_MidX_);
-		xyz_to_sph[_SURF_SIZE_*k + 1] = Hankel_rho_inv[k].real * (float)(surf_y - _SURF_MidY_);
-		xyz_to_sph[_SURF_SIZE_*k + 2] = Hankel_rho_inv[k].real * (float)(surf_z - _SURF_MidZ_);
-		xyz_to_sph[_SURF_SIZE_*k + 3] = -(float)(surf_y - _SURF_MidY_) * radial_inv;
-		xyz_to_sph[_SURF_SIZE_*k + 4] = (float)(surf_x - _SURF_MidX_) * radial_inv;
-		xyz_to_sph[_SURF_SIZE_*k + 5] = 0;
-		xyz_to_sph[_SURF_SIZE_*k + 6] = -Hankel_rho_inv[k].real * radial_inv * (float)(surf_z - _SURF_MidZ_) * (float)(surf_x - _SURF_MidX_);
-		xyz_to_sph[_SURF_SIZE_*k + 7] = -Hankel_rho_inv[k].real * radial_inv * (float)(surf_z - _SURF_MidZ_) * (float)(surf_y - _SURF_MidY_);
-		xyz_to_sph[_SURF_SIZE_*k + 8] = Hankel_rho_inv[k].real / radial_inv;
-	}
+
 
 	// precalculation per pixel
 	for (int k = 0; k < _SURF_SIZE_; k++) {
 		_SET_SURF_XYZ_INDEX(k);
-		Hankel_rho_inv[k].real = 1.0f / sqrtf(
+		Hankel_rho_inv[k] = 1.0f / sqrtf(
 			(surf_x - _SURF_MidX_) * (surf_x - _SURF_MidX_)
 			+ (surf_y - _SURF_MidY_) * (surf_y - _SURF_MidY_)
 			+ (surf_z - _SURF_MidZ_) * (surf_z - _SURF_MidZ_)); //shouldn't slow down much
-		Hankel_rho_inv[k].imag = 0;
 	}
 
-	float k_vector;
-	//FIXME : free(Hankel);
+	for (int k = 0; k < _SURF_SIZE_; k++) {
+		_SET_SURF_XYZ_INDEX(k);
+		float radial_inv = 1.0f / sqrtf((surf_x - _SURF_MidX_)*(surf_x - _SURF_MidX_) + (surf_y - _SURF_MidY_)*(surf_y - _SURF_MidY_));
+		xyz_to_sph[9*k + 0] = Hankel_rho_inv[k] * (float)(surf_x - _SURF_MidX_);
+		xyz_to_sph[9*k + 1] = Hankel_rho_inv[k] * (float)(surf_y - _SURF_MidY_);
+		xyz_to_sph[9*k + 2] = Hankel_rho_inv[k] * (float)(surf_z - _SURF_MidZ_);
+		xyz_to_sph[9*k + 3] = -(float)(surf_y - _SURF_MidY_) * radial_inv;
+		xyz_to_sph[9*k + 4] = (float)(surf_x - _SURF_MidX_) * radial_inv;
+		xyz_to_sph[9*k + 5] = 0;
+		xyz_to_sph[9*k + 6] = -Hankel_rho_inv[k] * radial_inv * (float)(surf_z - _SURF_MidZ_) * (float)(surf_x - _SURF_MidX_);
+		xyz_to_sph[9*k + 7] = -Hankel_rho_inv[k] * radial_inv * (float)(surf_z - _SURF_MidZ_) * (float)(surf_y - _SURF_MidY_);
+		xyz_to_sph[9*k + 8] = Hankel_rho_inv[k] / radial_inv;
+	}
 
 
 	for (int freqN = 0; freqN < FREQ_N; freqN++) { //each frequency
+		k_vector = RFT_K_LIST_CALCULATED[freqN] * 2.0f * M_PI / RFT_WINDOW / _c0 / _dt_;
 		////precalculation per freq
 		//J,M calculation
 		for (int k = 0; k < _SURF_SIZE_; k++) {
@@ -588,31 +583,34 @@ void NTFF(void) {
 			NF_H[0 * _SURF_SIZE_ + k].imag = FT_H[k][freqN][0][1];
 			NF_H[1 * _SURF_SIZE_ + k].imag = FT_H[k][freqN][1][1];
 			NF_H[2 * _SURF_SIZE_ + k].imag = FT_H[k][freqN][2][1];
-		} //inefficient, kind of		
-		cblas_cgemm(CblasRowMajor, CblasNoTrans, CblasNoTrans,
-			3, _SURF_SIZE_, 3,	(MKL_Complex8[1]) { { 1.0f, 0.0f } }, 
-			((MKL_Complex8[9]) { {0, 0}, { -1,0 }, { 1, 0 }, { 1, 0 }, { 0, 0 }, { -1, 0 }, { -1, 0 }, { 1, 0 }, { 0, 0 } }), _SURF_SIZE_,
-			NF_ecE, 3,(MKL_Complex8[1]) { { 0.0f, 0.0f } }, 
-			NF_ecE, 3); // [1,1,1] cross E
-		cblas_cgemm(CblasRowMajor, CblasNoTrans, CblasNoTrans,
-			3, _SURF_SIZE_, 3, 	(MKL_Complex8[1]) { { 1.0f, 0.0f } },
-			((MKL_Complex8[9]) { {0, 0}, { 1,0 }, { -1, 0 }, {-1, 0 }, {0, 0}, {1, 0}, {1, 0 }, {-1, 0 }, {0, 0 } }), _SURF_SIZE_,
-			NF_H, 3, (MKL_Complex8[1]) {  { 0.0f, 0.0f }}, 
-			NF_H, 3);
+		}
 		for (int k = 0; k < _SURF_SIZE_; k++) {
 			_SET_SURF_XYZ_INDEX(k);
 			//normal vector
 			normal[0 * _SURF_SIZE_ + k].real = (surf_x == _SURF_StartX_) ? -1 : ((surf_x == _SURF_EndX_) ? 1 : 0);
 			normal[1 * _SURF_SIZE_ + k].real = (surf_y == _SURF_StartY_) ? -1 : ((surf_y == _SURF_EndY_) ? 1 : 0);
 			normal[2 * _SURF_SIZE_ + k].real = (surf_z == _SURF_StartZ_) ? -1 : ((surf_z == _SURF_EndZ_) ? 1 : 0);
+			normal[0 * _SURF_SIZE_ + k].imag = 0;
+			normal[1 * _SURF_SIZE_ + k].imag = 0;
+			normal[2 * _SURF_SIZE_ + k].imag = 0;
 		}
-		vcmul(3*_SURF_SIZE_, normal, NF_ecE, NF_minus_ecM); //FIXME : warning
-		vcmul(3*_SURF_SIZE_, normal, NF_H, NF_J);
+		cblas_cgemm(CblasRowMajor, CblasNoTrans, CblasNoTrans,
+			3, _SURF_SIZE_, 3, (MKL_Complex8[1]) { { 1.0f, 0.0f } },
+			((MKL_Complex8[9]) { {0, 0}, { -1,0 }, { 1, 0 }, { 1, 0 }, { 0, 0 }, { -1, 0 }, { -1, 0 }, { 1, 0 }, { 0, 0 } }), 3,
+			NF_ecE, _SURF_SIZE_, (MKL_Complex8[1]) { { 0.0f, 0.0f } },
+			NF_ecE, _SURF_SIZE_); // [1,1,1] cross E
+		cblas_cgemm(CblasRowMajor, CblasNoTrans, CblasNoTrans,
+			3, _SURF_SIZE_, 3, (MKL_Complex8[1]) { { 1.0f, 0.0f } },
+			((MKL_Complex8[9]) { {0, 0}, { 1,0 }, { -1, 0 }, { -1, 0 }, { 0, 0 }, { 1, 0 }, { 1, 0 }, { -1, 0 }, { 0, 0 } }), 3,
+			NF_H, _SURF_SIZE_, (MKL_Complex8[1]) { { 0.0f, 0.0f } },
+			NF_H, _SURF_SIZE_);
+		vcMul((const int)(3*_SURF_SIZE_), normal, NF_ecE, NF_minus_ecM);  //[normal] cross E
+		vcMul((const int)(3*_SURF_SIZE_), normal, NF_H, NF_J); //CHECK : const int casting?
 
 		// coordinate conversion XYZ-->R theta phi
+		// consider using ippsDotProd_32f32fc
 		for (int k = 0; k < _SURF_SIZE_; k++) {
-			for (int i = 0; i < 3; i++) { // XYZ
-				NF_ecM_sph[i * _SURF_SIZE_ + k].real =
+			for (int i = 0; i < 3; i++) { // R theta phi
 					-xyz_to_sph[9 * k + 3 * i + 0] * NF_minus_ecM[0 * _SURF_SIZE_ + k].real
 					- xyz_to_sph[9 * k + 3 * i + 1] * NF_minus_ecM[1 * _SURF_SIZE_ + k].real
 					- xyz_to_sph[9 * k + 3 * i + 2] * NF_minus_ecM[2 * _SURF_SIZE_ + k].real;
@@ -631,26 +629,39 @@ void NTFF(void) {
 			}
 		}
 
-		k_vector = RFT_K_LIST_CALCULATED[freqN] * 2.0f * M_PI / RFT_WINDOW / _c0 / _dt_;
 		for (int i = 0; i < NTFF_IMG_SIZE; i++) {
 			for (int j = 0; j < NTFF_IMG_SIZE; j++) {
 				////Hankel calc
-				//how to efficiently calculate vector * const ? vsLinearFrac?
-				for (int k = 0; k < _SURF_SIZE_; k++) {
-					_SET_SURF_XYZ_INDEX(k);
-					Hankel[k].real = -k_vector * (1 - (
-						(surf_x - _SURF_MidX_)*(NF_eyePos[0 * NTFF_IMG_SIZE *NTFF_IMG_SIZE + i*NTFF_IMG_SIZE + j])
-						+ (surf_y - _SURF_MidY_)*(NF_eyePos[1 * NTFF_IMG_SIZE *NTFF_IMG_SIZE + i*NTFF_IMG_SIZE + j])
-						+ (surf_z - _SURF_MidZ_)*(NF_eyePos[2 * NTFF_IMG_SIZE *NTFF_IMG_SIZE + i*NTFF_IMG_SIZE + j])
-						));
-					Hankel[k].imag = 0.0f;
-				}
-				vcExp(_SURF_SIZE_, Hankel, Hankel);
-				vcMul(_SURF_SIZE_, Hankel, Hankel_rho_inv, Hankel);
+				//	Hankel[k].real = -k_vector * (1 - (
+				//		(surf_x - _SURF_MidX_)*(NF_eyePos[0 * NTFF_IMG_SIZE *NTFF_IMG_SIZE + i*NTFF_IMG_SIZE + j])
+				//		+ (surf_y - _SURF_MidY_)*(NF_eyePos[1 * NTFF_IMG_SIZE *NTFF_IMG_SIZE + i*NTFF_IMG_SIZE + j])
+				//		+ (surf_z - _SURF_MidZ_)*(NF_eyePos[2 * NTFF_IMG_SIZE *NTFF_IMG_SIZE + i*NTFF_IMG_SIZE + j])
+				//		));
+				//constant phase difference should not make problem
+				ippsMulC_32f_I((k_vector*(surf_x - _SURF_MidX_)), (NF_eyePos + 0 * NTFF_IMG_SIZE *NTFF_IMG_SIZE), NTFF_IMG_SIZE *NTFF_IMG_SIZE);
+				ippsMulC_32f_I((k_vector*(surf_y - _SURF_MidY_)), (NF_eyePos + 1 * NTFF_IMG_SIZE *NTFF_IMG_SIZE), NTFF_IMG_SIZE *NTFF_IMG_SIZE);
+				ippsMulC_32f_I((k_vector*(surf_z - _SURF_MidZ_)), (NF_eyePos + 2 * NTFF_IMG_SIZE *NTFF_IMG_SIZE), NTFF_IMG_SIZE *NTFF_IMG_SIZE);
+				ippsAdd_32f_I((NF_eyePos + 1 * NTFF_IMG_SIZE *NTFF_IMG_SIZE), (NF_eyePos + 0 * NTFF_IMG_SIZE *NTFF_IMG_SIZE), NTFF_IMG_SIZE *NTFF_IMG_SIZE);
+				ippsAdd_32f_I((NF_eyePos + 2 * NTFF_IMG_SIZE *NTFF_IMG_SIZE), (NF_eyePos + 0 * NTFF_IMG_SIZE *NTFF_IMG_SIZE), NTFF_IMG_SIZE *NTFF_IMG_SIZE);
+				ippsRealToCplx_32f((NF_eyePos + 0 * NTFF_IMG_SIZE *NTFF_IMG_SIZE), (float[NTFF_IMG_SIZE *NTFF_IMG_SIZE]){0.0f}, Hankel, NTFF_IMG_SIZE *NTFF_IMG_SIZE);
+				vcExp(_SURF_SIZE_, Hankel, Hankel); //complex exp
+				//vcMul(_SURF_SIZE_, Hankel, Hankel_rho_inv, Hankel);
+				ippsMul_32f32fc_I(Hankel_rho_inv, Hankel, _SURF_SIZE_);
+
+				////L N clac : we don't need Lr, Nr but anyway
+				for (int ii = 0; ii < 3; ii++) { // R theta phi
+					vcMul(_SURF_SIZE_, Hankel, NF_ecM_sph + ii * _SURF_SIZE_, NF_ecL_sph + ii * _SURF_SIZE_);
+					vcMul(_SURF_SIZE_, Hankel, NF_J_sph + ii * _SURF_SIZE_, NF_N_sph + ii * _SURF_SIZE_);
+				}//could use in in_place functions, such as 
+
+				//ch14, (14.54)  (double check the sign of M and J!)
+				//ippsSum_16s_Sfs();
 			}
 		}
 
-		//Write 14.54 here
+
+
+
 
 		/*
 		filename[4] = '0' + (char)(freqN);

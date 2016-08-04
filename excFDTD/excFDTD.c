@@ -10,7 +10,7 @@
 #define _DimY (100)
 #define _DimZ (100)
 
-#define _STEP (500)
+#define _STEP (100)
 
 //eq35
 #define _PML_PX_X_ (8)
@@ -503,7 +503,7 @@ void RFT(void) {
 //FT_H[i][j][2][0] += 0.25f * (Hz[offset - _offsetZ - _offsetX - _offsetY] + Hz[offset - _offsetZ - _offsetX] + Hz[offset - _offsetZ - _offsetY] + Hz[offset - _offsetZ]) / RFT_WINDOW * cosf(2 * M_PI*RFT_K_LIST_CALCULATED[j] / RFT_WINDOW*RFT_counter);
 
 
-#define NTFF_IMG_SIZE 100
+#define NTFF_IMG_SIZE 101
 #define _SURF_MidX_ ((_SURF_StartX_+_SURF_EndX_)/2.0f)
 #define _SURF_MidY_ ((_SURF_StartY_+_SURF_EndY_)/2.0f)
 #define _SURF_MidZ_ ((_SURF_StartZ_+_SURF_EndZ_)/2.0f)
@@ -549,8 +549,8 @@ void NTFF(void) {
 	FF_ecE_phi = (MKL_Complex8*)mkl_malloc(NTFF_IMG_SIZE*NTFF_IMG_SIZE * sizeof(MKL_Complex8), 64);
 	FF_H_theta = (MKL_Complex8*)mkl_malloc(NTFF_IMG_SIZE*NTFF_IMG_SIZE * sizeof(MKL_Complex8), 64);
 	FF_H_phi = (MKL_Complex8*)mkl_malloc(NTFF_IMG_SIZE*NTFF_IMG_SIZE * sizeof(MKL_Complex8), 64);
-	NF_ecL_sum = (MKL_Complex8*)mkl_malloc(3 * sizeof(MKL_Complex8), 64);
-	NF_N_sum = (MKL_Complex8*)mkl_malloc(3 * sizeof(MKL_Complex8), 64);
+	NF_ecL_sum = (MKL_Complex16*)mkl_malloc(3 * sizeof(MKL_Complex8), 64);
+	NF_N_sum = (MKL_Complex16*)mkl_malloc(3 * sizeof(MKL_Complex8), 64);
 	FF_ecSr1 = (MKL_Complex8*)mkl_malloc(NTFF_IMG_SIZE*NTFF_IMG_SIZE * sizeof(MKL_Complex8), 64);
 	FF_ecSr2 = (MKL_Complex8*)mkl_malloc(NTFF_IMG_SIZE*NTFF_IMG_SIZE * sizeof(MKL_Complex8), 64);
 	FF_ecSr = (MKL_Complex8*)mkl_malloc(NTFF_IMG_SIZE*NTFF_IMG_SIZE * sizeof(MKL_Complex8), 64);
@@ -570,7 +570,8 @@ void NTFF(void) {
 				NF_eyePos[1 * NTFF_IMG_SIZE *NTFF_IMG_SIZE + j*NTFF_IMG_SIZE + i] = 1.0f;
 				NF_eyePos[2 * NTFF_IMG_SIZE *NTFF_IMG_SIZE + j*NTFF_IMG_SIZE + i] = 1.0f;
 				continue; }
-			if ( rr == 0) {
+			if ( rr < 0.1f) { // ==0.0f
+				printf("center : %d, %d \n\n",i,j);
 				NF_eyePos[0 * NTFF_IMG_SIZE *NTFF_IMG_SIZE + j*NTFF_IMG_SIZE + i] = 0.0f;
 				NF_eyePos[1 * NTFF_IMG_SIZE *NTFF_IMG_SIZE + j*NTFF_IMG_SIZE + i] = 0.0f;
 				NF_eyePos[2 * NTFF_IMG_SIZE *NTFF_IMG_SIZE + j*NTFF_IMG_SIZE + i] = 1.0f;
@@ -591,21 +592,21 @@ void NTFF(void) {
 			(float)(surf_x - _SURF_MidX_) * (float)(surf_x - _SURF_MidX_)
 			+ (float)(surf_y - _SURF_MidY_) * (float)(surf_y - _SURF_MidY_)
 			+ (float)(surf_z - _SURF_MidZ_) * (float)(surf_z - _SURF_MidZ_)); //shouldn't slow down much
-		//float radial_inv = 1.0f / sqrtf((surf_x - _SURF_MidX_)*(surf_x - _SURF_MidX_) + (surf_y - _SURF_MidY_)*(surf_y - _SURF_MidY_));
-		//if (((surf_x - _SURF_MidX_)*(surf_x - _SURF_MidX_) + (surf_y - _SURF_MidY_)*(surf_y - _SURF_MidY_)) == 0) {
-		//	for (int kk = 0; kk < 9; kk++) { xyz_to_sph[9 * k + kk] = 0; }
-		//	xyz_to_sph[9 * k + 2] = 1;
-		//	continue;
-		//}
-		//xyz_to_sph[9*k + 0] = rho_inv_dx * (float)(surf_x - _SURF_MidX_);
-		//xyz_to_sph[9*k + 1] = rho_inv_dx * (float)(surf_y - _SURF_MidY_);
-		//xyz_to_sph[9*k + 2] = rho_inv_dx * (float)(surf_z - _SURF_MidZ_);
-		//xyz_to_sph[9*k + 3] = -(float)(surf_y - _SURF_MidY_) * radial_inv;
-		//xyz_to_sph[9*k + 4] = (float)(surf_x - _SURF_MidX_) * radial_inv;
-		//xyz_to_sph[9*k + 5] = 0;
-		//xyz_to_sph[9*k + 6] = -rho_inv_dx * radial_inv * (float)(surf_z - _SURF_MidZ_) * (float)(surf_x - _SURF_MidX_);
-		//xyz_to_sph[9*k + 7] = -rho_inv_dx * radial_inv * (float)(surf_z - _SURF_MidZ_) * (float)(surf_y - _SURF_MidY_);
-		//xyz_to_sph[9*k + 8] = rho_inv_dx / radial_inv;
+		float radial_inv = 1.0f / sqrtf((surf_x - _SURF_MidX_)*(surf_x - _SURF_MidX_) + (surf_y - _SURF_MidY_)*(surf_y - _SURF_MidY_));
+		if (((surf_x - _SURF_MidX_)*(surf_x - _SURF_MidX_) + (surf_y - _SURF_MidY_)*(surf_y - _SURF_MidY_)) == 0) {
+			for (int kk = 0; kk < 9; kk++) { xyz_to_sph[9 * k + kk] = 0; }
+			xyz_to_sph[9 * k + 2] = 1;
+			continue;
+		}
+		xyz_to_sph[9*k + 0] = rho_inv_dx * (float)(surf_x - _SURF_MidX_);
+		xyz_to_sph[9*k + 1] = rho_inv_dx * (float)(surf_y - _SURF_MidY_);
+		xyz_to_sph[9*k + 2] = rho_inv_dx * (float)(surf_z - _SURF_MidZ_);
+		xyz_to_sph[9*k + 3] = -(float)(surf_y - _SURF_MidY_) * radial_inv;
+		xyz_to_sph[9*k + 4] = (float)(surf_x - _SURF_MidX_) * radial_inv;
+		xyz_to_sph[9*k + 5] = 0;
+		xyz_to_sph[9*k + 6] = -rho_inv_dx * radial_inv * (float)(surf_z - _SURF_MidZ_) * (float)(surf_x - _SURF_MidX_);
+		xyz_to_sph[9*k + 7] = -rho_inv_dx * radial_inv * (float)(surf_z - _SURF_MidZ_) * (float)(surf_y - _SURF_MidY_);
+		xyz_to_sph[9*k + 8] = rho_inv_dx / radial_inv;
 	}
 
 
@@ -679,58 +680,97 @@ void NTFF(void) {
 
 		// coordinate conversion XYZ-->R theta phi
 		// consider using ippsDotProd_32f32fc
-		// WRONG!
-		for (int k = 0; k < _SURF_SIZE_; k++)
-			(int i = 0; i < 3; i++) { // R theta phi
-			NF_ecM_sph[i * _SURF_SIZE_ + k].real =
-				xyz_to_sph[9 * k + 3 * i + 0] * NF_ecM[0 * _SURF_SIZE_ + k].real
-				+ xyz_to_sph[9 * k + 3 * i + 1] * NF_ecM[1 * _SURF_SIZE_ + k].real
-				+ xyz_to_sph[9 * k + 3 * i + 2] * NF_ecM[2 * _SURF_SIZE_ + k].real;
-			NF_J_sph[i * _SURF_SIZE_ + k].real =
-				xyz_to_sph[9 * k + 3 * i + 0] * NF_J[0 * _SURF_SIZE_ + k].real
-				+ xyz_to_sph[9 * k + 3 * i + 1] * NF_J[1 * _SURF_SIZE_ + k].real
-				+ xyz_to_sph[9 * k + 3 * i + 2] * NF_J[2 * _SURF_SIZE_ + k].real;
-			NF_ecM_sph[i * _SURF_SIZE_ + k].imag =
-				xyz_to_sph[9 * k + 3 * i + 0] * NF_ecM[0 * _SURF_SIZE_ + k].imag
-				+ xyz_to_sph[9 * k + 3 * i + 1] * NF_ecM[1 * _SURF_SIZE_ + k].imag
-				+ xyz_to_sph[9 * k + 3 * i + 2] * NF_ecM[2 * _SURF_SIZE_ + k].imag;
-			NF_J_sph[i * _SURF_SIZE_ + k].imag =
-				xyz_to_sph[9 * k + 3 * i + 0] * NF_J[0 * _SURF_SIZE_ + k].imag
-				+ xyz_to_sph[9 * k + 3 * i + 1] * NF_J[1 * _SURF_SIZE_ + k].imag
-				+ xyz_to_sph[9 * k + 3 * i + 2] * NF_J[2 * _SURF_SIZE_ + k].imag;
+		for (int k = 0; k < _SURF_SIZE_; k++){
+			for (int i = 0; i < 3; i++) { // R theta phi
+				NF_ecM_sph[i * _SURF_SIZE_ + k].real =
+					xyz_to_sph[9 * k + 3 * i + 0] * NF_ecM[0 * _SURF_SIZE_ + k].real
+					+ xyz_to_sph[9 * k + 3 * i + 1] * NF_ecM[1 * _SURF_SIZE_ + k].real
+					+ xyz_to_sph[9 * k + 3 * i + 2] * NF_ecM[2 * _SURF_SIZE_ + k].real;
+				NF_J_sph[i * _SURF_SIZE_ + k].real =
+					xyz_to_sph[9 * k + 3 * i + 0] * NF_J[0 * _SURF_SIZE_ + k].real
+					+ xyz_to_sph[9 * k + 3 * i + 1] * NF_J[1 * _SURF_SIZE_ + k].real
+					+ xyz_to_sph[9 * k + 3 * i + 2] * NF_J[2 * _SURF_SIZE_ + k].real;
+				NF_ecM_sph[i * _SURF_SIZE_ + k].imag =
+					xyz_to_sph[9 * k + 3 * i + 0] * NF_ecM[0 * _SURF_SIZE_ + k].imag
+					+ xyz_to_sph[9 * k + 3 * i + 1] * NF_ecM[1 * _SURF_SIZE_ + k].imag
+					+ xyz_to_sph[9 * k + 3 * i + 2] * NF_ecM[2 * _SURF_SIZE_ + k].imag;
+				NF_J_sph[i * _SURF_SIZE_ + k].imag =
+					xyz_to_sph[9 * k + 3 * i + 0] * NF_J[0 * _SURF_SIZE_ + k].imag
+					+ xyz_to_sph[9 * k + 3 * i + 1] * NF_J[1 * _SURF_SIZE_ + k].imag
+					+ xyz_to_sph[9 * k + 3 * i + 2] * NF_J[2 * _SURF_SIZE_ + k].imag;
+			}
 		}
 		//vc functions can be applied
 		
 
 		printf("\n");
-		for (int i = 0; i < NTFF_IMG_SIZE; i++) {
+		//for (int i = 0; i < NTFF_IMG_SIZE; i++) {
+		for (int i = 0; i <= 50; i++) {
 			printf("%f%%\r", 100.0f*(float)i / NTFF_IMG_SIZE);
-			for (int j = 0; j < NTFF_IMG_SIZE; j++) {
+			//for (int j = 0; j < NTFF_IMG_SIZE; j++) {
+			for (int j = 0; j <= 50; j++) {
 				float radius = ((float)NTFF_IMG_SIZE - 1.0f) / 2.0f;
 				float xx = ((float)i - radius);
 				float yy = ((float)j - radius);
 				if (radius < sqrtf(xx*xx + yy*yy)) { continue; }
 
+				//printf("pxPos : %d %d \n", i, j);
 				for (int k = 0; k < _SURF_SIZE_; k++) {
 					_SET_SURF_XYZ_INDEX(k);
 					////Hankel calc, FIXME : Need to verify this part
-					Hankel_dx[k].real = 0;
-					Hankel_dx[k].imag = k_vector * _dx *(
-						  ((float)surf_x - (_SURF_MidX_))*(NF_eyePos[0 * NTFF_IMG_SIZE *NTFF_IMG_SIZE + j*NTFF_IMG_SIZE + i])
+					Hankel_dx[k].real = cosf(k_vector * _dx *(
+						((float)surf_x - (_SURF_MidX_))*(NF_eyePos[0 * NTFF_IMG_SIZE *NTFF_IMG_SIZE + j*NTFF_IMG_SIZE + i])
 						+ ((float)surf_y - (_SURF_MidY_))*(NF_eyePos[1 * NTFF_IMG_SIZE *NTFF_IMG_SIZE + j*NTFF_IMG_SIZE + i])
 						+ ((float)surf_z - (_SURF_MidZ_))*(NF_eyePos[2 * NTFF_IMG_SIZE *NTFF_IMG_SIZE + j*NTFF_IMG_SIZE + i])
-						); //constant phase difference was ignored. could be accererated more					
+						));
+					Hankel_dx[k].imag = sinf(k_vector * _dx *(
+						((float)surf_x - (_SURF_MidX_))*(NF_eyePos[0 * NTFF_IMG_SIZE *NTFF_IMG_SIZE + j*NTFF_IMG_SIZE + i])
+						+ ((float)surf_y - (_SURF_MidY_))*(NF_eyePos[1 * NTFF_IMG_SIZE *NTFF_IMG_SIZE + j*NTFF_IMG_SIZE + i])
+						+ ((float)surf_z - (_SURF_MidZ_))*(NF_eyePos[2 * NTFF_IMG_SIZE *NTFF_IMG_SIZE + j*NTFF_IMG_SIZE + i])
+						));
+					//Hankel_dx[k].real = 0;
+					//Hankel_dx[k].imag = k_vector * _dx *(
+					//	  ((float)surf_x - (_SURF_MidX_))*(NF_eyePos[0 * NTFF_IMG_SIZE *NTFF_IMG_SIZE + j*NTFF_IMG_SIZE + i])
+					//	+ ((float)surf_y - (_SURF_MidY_))*(NF_eyePos[1 * NTFF_IMG_SIZE *NTFF_IMG_SIZE + j*NTFF_IMG_SIZE + i])
+					//	+ ((float)surf_z - (_SURF_MidZ_))*(NF_eyePos[2 * NTFF_IMG_SIZE *NTFF_IMG_SIZE + j*NTFF_IMG_SIZE + i])
+					//	); //constant phase difference was ignored. could be accererated more					
 				}
-				vcExp(_SURF_SIZE_, Hankel_dx, Hankel_dx); //complex exp
+				//vcExp(_SURF_SIZE_, Hankel_dx, Hankel_dx); //complex exp
 				//ippsMul_32f32fc_I(Hankel_rho_inv_dx, Hankel_dx, _SURF_SIZE_); //wrong
+
+				ippsZero_64fc(NF_ecL_sum, 3);
+				ippsZero_64fc(NF_N_sum, 3);
 
 				////L N clac : we don't need Lr, Nr but anyway
 				for (int ii = 0; ii < 3; ii++) { // R theta phi
 					vcMul(_SURF_SIZE_, Hankel_dx, NF_ecM_sph + ii * _SURF_SIZE_, NF_ecL_sph_dx + ii * _SURF_SIZE_);
 					vcMul(_SURF_SIZE_, Hankel_dx, NF_J_sph + ii * _SURF_SIZE_, NF_N_sph_dx + ii * _SURF_SIZE_);
+					//if (((i == 30) && (j == 30)) || ((i == 40) && (j == 34))) {
+					//	printf("i = %d, j= %d, xyz = %d \n",i,j,ii);
+					//	printf("%1.2e %1.2e %1.2e\n", Hankel_dx[240].real, NF_ecM_sph[240 + ii * _SURF_SIZE_].real, NF_ecL_sph_dx[240 + ii * _SURF_SIZE_].real);
+					//	printf("%1.2e %1.2e %1.2e\n\n", Hankel_dx[240].imag, NF_ecM_sph[240 + ii * _SURF_SIZE_].imag, NF_ecL_sph_dx[240 + ii * _SURF_SIZE_].imag);
+					//}
+					NF_ecL_sum[ii].real = 0.0; //몰아서 초기화하는게 빠르겠지  
+					NF_ecL_sum[ii].imag = 0.0;
+					NF_N_sum[ii].real = 0.0;
+					NF_N_sum[ii].imag = 0.0;
+					//if (((i == 30) && (j == 30) )) {
+					//	printf("i = %d, j= %d, xyz = %d \n", i, j, ii);
+					//}
+					for (int kk = 0; kk < _SURF_SIZE_; kk++) {
+					//	if (((i == 30) && (j == 30) && (50 < kk)&& (kk < 150))) {
+					//		printf("%1.10e %1.10e\n", NF_ecL_sum[ii].real, NF_ecL_sph_dx[kk + ii * _SURF_SIZE_].real);
+					//	}
+						NF_ecL_sum[ii].real += NF_ecL_sph_dx[kk + ii * _SURF_SIZE_].real ; 
+						NF_ecL_sum[ii].imag += NF_ecL_sph_dx[kk + ii * _SURF_SIZE_].imag ;
+						NF_N_sum[ii].real += NF_N_sph_dx[kk + ii * _SURF_SIZE_].real ;
+						NF_N_sum[ii].imag += NF_N_sph_dx[kk + ii * _SURF_SIZE_].imag ;
+					}
 
-					ippsSum_32fc(NF_ecL_sph_dx + ii * _SURF_SIZE_, _SURF_SIZE_, NF_ecL_sum + ii, IPP_FFT_DIV_BY_SQRTN); //FIXME : IPP_FFT_NODIV_BY_ANY?
-					ippsSum_32fc(NF_N_sph_dx + ii * _SURF_SIZE_, _SURF_SIZE_, NF_N_sum + ii, IPP_FFT_DIV_BY_SQRTN);
+					//64
+					//ippsSum_32fc(NF_ecL_sph_dx + ii * _SURF_SIZE_, _SURF_SIZE_, NF_ecL_sum + ii, IPP_FFT_DIV_BY_SQRTN); //FIXME : IPP_FFT_NODIV_BY_ANY?
+					//ippsSum_32fc(NF_N_sph_dx + ii * _SURF_SIZE_, _SURF_SIZE_, NF_N_sum + ii, IPP_FFT_DIV_BY_SQRTN);
+					//printf("%1.2e/%1.2e ",NF_ecL_sph_dx[ii * _SURF_SIZE_].real, NF_ecL_sph_dx[1+ii*_SURF_SIZE_].real);
 
 					//FIXME : image center NaN
 					if (isfinite(NF_ecL_sum[ii].real) == 0) { printf("Ea : %d,%d\n", i, j); }
@@ -738,6 +778,7 @@ void NTFF(void) {
 					if (isfinite(NF_N_sum[ii].real) == 0) { printf("Ec : %d,%d\n", i, j); }
 					if (isfinite(NF_N_sum[ii].imag) == 0) { printf("Ed : %d,%d\n", i, j); }
 				}
+				//printf("\n");
 
 				//ch14, (14.54)  (double check signs of M and J!)
 				////[0]:r [1]:theta [2]:phi
@@ -750,7 +791,7 @@ void NTFF(void) {
 				FF_ecE_phi[i + j*NTFF_IMG_SIZE].real = NF_N_sum[2].real - NF_ecL_sum[1].real;
 				FF_H_theta[i + j*NTFF_IMG_SIZE].real = NF_ecL_sum[1].real - NF_N_sum[2].real;
 				FF_H_phi[i + j*NTFF_IMG_SIZE].real = NF_ecL_sum[2].real + NF_N_sum[1].real;
-				FF_ecE_theta[i + j*NTFF_IMG_SIZE].imag = NF_N_sum[1].imag +NF_ecL_sum[2].imag;
+				FF_ecE_theta[i + j*NTFF_IMG_SIZE].imag = NF_N_sum[1].imag + NF_ecL_sum[2].imag;
 				FF_ecE_phi[i + j*NTFF_IMG_SIZE].imag = NF_N_sum[2].imag - NF_ecL_sum[1].imag;
 				FF_H_theta[i + j*NTFF_IMG_SIZE].imag = NF_ecL_sum[1].imag - NF_N_sum[2].imag;
 				FF_H_phi[i + j*NTFF_IMG_SIZE].imag = NF_ecL_sum[2].imag + NF_N_sum[1].imag;
@@ -773,7 +814,8 @@ void NTFF(void) {
 		filename[3] = 'a';
 		for (int i = 0; i < NTFF_IMG_SIZE; i++)	{		for (int j = 0; j < NTFF_IMG_SIZE; j++) {
 			//float val = NF_eyePos[2 * NTFF_IMG_SIZE *NTFF_IMG_SIZE + j*NTFF_IMG_SIZE + i] * 255;
-			float val = sqrtf(FF_ecE_theta[j*NTFF_IMG_SIZE + i].real *  FF_ecE_theta[j*NTFF_IMG_SIZE + i].real +  FF_ecE_theta[j*NTFF_IMG_SIZE + i].imag *  FF_ecE_theta[j*NTFF_IMG_SIZE + i].imag) * 255.0f / 1000.0f;
+			float val = FF_ecE_theta[j*NTFF_IMG_SIZE + i].real * 255.0f / 1000.0f;
+			//float val = sqrtf(FF_ecE_theta[j*NTFF_IMG_SIZE + i].real *  FF_ecE_theta[j*NTFF_IMG_SIZE + i].real +  FF_ecE_theta[j*NTFF_IMG_SIZE + i].imag *  FF_ecE_theta[j*NTFF_IMG_SIZE + i].imag) * 255.0f / 1000.0f;
 			//float val = sqrtf(FF_ecE_phi[j*NTFF_IMG_SIZE + i].real * FF_ecE_phi[j*NTFF_IMG_SIZE + i].real + FF_ecE_phi[j*NTFF_IMG_SIZE + i].imag * FF_ecE_phi[j*NTFF_IMG_SIZE + i].imag) * 255.0f / 2.0f;
 			//float val = FF_H_theta[j*NTFF_IMG_SIZE + i].real *255.0f * 500.0f;
 			//float val = FF_H_phi[j*NTFF_IMG_SIZE + i].real * 255.0f * 10.0f;  
@@ -815,23 +857,26 @@ void NTFF(void) {
 		for (int j = 0; j < _SURF_DY_ ; j++)	{
 			for (int i = 0; i < _SURF_DX_ ; i++) {
 				////float val = rho_inv_dx[_SURF_INDEX_XYZ(_SURF_StartX_ + i, _SURF_StartY_ + j, _SURF_StartZ_)] *255.0f * 20.0f;
-				//float val = normal[_SURF_SIZE_ * 1 + _SURF_INDEX_XYZ(_SURF_StartX_+ i, _SURF_StartY_+j, _SURF_StartZ_)].real *255.0f * 5.0f ;
+				//float val = normal[_SURF_SIZE_ * 1 + _SURF_INDEX_XYZ(_SURF_StartX_ + i, _SURF_StartY_ + j, _SURF_StartZ_)].real *255.0f * 5.0f;
+				//float val = normal[_SURF_SIZE_ * 1 + _SURF_INDEX_XYZ( _SURF_StartZ_,_SURF_StartX_+ i, _SURF_StartY_+j)].real *255.0f * 5.0f ;
 				//float val = NF_ecM[(1 * _SURF_SIZE_) + _SURF_INDEX_XYZ(_SURF_StartX_ + i, _SURF_StartY_ + j, _SURF_StartZ_)].real *255.0f * 10000.0f;
 				//float val = NF_J[(0 * _SURF_SIZE_) + _SURF_INDEX_XYZ(_SURF_StartX_ + i, _SURF_StartY_ + j, _SURF_StartZ_)].real *255.0f * 10000.0f;
-				//float val = Hankel_dx[_SURF_INDEX_XYZ(_SURF_StartX_ + i, _SURF_StartY_ + j, _SURF_StartZ_)].real *255.0f;
+//				float val = Hankel_dx[_SURF_INDEX_XYZ(_SURF_StartX_ + i, _SURF_StartY_ + j, _SURF_StartZ_)].real *255.0f;
+				//float val = Hankel_dx[_SURF_INDEX_XYZ(_SURF_StartZ_,_SURF_StartX_ + i, _SURF_StartY_ + j)].real *255.0f;
 				//float val = sqrt(
 				//	NF_J_sph[(1 * _SURF_SIZE_) + _SURF_INDEX_XYZ(_SURF_StartX_ + i, _SURF_StartY_ + j, _SURF_StartZ_)].imag *
 				//	NF_J_sph[(1 * _SURF_SIZE_) + _SURF_INDEX_XYZ(_SURF_StartX_ + i, _SURF_StartY_ + j, _SURF_StartZ_)].imag+
 				//	NF_J_sph[(1 * _SURF_SIZE_) + _SURF_INDEX_XYZ(_SURF_StartX_ + i, _SURF_StartY_ + j, _SURF_StartZ_)].real *
 				//	NF_J_sph[(1 * _SURF_SIZE_) + _SURF_INDEX_XYZ(_SURF_StartX_ + i, _SURF_StartY_ + j, _SURF_StartZ_)].real
 				//	)*255.0f * 500.0f;
-				float val =  NF_ecL_sph_dx[(1 * _SURF_SIZE_) + _SURF_INDEX_XYZ(_SURF_StartX_ + i, _SURF_StartY_ + j, _SURF_StartZ_)].real*255.0f * 500.0f;
+				//float val =  NF_ecL_sph_dx[(1 * _SURF_SIZE_) + _SURF_INDEX_XYZ(_SURF_StartX_ + i, _SURF_StartY_ + j, _SURF_StartZ_)].real*255.0f * 500.0f;
 				//float val = NF_ecM_sph[(1 * _SURF_SIZE_) + _SURF_INDEX_XYZ(_SURF_StartX_ + i, _SURF_StartY_ + j, _SURF_StartZ_)].imag *255.0f * 500.0f;
 				//float val = NF_ecM_sph[(2 * _SURF_SIZE_) + _SURF_INDEX_XYZ(_SURF_StartX_ + i, _SURF_StartY_ + j, _SURF_StartZ_)].real *255.0f * 500.0f;
 				//float val = NF_J_sph[(0 * _SURF_SIZE_) + _SURF_INDEX_XYZ(_SURF_StartX_ + i, _SURF_StartY_ + j, _SURF_StartZ_)].real *255.0f * 500.0f;
 				//float val = NF_J_sph[(1 * _SURF_SIZE_) + _SURF_INDEX_XYZ(_SURF_StartX_ + i, _SURF_StartY_ + j, _SURF_StartZ_)].real *255.0f * 500.0f;
 				//float val = NF_J_sph[(2 * _SURF_SIZE_) + _SURF_INDEX_XYZ(_SURF_StartX_ + i, _SURF_StartY_ + j, _SURF_StartZ_)].real *255.0f * 500.0f;
-				//float val = NF_ecL_sph_dx[(2 * _SURF_SIZE_) + _SURF_INDEX_XYZ(_SURF_StartX_ + i, _SURF_StartY_ + j, _SURF_StartZ_)].real *255.0f * 5000.0f;
+				//float val = NF_ecL_sph_dx[(1 * _SURF_SIZE_) + _SURF_INDEX_XYZ(_SURF_StartX_ + i, _SURF_StartY_ + j, _SURF_StartZ_)].real *255.0f * 5000.0f;
+				float val = NF_ecL_sph_dx[(1 * _SURF_SIZE_) + _SURF_INDEX_XYZ( _SURF_StartZ_,_SURF_StartX_ + i, _SURF_StartY_ + j)].real *255.0f * 5000.0f;
 				//float val = NF_ecL_sph_dx[(1 * _SURF_SIZE_) + _SURF_INDEX_XYZ(_SURF_StartX_ + i, _SURF_StartY_ + j, _SURF_StartZ_)].real *255.0f * 5000.0f;
 				//float val = NF_ecL_sph_dx[(0 * _SURF_SIZE_) + _SURF_INDEX_XYZ(_SURF_StartX_ + i, _SURF_StartY_ + j, _SURF_StartZ_)].real *255.0f * 5000.0f;
 				//float val = NF_N_sph_dx[(0 * _SURF_SIZE_) + _SURF_INDEX_XYZ(_SURF_StartX_ + i, _SURF_StartY_ + j, _SURF_StartZ_)].real *255.0f * 5000.0f;

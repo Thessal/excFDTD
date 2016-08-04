@@ -761,6 +761,7 @@ void NTFF(void) {
 					//	if (((i == 30) && (j == 30) && (50 < kk)&& (kk < 150))) {
 					//		printf("%1.10e %1.10e\n", NF_ecL_sum[ii].real, NF_ecL_sph_dx[kk + ii * _SURF_SIZE_].real);
 					//	}
+						//FIXMEFIXMEFIXME : cannot integrate in spherical coordiate because the unit vectors are not constants
 						NF_ecL_sum[ii].real += NF_ecL_sph_dx[kk + ii * _SURF_SIZE_].real ; 
 						NF_ecL_sum[ii].imag += NF_ecL_sph_dx[kk + ii * _SURF_SIZE_].imag ;
 						NF_N_sum[ii].real += NF_N_sph_dx[kk + ii * _SURF_SIZE_].real ;

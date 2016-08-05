@@ -16,10 +16,11 @@
 #define _PML_PX_X_ (16)
 #define _PML_PX_Y_ (16)
 #define _PML_PX_Z_ (16)
-#define _PML_ALPHA_TUNING_ 2.0f
+#define _PML_ALPHA_TUNING_ 0.1f
 int pml_n = 3; //consider using macro
 float pml_R = 10e-4;
 float pml_kappa_max = 8.0f;
+#define _NTFF_Margin_ (10)
 
 #define _S_factor (2.0f)
 #define _dx (50e-9)
@@ -96,7 +97,7 @@ float RFT_K_LIST_CALCULATED[FREQ_N];
 		)
 
 // === surface memory for runningDFT and NTFF
-#define _SURF_Margin_ 5
+#define _SURF_Margin_ _NTFF_Margin_
 #define _SURF_StartX_ ((_PML_PX_X_)+_SURF_Margin_)
 #define _SURF_StartY_ ((_PML_PX_Y_)+_SURF_Margin_)
 #define _SURF_StartZ_ ((_PML_PX_Z_)+_SURF_Margin_)
@@ -515,7 +516,7 @@ void RFT(void) {
 //FT_H[i][j][2][0] += Hz[offset] / RFT_WINDOW * cosf(2 * M_PI*RFT_K_LIST_CALCULATED[j] / RFT_WINDOW*RFT_counter);
 
 
-#define NTFF_IMG_SIZE 31
+#define NTFF_IMG_SIZE 201
 #define _SURF_MidX_ ((_SURF_StartX_+_SURF_EndX_)/2.0f)
 #define _SURF_MidY_ ((_SURF_StartY_+_SURF_EndY_)/2.0f)
 #define _SURF_MidZ_ ((_SURF_StartZ_+_SURF_EndZ_)/2.0f)

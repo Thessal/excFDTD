@@ -13,6 +13,7 @@
 #define _STEP (1000)
 
 //eq35
+//consider using simple PML for NTFF calculation
 #define _PML_PX_X_ (16)
 #define _PML_PX_Y_ (16)
 #define _PML_PX_Z_ (16)
@@ -23,7 +24,7 @@ float pml_kappa_max = 8.0f;
 #define _NTFF_Margin_ (10)
 
 #define _S_factor (2.0f)
-#define _dx (50e-9)
+#define _dx (5e-9)
 
 #define _c0 299792458.0f
 #define _USE_MATH_DEFINES
@@ -300,7 +301,7 @@ int main(int argc, char* argv[])
 //		float addval = 0.1 * sin(2.0f * M_PI * _c0 / 500e-9 * (float)i * _dt_) * exp(-((float)i - 500.0f)*((float)i - 500.0f) / 250.0f / 250.0f);
 		float addval = 0.1 * sin(2.0f * M_PI * _c0 / 500e-9 * (float)i * _dt_) ;
 		//float addval = 10.0f *sin(2.0f * M_PI * _c0 / 500e-9 * (float)i * _dt_) * exp(-((float)i - 50.0f)*((float)i - 50.0f) / 25.0f / 25.0f);
-		eps0_c_Ex[_INDEX_XYZ(50, 50, 50)] += addval * 10;
+		eps0_c_Ex[_INDEX_XYZ(50, 50, 50)] += addval * 3;
 		//eps0_c_Ex[_INDEX_XYZ(51, 50, 50)] += addval;
 		//eps0_c_Ex[_INDEX_XYZ(49, 50, 50)] += addval;
 		//eps0_c_Ex[_INDEX_XYZ(50, 49, 50)] += addval;

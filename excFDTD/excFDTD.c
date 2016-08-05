@@ -13,10 +13,10 @@
 #define _STEP (1000)
 
 //eq35
-#define _PML_PX_X_ (8)
-#define _PML_PX_Y_ (8)
-#define _PML_PX_Z_ (8)
-#define _PML_ALPHA_TUNING_ 0.5f
+#define _PML_PX_X_ (16)
+#define _PML_PX_Y_ (16)
+#define _PML_PX_Z_ (16)
+#define _PML_ALPHA_TUNING_ 2.0f
 int pml_n = 3; //consider using macro
 float pml_R = 10e-4;
 float pml_kappa_max = 8.0f;
@@ -294,9 +294,20 @@ int main(int argc, char* argv[])
 	start = clock();
 	printf("\nCalculating field \n");
 	for (int i = 0; i <= _STEP; i++) {
+		printf("%f%%\r", 100.0f*(float)i / _STEP);
 		//		eps0_c_Ex[_INDEX_XYZ(50, 65, 50)] += sin(2.0f * M_PI * _c0 / 500e-9 * (float)i * _dt_) * exp(- 0.000001 * (i-100)*(i-100));
-		eps0_c_Ex[_INDEX_XYZ(50, 50, 50)] += sin(2.0f * M_PI * _c0 / 500e-9 * (float)i * _dt_) * exp(-((float)i-500.0f)*((float)i-500.0f)/250.0f /250.0f);
-		printf("%f%%\r", 100.0f*(float)i/_STEP);
+//		float addval = 0.1 * sin(2.0f * M_PI * _c0 / 500e-9 * (float)i * _dt_) * exp(-((float)i - 500.0f)*((float)i - 500.0f) / 250.0f / 250.0f);
+		float addval = 0.1 * sin(2.0f * M_PI * _c0 / 500e-9 * (float)i * _dt_) ;
+		//float addval = 10.0f *sin(2.0f * M_PI * _c0 / 500e-9 * (float)i * _dt_) * exp(-((float)i - 50.0f)*((float)i - 50.0f) / 25.0f / 25.0f);
+		eps0_c_Ex[_INDEX_XYZ(50, 50, 50)] += addval * 10;
+		//eps0_c_Ex[_INDEX_XYZ(51, 50, 50)] += addval;
+		//eps0_c_Ex[_INDEX_XYZ(49, 50, 50)] += addval;
+		//eps0_c_Ex[_INDEX_XYZ(50, 49, 50)] += addval;
+		//eps0_c_Ex[_INDEX_XYZ(50, 50, 50)] += addval;
+		//eps0_c_Ex[_INDEX_XYZ(50, 51, 50)] += addval;
+		//eps0_c_Ex[_INDEX_XYZ(50, 50, 49)] += addval;
+		//eps0_c_Ex[_INDEX_XYZ(50, 50, 50)] += addval;
+		//eps0_c_Ex[_INDEX_XYZ(50, 50, 51)] += addval;
 		DCP_HE_C();
 		RFT();
 	}
@@ -473,7 +484,7 @@ void RFT(void) {
 			FT_H[i][j][0][1] -= 0.25 * (Hx[offset - _offsetX - _offsetY - _offsetZ] + Hx[offset - _offsetX - _offsetY] + Hx[offset - _offsetX - _offsetZ] + Hx[offset - _offsetX]) / (RFT_WINDOW - 1) * sinf(2 * M_PI*RFT_K_LIST_CALCULATED[j] / RFT_WINDOW*RFT_counter);
 			FT_H[i][j][1][1] -= 0.25 * (Hy[offset - _offsetX - _offsetZ] + Hy[offset - _offsetX] + Hy[offset - _offsetZ] + Hy[offset]) / (RFT_WINDOW - 1) * sinf(2 * M_PI*RFT_K_LIST_CALCULATED[j] / RFT_WINDOW*RFT_counter);
 			FT_H[i][j][2][1] -= 0.25 * (Hz[offset - _offsetZ - _offsetX - _offsetY] + Hz[offset - _offsetZ - _offsetX] + Hz[offset - _offsetZ - _offsetY] + Hz[offset - _offsetZ]) / (RFT_WINDOW - 1) * sinf(2 * M_PI*RFT_K_LIST_CALCULATED[j] / RFT_WINDOW*RFT_counter);
-			if (RFT_counter == _STEP) { printf("RFT finish!\n"); continue; }
+			if (RFT_counter == _STEP) { continue; }
 			//real
 			FT_eps0cE[i][j][0][0] += 0.5 * (eps0_c_Ex[offset - _offsetX] + eps0_c_Ex[offset]) / RFT_WINDOW * cosf(2 * M_PI*RFT_K_LIST_CALCULATED[j] / RFT_WINDOW*RFT_counter); //RFT_counter is not q but it shoud not matter
 			FT_eps0cE[i][j][1][0] += 0.5 * (eps0_c_Ey[offset - _offsetX - _offsetY] + eps0_c_Ey[offset - _offsetX]) / RFT_WINDOW * cosf(2 * M_PI*RFT_K_LIST_CALCULATED[j] / RFT_WINDOW*RFT_counter);
@@ -483,6 +494,7 @@ void RFT(void) {
 			FT_H[i][j][2][0] += 0.25 * (Hz[offset - _offsetZ - _offsetX - _offsetY] + Hz[offset - _offsetZ - _offsetX] + Hz[offset - _offsetZ - _offsetY] + Hz[offset - _offsetZ]) / RFT_WINDOW * cosf(2 * M_PI*RFT_K_LIST_CALCULATED[j] / RFT_WINDOW*RFT_counter);
 		} //FIXME : use ipp functions!
 	}
+	if (RFT_counter == _STEP) { printf("RFT finish!\n"); }
 	RFT_counter++;
 }
 

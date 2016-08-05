@@ -297,7 +297,7 @@ int main(int argc, char* argv[])
 	printf("\nCalculating field \n");
 	for (int i = 0; i <= _STEP; i++) {
 		printf("%f%%\r", 100.0f*(float)i / _STEP);
-		float addval = 1.0*sin(2.0f * M_PI * _c0 / 500e-9 * (float)i * _dt_) * exp(-((float)i - 500.0f)*((float)i - 500.0f) / 250.0f / 250.0f);
+		float addval = 2.0*sin(2.0f * M_PI * _c0 / 500e-9 * (float)i * _dt_) * exp(-((float)i - 500.0f)*((float)i - 500.0f) / 250.0f / 250.0f);
 		//float addval = sin(2.0f * M_PI * _c0 / 500e-9 * (float)i * _dt_) ;
 		eps0_c_Ex[_INDEX_XYZ(50, 50, 50)] += addval;
 		//Hy[_INDEX_XYZ(50, 50, 50)] += addval;
@@ -635,6 +635,7 @@ void NTFF(void) {
 
 		////M, J calc
 		// minus curl ==> {{0, nz, -ny}, {-nz, 0, nx}, {ny, -nx, 0}}
+		ippsZero_32fc(NF_ecM, 3 * _SURF_SIZE_);
 		vcMul((const int)(_SURF_SIZE_), normal + 2 * _SURF_SIZE_, NF_ecE + 1 * _SURF_SIZE_, NF_ecM_temp);
 		ippsAdd_32fc_I(NF_ecM_temp, NF_ecM + 0 * _SURF_SIZE_, _SURF_SIZE_);
 		vcMul((const int)(_SURF_SIZE_), normal + 1 * _SURF_SIZE_, NF_ecE + 2 * _SURF_SIZE_, NF_ecM_temp);
@@ -648,6 +649,7 @@ void NTFF(void) {
 		vcMul((const int)(_SURF_SIZE_), normal + 0 * _SURF_SIZE_, NF_ecE + 1 * _SURF_SIZE_, NF_ecM_temp);
 		ippsSub_32fc_I(NF_ecM_temp, NF_ecM + 2 * _SURF_SIZE_, _SURF_SIZE_);
 		// plus curl ==> {{0, -nz, ny,} {nz, 0, -nx}, {-ny, nx, 0}}
+		ippsZero_32fc(NF_J, 3 * _SURF_SIZE_);
 		vcMul((const int)(_SURF_SIZE_), normal + 2 * _SURF_SIZE_, NF_H + 1 * _SURF_SIZE_, NF_J_temp);
 		ippsSub_32fc_I(NF_J_temp, NF_J + 0 * _SURF_SIZE_, _SURF_SIZE_);
 		vcMul((const int)(_SURF_SIZE_), normal + 1 * _SURF_SIZE_, NF_H + 2 * _SURF_SIZE_, NF_J_temp);

@@ -539,10 +539,10 @@ void NTFF(void) {
 	int surf_x, surf_y, surf_z;
 	float k_vector;
 	float *NF_eyePos, *xyz_to_sph,  *FF_ecSr_magnitude;
-	MKL_Complex8 *Hankel_dx, *NF_ecE, *NF_H, *NF_ecM, *NF_J, *normal, 
+	MKL_Complex8 *Hankel_dx, *NF_ecE, *NF_H, *NF_ecM, *NF_J, *normal,
 		*NF_ecL_dx, *NF_N_dx, //free me
-		*NF_ecL_sph_dx_, *NF_N_sph_dx_, *NF_ecM_temp, *NF_J_temp,
-		*FF_ecE_theta, *FF_ecE_phi, *FF_H_theta, *FF_H_phi, *FF_ecSr1, *FF_ecSr2, *FF_ecSr;
+		*NF_ecL_sph_dx_, *NF_N_sph_dx_, *NF_ecM_temp, *NF_J_temp;
+	MKL_Complex8 *FF_ecE_x, *FF_ecE_y, *FF_ecE_z, *FF_H_x, *FF_H_y, *FF_H_z, *FF_ecSr;
 	MKL_Complex16 *NF_ecL_sum, *NF_N_sum, *NF_ecL_sum_temp, *NF_N_sum_temp;
 	MKL_Complex16 *NF_ecL_sum_sph, *NF_N_sum_sph;//[0]:r [1]:theta [2]:phi
 
@@ -563,18 +563,24 @@ void NTFF(void) {
 	NF_ecL_sph_dx_ = (MKL_Complex8*)mkl_malloc(3 * _SURF_SIZE_ * sizeof(MKL_Complex8), 64);
 	NF_N_sph_dx_ = (MKL_Complex8*)mkl_malloc(3 * _SURF_SIZE_ * sizeof(MKL_Complex8), 64);
 	normal = (MKL_Complex8*)mkl_malloc(3 * _SURF_SIZE_ * sizeof(MKL_Complex8), 64);
-	FF_ecE_theta = (MKL_Complex8*)mkl_malloc(NTFF_IMG_SIZE*NTFF_IMG_SIZE * sizeof(MKL_Complex8), 64);
-	FF_ecE_phi = (MKL_Complex8*)mkl_malloc(NTFF_IMG_SIZE*NTFF_IMG_SIZE * sizeof(MKL_Complex8), 64);
-	FF_H_theta = (MKL_Complex8*)mkl_malloc(NTFF_IMG_SIZE*NTFF_IMG_SIZE * sizeof(MKL_Complex8), 64);
-	FF_H_phi = (MKL_Complex8*)mkl_malloc(NTFF_IMG_SIZE*NTFF_IMG_SIZE * sizeof(MKL_Complex8), 64);
+	//FF_ecE_theta = (MKL_Complex8*)mkl_malloc(NTFF_IMG_SIZE*NTFF_IMG_SIZE * sizeof(MKL_Complex8), 64);
+	//FF_ecE_phi = (MKL_Complex8*)mkl_malloc(NTFF_IMG_SIZE*NTFF_IMG_SIZE * sizeof(MKL_Complex8), 64);
+	//FF_H_theta = (MKL_Complex8*)mkl_malloc(NTFF_IMG_SIZE*NTFF_IMG_SIZE * sizeof(MKL_Complex8), 64);
+	//FF_H_phi = (MKL_Complex8*)mkl_malloc(NTFF_IMG_SIZE*NTFF_IMG_SIZE * sizeof(MKL_Complex8), 64);
+	FF_ecE_x = (MKL_Complex8*)mkl_malloc(NTFF_IMG_SIZE*NTFF_IMG_SIZE * sizeof(MKL_Complex8), 64);
+	FF_ecE_y = (MKL_Complex8*)mkl_malloc(NTFF_IMG_SIZE*NTFF_IMG_SIZE * sizeof(MKL_Complex8), 64);
+	FF_ecE_z = (MKL_Complex8*)mkl_malloc(NTFF_IMG_SIZE*NTFF_IMG_SIZE * sizeof(MKL_Complex8), 64);
+	FF_H_x = (MKL_Complex8*)mkl_malloc(NTFF_IMG_SIZE*NTFF_IMG_SIZE * sizeof(MKL_Complex8), 64);
+	FF_H_y = (MKL_Complex8*)mkl_malloc(NTFF_IMG_SIZE*NTFF_IMG_SIZE * sizeof(MKL_Complex8), 64);
+	FF_H_z = (MKL_Complex8*)mkl_malloc(NTFF_IMG_SIZE*NTFF_IMG_SIZE * sizeof(MKL_Complex8), 64);
 	NF_ecL_sum = (MKL_Complex16*)mkl_malloc(3 *NTFF_IMG_SIZE*NTFF_IMG_SIZE * sizeof(MKL_Complex16), 64);
 	NF_N_sum = (MKL_Complex16*)mkl_malloc(3 * NTFF_IMG_SIZE*NTFF_IMG_SIZE * sizeof(MKL_Complex16), 64);
 	NF_ecL_sum_sph = (MKL_Complex16*)mkl_malloc(3 * NTFF_IMG_SIZE*NTFF_IMG_SIZE * sizeof(MKL_Complex16), 64);
 	NF_N_sum_sph = (MKL_Complex16*)mkl_malloc(3 * NTFF_IMG_SIZE*NTFF_IMG_SIZE * sizeof(MKL_Complex16), 64);
 	NF_ecL_sum_temp = (MKL_Complex16*)mkl_malloc(NTFF_IMG_SIZE*NTFF_IMG_SIZE * sizeof(MKL_Complex16), 64);
 	NF_N_sum_temp = (MKL_Complex16*)mkl_malloc(NTFF_IMG_SIZE*NTFF_IMG_SIZE * sizeof(MKL_Complex16), 64);
-	FF_ecSr1 = (MKL_Complex8*)mkl_malloc(NTFF_IMG_SIZE*NTFF_IMG_SIZE * sizeof(MKL_Complex8), 64);
-	FF_ecSr2 = (MKL_Complex8*)mkl_malloc(NTFF_IMG_SIZE*NTFF_IMG_SIZE * sizeof(MKL_Complex8), 64);
+	//FF_ecSr1 = (MKL_Complex8*)mkl_malloc(NTFF_IMG_SIZE*NTFF_IMG_SIZE * sizeof(MKL_Complex8), 64);
+	//FF_ecSr2 = (MKL_Complex8*)mkl_malloc(NTFF_IMG_SIZE*NTFF_IMG_SIZE * sizeof(MKL_Complex8), 64);
 	FF_ecSr = (MKL_Complex8*)mkl_malloc(NTFF_IMG_SIZE*NTFF_IMG_SIZE * sizeof(MKL_Complex8), 64);
 	FF_ecSr_magnitude = (float*)mkl_malloc(NTFF_IMG_SIZE*NTFF_IMG_SIZE * sizeof(float), 64);
 
@@ -679,6 +685,8 @@ void NTFF(void) {
 
 		////L N clac : we don't need Lr, Nr but anyway
 		printf("Phase calculation\n");
+		ippsZero_64fc(NF_ecL_sum, 3*NTFF_IMG_SIZE *NTFF_IMG_SIZE);
+		ippsZero_64fc(NF_N_sum, 3 * NTFF_IMG_SIZE *NTFF_IMG_SIZE);
 		for (int i = 0; i < NTFF_IMG_SIZE; i++) {
 			printf("%f%%\r", 100.0f*(float)i / NTFF_IMG_SIZE);
 			for (int j = 0; j < NTFF_IMG_SIZE; j++) {
@@ -711,9 +719,13 @@ void NTFF(void) {
 		}
 
 		printf("\nNTFF calculation\n");
+
+
+		/*
 		ippsZero_64fc(NF_ecL_sum_sph, 3 * NTFF_IMG_SIZE*NTFF_IMG_SIZE);
 		ippsZero_64fc(NF_N_sum_sph, 3 * NTFF_IMG_SIZE*NTFF_IMG_SIZE);
 		
+
 		////ch14, (14.54)  (double check signs of M and J!)
 		////Vr = [Vx,Vy,Vz] . [rx,ry,rz]
 		////Vtheta = [Vx,Vy,Vz] . [-ry,rx,0]
@@ -813,8 +825,6 @@ void NTFF(void) {
 		  //ippsAdd_32fc(NF_N_sum + 1 * NTFF_IMG_SIZE *NTFF_IMG_SIZE, NF_ecL_sum_sph + 2 * NTFF_IMG_SIZE *NTFF_IMG_SIZE, FF_ecE_theta, NTFF_IMG_SIZE *NTFF_IMG_SIZE);
 		  //ippsSub_32fc(NF_ecL_sum + 1 * NTFF_IMG_SIZE *NTFF_IMG_SIZE, NF_N_sum_sph + 2 * NTFF_IMG_SIZE *NTFF_IMG_SIZE, FF_ecE_phi, NTFF_IMG_SIZE *NTFF_IMG_SIZE);
 		
-
-
 		ippsMulC_32fc_I((Ipp32fc) { sqrtf(0.125f / M_PI * k_vector), 0.0f }, FF_ecE_theta, NTFF_IMG_SIZE*NTFF_IMG_SIZE);
 		ippsMulC_32fc_I((Ipp32fc) { sqrtf(0.125f / M_PI * k_vector), 0.0f }, FF_ecE_phi, NTFF_IMG_SIZE*NTFF_IMG_SIZE);
 		ippsMulC_32fc_I((Ipp32fc) { sqrtf(0.125f / M_PI * k_vector), 0.0f }, FF_H_theta, NTFF_IMG_SIZE*NTFF_IMG_SIZE);
@@ -823,6 +833,104 @@ void NTFF(void) {
 		ippsMul_32fc(FF_ecE_theta, FF_H_phi, FF_ecSr1, NTFF_IMG_SIZE*NTFF_IMG_SIZE);
 		ippsMul_32fc(FF_ecE_phi, FF_H_theta, FF_ecSr2, NTFF_IMG_SIZE*NTFF_IMG_SIZE);
 		ippsSub_32fc(FF_ecSr2, FF_ecSr1, FF_ecSr, NTFF_IMG_SIZE*NTFF_IMG_SIZE);
+		ippsMagnitude_32fc(FF_ecSr, FF_ecSr_magnitude, NTFF_IMG_SIZE*NTFF_IMG_SIZE);
+		*/
+
+
+		ippsZero_64fc(FF_ecE_x, NTFF_IMG_SIZE*NTFF_IMG_SIZE);
+		ippsZero_64fc(FF_ecE_y, NTFF_IMG_SIZE*NTFF_IMG_SIZE);
+		ippsZero_64fc(FF_ecE_z, NTFF_IMG_SIZE*NTFF_IMG_SIZE);
+		ippsZero_64fc(FF_ecSr, 3 * NTFF_IMG_SIZE*NTFF_IMG_SIZE);
+
+		////ch14, (14.54)  (double check signs of M and J!)
+		////Vr = [Vx,Vy,Vz] . [rx,ry,rz]
+		////Vtheta = [Vx,Vy,Vz] . [-ry,rx,0]
+		////Vphi = [Vx,Vy,Vz] . [-rx*rz,-ry*rz,+rr*rr] / rr
+		for (int i = 0; i < NTFF_IMG_SIZE; i++) {
+			for (int j = 0; j < NTFF_IMG_SIZE; j++) {
+				float radius = ((float)NTFF_IMG_SIZE - 1.0f) / 2.0f;
+				float xx = ((float)i - radius);
+				float yy = ((float)j - radius);
+				if (radius < sqrtf(xx*xx + yy*yy)) { continue; }
+
+				// E = N + L x [xyz]_eye
+				// Ex = Nx + Ly*eye_z - Lz*eye_y
+				FF_ecE_x[i + j*NTFF_IMG_SIZE].real =
+					NF_N_sum[0 * NTFF_IMG_SIZE *NTFF_IMG_SIZE + i + j*NTFF_IMG_SIZE].real * NF_eyePos[0 * NTFF_IMG_SIZE *NTFF_IMG_SIZE + i + j*NTFF_IMG_SIZE]
+					+ NF_ecL_sum[1 * NTFF_IMG_SIZE *NTFF_IMG_SIZE + i + j*NTFF_IMG_SIZE].real * NF_eyePos[2 * NTFF_IMG_SIZE *NTFF_IMG_SIZE + i + j*NTFF_IMG_SIZE]
+					- NF_ecL_sum[2 * NTFF_IMG_SIZE *NTFF_IMG_SIZE + i + j*NTFF_IMG_SIZE].real * NF_eyePos[1 * NTFF_IMG_SIZE *NTFF_IMG_SIZE + i + j*NTFF_IMG_SIZE];
+				FF_ecE_y[i + j*NTFF_IMG_SIZE].real =
+					NF_N_sum[1 * NTFF_IMG_SIZE *NTFF_IMG_SIZE + i + j*NTFF_IMG_SIZE].real * NF_eyePos[1 * NTFF_IMG_SIZE *NTFF_IMG_SIZE + i + j*NTFF_IMG_SIZE]
+					+ NF_ecL_sum[2 * NTFF_IMG_SIZE *NTFF_IMG_SIZE + i + j*NTFF_IMG_SIZE].real * NF_eyePos[0 * NTFF_IMG_SIZE *NTFF_IMG_SIZE + i + j*NTFF_IMG_SIZE]
+					- NF_ecL_sum[0 * NTFF_IMG_SIZE *NTFF_IMG_SIZE + i + j*NTFF_IMG_SIZE].real * NF_eyePos[2 * NTFF_IMG_SIZE *NTFF_IMG_SIZE + i + j*NTFF_IMG_SIZE];
+				FF_ecE_z[i + j*NTFF_IMG_SIZE].real =
+					NF_N_sum[2 * NTFF_IMG_SIZE *NTFF_IMG_SIZE + i + j*NTFF_IMG_SIZE].real * NF_eyePos[2 * NTFF_IMG_SIZE *NTFF_IMG_SIZE + i + j*NTFF_IMG_SIZE]
+					+ NF_ecL_sum[0 * NTFF_IMG_SIZE *NTFF_IMG_SIZE + i + j*NTFF_IMG_SIZE].real * NF_eyePos[1 * NTFF_IMG_SIZE *NTFF_IMG_SIZE + i + j*NTFF_IMG_SIZE]
+					- NF_ecL_sum[1 * NTFF_IMG_SIZE *NTFF_IMG_SIZE + i + j*NTFF_IMG_SIZE].real * NF_eyePos[0 * NTFF_IMG_SIZE *NTFF_IMG_SIZE + i + j*NTFF_IMG_SIZE];
+				FF_H_x[i + j*NTFF_IMG_SIZE].real =
+					NF_ecL_sum[0 * NTFF_IMG_SIZE *NTFF_IMG_SIZE + i + j*NTFF_IMG_SIZE].real * NF_eyePos[0 * NTFF_IMG_SIZE *NTFF_IMG_SIZE + i + j*NTFF_IMG_SIZE]
+					+ NF_N_sum[1 * NTFF_IMG_SIZE *NTFF_IMG_SIZE + i + j*NTFF_IMG_SIZE].real * NF_eyePos[2 * NTFF_IMG_SIZE *NTFF_IMG_SIZE + i + j*NTFF_IMG_SIZE]
+					- NF_N_sum[2 * NTFF_IMG_SIZE *NTFF_IMG_SIZE + i + j*NTFF_IMG_SIZE].real * NF_eyePos[1 * NTFF_IMG_SIZE *NTFF_IMG_SIZE + i + j*NTFF_IMG_SIZE];
+				FF_H_y[i + j*NTFF_IMG_SIZE].real =
+					NF_ecL_sum[1 * NTFF_IMG_SIZE *NTFF_IMG_SIZE + i + j*NTFF_IMG_SIZE].real * NF_eyePos[1 * NTFF_IMG_SIZE *NTFF_IMG_SIZE + i + j*NTFF_IMG_SIZE]
+					+ NF_N_sum[2 * NTFF_IMG_SIZE *NTFF_IMG_SIZE + i + j*NTFF_IMG_SIZE].real * NF_eyePos[0 * NTFF_IMG_SIZE *NTFF_IMG_SIZE + i + j*NTFF_IMG_SIZE]
+					- NF_N_sum[0 * NTFF_IMG_SIZE *NTFF_IMG_SIZE + i + j*NTFF_IMG_SIZE].real * NF_eyePos[2 * NTFF_IMG_SIZE *NTFF_IMG_SIZE + i + j*NTFF_IMG_SIZE];
+				FF_H_z[i + j*NTFF_IMG_SIZE].real =
+					NF_ecL_sum[2 * NTFF_IMG_SIZE *NTFF_IMG_SIZE + i + j*NTFF_IMG_SIZE].real * NF_eyePos[2 * NTFF_IMG_SIZE *NTFF_IMG_SIZE + i + j*NTFF_IMG_SIZE]
+					+ NF_N_sum[0 * NTFF_IMG_SIZE *NTFF_IMG_SIZE + i + j*NTFF_IMG_SIZE].real * NF_eyePos[1 * NTFF_IMG_SIZE *NTFF_IMG_SIZE + i + j*NTFF_IMG_SIZE]
+					- NF_N_sum[1 * NTFF_IMG_SIZE *NTFF_IMG_SIZE + i + j*NTFF_IMG_SIZE].real * NF_eyePos[0 * NTFF_IMG_SIZE *NTFF_IMG_SIZE + i + j*NTFF_IMG_SIZE];
+				FF_ecE_x[i + j*NTFF_IMG_SIZE].imag =
+					NF_N_sum[0 * NTFF_IMG_SIZE *NTFF_IMG_SIZE + i + j*NTFF_IMG_SIZE].imag * NF_eyePos[0 * NTFF_IMG_SIZE *NTFF_IMG_SIZE + i + j*NTFF_IMG_SIZE]
+					+ NF_ecL_sum[1 * NTFF_IMG_SIZE *NTFF_IMG_SIZE + i + j*NTFF_IMG_SIZE].imag * NF_eyePos[2 * NTFF_IMG_SIZE *NTFF_IMG_SIZE + i + j*NTFF_IMG_SIZE]
+					- NF_ecL_sum[2 * NTFF_IMG_SIZE *NTFF_IMG_SIZE + i + j*NTFF_IMG_SIZE].imag * NF_eyePos[1 * NTFF_IMG_SIZE *NTFF_IMG_SIZE + i + j*NTFF_IMG_SIZE];
+				FF_ecE_y[i + j*NTFF_IMG_SIZE].imag =
+					NF_N_sum[1 * NTFF_IMG_SIZE *NTFF_IMG_SIZE + i + j*NTFF_IMG_SIZE].imag * NF_eyePos[1 * NTFF_IMG_SIZE *NTFF_IMG_SIZE + i + j*NTFF_IMG_SIZE]
+					+ NF_ecL_sum[2 * NTFF_IMG_SIZE *NTFF_IMG_SIZE + i + j*NTFF_IMG_SIZE].imag * NF_eyePos[0 * NTFF_IMG_SIZE *NTFF_IMG_SIZE + i + j*NTFF_IMG_SIZE]
+					- NF_ecL_sum[0 * NTFF_IMG_SIZE *NTFF_IMG_SIZE + i + j*NTFF_IMG_SIZE].imag * NF_eyePos[2 * NTFF_IMG_SIZE *NTFF_IMG_SIZE + i + j*NTFF_IMG_SIZE];
+				FF_ecE_z[i + j*NTFF_IMG_SIZE].imag =
+					NF_N_sum[2 * NTFF_IMG_SIZE *NTFF_IMG_SIZE + i + j*NTFF_IMG_SIZE].imag * NF_eyePos[2 * NTFF_IMG_SIZE *NTFF_IMG_SIZE + i + j*NTFF_IMG_SIZE]
+					+ NF_ecL_sum[0 * NTFF_IMG_SIZE *NTFF_IMG_SIZE + i + j*NTFF_IMG_SIZE].imag * NF_eyePos[1 * NTFF_IMG_SIZE *NTFF_IMG_SIZE + i + j*NTFF_IMG_SIZE]
+					- NF_ecL_sum[1 * NTFF_IMG_SIZE *NTFF_IMG_SIZE + i + j*NTFF_IMG_SIZE].imag * NF_eyePos[0 * NTFF_IMG_SIZE *NTFF_IMG_SIZE + i + j*NTFF_IMG_SIZE];
+				FF_H_x[i + j*NTFF_IMG_SIZE].imag =
+					NF_ecL_sum[0 * NTFF_IMG_SIZE *NTFF_IMG_SIZE + i + j*NTFF_IMG_SIZE].imag * NF_eyePos[0 * NTFF_IMG_SIZE *NTFF_IMG_SIZE + i + j*NTFF_IMG_SIZE]
+					+ NF_N_sum[1 * NTFF_IMG_SIZE *NTFF_IMG_SIZE + i + j*NTFF_IMG_SIZE].imag * NF_eyePos[2 * NTFF_IMG_SIZE *NTFF_IMG_SIZE + i + j*NTFF_IMG_SIZE]
+					- NF_N_sum[2 * NTFF_IMG_SIZE *NTFF_IMG_SIZE + i + j*NTFF_IMG_SIZE].imag * NF_eyePos[1 * NTFF_IMG_SIZE *NTFF_IMG_SIZE + i + j*NTFF_IMG_SIZE];
+				FF_H_y[i + j*NTFF_IMG_SIZE].imag =
+					NF_ecL_sum[1 * NTFF_IMG_SIZE *NTFF_IMG_SIZE + i + j*NTFF_IMG_SIZE].imag * NF_eyePos[1 * NTFF_IMG_SIZE *NTFF_IMG_SIZE + i + j*NTFF_IMG_SIZE]
+					+ NF_N_sum[2 * NTFF_IMG_SIZE *NTFF_IMG_SIZE + i + j*NTFF_IMG_SIZE].imag * NF_eyePos[0 * NTFF_IMG_SIZE *NTFF_IMG_SIZE + i + j*NTFF_IMG_SIZE]
+					- NF_N_sum[0 * NTFF_IMG_SIZE *NTFF_IMG_SIZE + i + j*NTFF_IMG_SIZE].imag * NF_eyePos[2 * NTFF_IMG_SIZE *NTFF_IMG_SIZE + i + j*NTFF_IMG_SIZE];
+				FF_H_z[i + j*NTFF_IMG_SIZE].imag =
+					NF_ecL_sum[2 * NTFF_IMG_SIZE *NTFF_IMG_SIZE + i + j*NTFF_IMG_SIZE].imag * NF_eyePos[2 * NTFF_IMG_SIZE *NTFF_IMG_SIZE + i + j*NTFF_IMG_SIZE]
+					+ NF_N_sum[0 * NTFF_IMG_SIZE *NTFF_IMG_SIZE + i + j*NTFF_IMG_SIZE].imag * NF_eyePos[1 * NTFF_IMG_SIZE *NTFF_IMG_SIZE + i + j*NTFF_IMG_SIZE]
+					- NF_N_sum[1 * NTFF_IMG_SIZE *NTFF_IMG_SIZE + i + j*NTFF_IMG_SIZE].imag * NF_eyePos[0 * NTFF_IMG_SIZE *NTFF_IMG_SIZE + i + j*NTFF_IMG_SIZE];
+
+
+				//Sr = Sx * eye_x + Sy * eye_y + Sz * eye_z ;  Sx = EyHz-EzHy
+				//Polarization calculation possible   // e.g. Ey polarization S1x = EyHz 
+				FF_ecSr[i + j*NTFF_IMG_SIZE].real =
+					(FF_ecE_y[i + j*NTFF_IMG_SIZE].real * FF_H_z[i + j*NTFF_IMG_SIZE].real - FF_ecE_y[i + j*NTFF_IMG_SIZE].imag * FF_H_z[i + j*NTFF_IMG_SIZE].imag
+						- FF_ecE_z[i + j*NTFF_IMG_SIZE].real * FF_H_y[i + j*NTFF_IMG_SIZE].real + FF_ecE_z[i + j*NTFF_IMG_SIZE].imag * FF_H_y[i + j*NTFF_IMG_SIZE].imag)
+					* NF_eyePos[0 * NTFF_IMG_SIZE *NTFF_IMG_SIZE + i + j*NTFF_IMG_SIZE] +
+					(FF_ecE_z[i + j*NTFF_IMG_SIZE].real * FF_H_x[i + j*NTFF_IMG_SIZE].real - FF_ecE_z[i + j*NTFF_IMG_SIZE].imag * FF_H_x[i + j*NTFF_IMG_SIZE].imag
+						- FF_ecE_x[i + j*NTFF_IMG_SIZE].real * FF_H_z[i + j*NTFF_IMG_SIZE].real + FF_ecE_x[i + j*NTFF_IMG_SIZE].imag * FF_H_z[i + j*NTFF_IMG_SIZE].imag)
+					* NF_eyePos[1 * NTFF_IMG_SIZE *NTFF_IMG_SIZE + i + j*NTFF_IMG_SIZE] +
+					(FF_ecE_x[i + j*NTFF_IMG_SIZE].real * FF_H_y[i + j*NTFF_IMG_SIZE].real - FF_ecE_x[i + j*NTFF_IMG_SIZE].imag * FF_H_y[i + j*NTFF_IMG_SIZE].imag
+						- FF_ecE_y[i + j*NTFF_IMG_SIZE].real * FF_H_x[i + j*NTFF_IMG_SIZE].real + FF_ecE_y[i + j*NTFF_IMG_SIZE].imag * FF_H_x[i + j*NTFF_IMG_SIZE].imag)
+					* NF_eyePos[2 * NTFF_IMG_SIZE *NTFF_IMG_SIZE + i + j*NTFF_IMG_SIZE];
+				FF_ecSr[i + j*NTFF_IMG_SIZE].imag =
+					(FF_ecE_y[i + j*NTFF_IMG_SIZE].real * FF_H_z[i + j*NTFF_IMG_SIZE].imag + FF_ecE_y[i + j*NTFF_IMG_SIZE].imag * FF_H_z[i + j*NTFF_IMG_SIZE].real
+						- FF_ecE_z[i + j*NTFF_IMG_SIZE].real * FF_H_y[i + j*NTFF_IMG_SIZE].imag - FF_ecE_z[i + j*NTFF_IMG_SIZE].imag * FF_H_y[i + j*NTFF_IMG_SIZE].real)
+					* NF_eyePos[0 * NTFF_IMG_SIZE *NTFF_IMG_SIZE + i + j*NTFF_IMG_SIZE] +
+					(FF_ecE_z[i + j*NTFF_IMG_SIZE].real * FF_H_x[i + j*NTFF_IMG_SIZE].imag + FF_ecE_z[i + j*NTFF_IMG_SIZE].imag * FF_H_x[i + j*NTFF_IMG_SIZE].real
+						- FF_ecE_x[i + j*NTFF_IMG_SIZE].real * FF_H_z[i + j*NTFF_IMG_SIZE].imag - FF_ecE_x[i + j*NTFF_IMG_SIZE].imag * FF_H_z[i + j*NTFF_IMG_SIZE].real)
+					* NF_eyePos[1 * NTFF_IMG_SIZE *NTFF_IMG_SIZE + i + j*NTFF_IMG_SIZE] +
+					(FF_ecE_x[i + j*NTFF_IMG_SIZE].real * FF_H_y[i + j*NTFF_IMG_SIZE].imag + FF_ecE_x[i + j*NTFF_IMG_SIZE].imag * FF_H_y[i + j*NTFF_IMG_SIZE].real
+						- FF_ecE_y[i + j*NTFF_IMG_SIZE].real * FF_H_x[i + j*NTFF_IMG_SIZE].imag - FF_ecE_y[i + j*NTFF_IMG_SIZE].imag * FF_H_x[i + j*NTFF_IMG_SIZE].real)
+					* NF_eyePos[2 * NTFF_IMG_SIZE *NTFF_IMG_SIZE + i + j*NTFF_IMG_SIZE];
+				
+			}
+		}
+		ippsMulC_32fc_I((Ipp32fc) { 0.125f / M_PI * k_vector, 0.0f }, FF_ecSr, NTFF_IMG_SIZE*NTFF_IMG_SIZE);
 		ippsMagnitude_32fc(FF_ecSr, FF_ecSr_magnitude, NTFF_IMG_SIZE*NTFF_IMG_SIZE);
 
 		filename[4] = '0' + (char)(freqN);
@@ -864,6 +972,8 @@ void NTFF(void) {
 		if (error) printf("error %u: %s\n", error, lodepng_error_text(error));;
 		//free(image2);
 
+
+		/*
 
 		for (int i = 0; i < NTFF_IMG_SIZE; i++) {
 			for (int j = 0; j < NTFF_IMG_SIZE; j++) {
@@ -908,7 +1018,7 @@ void NTFF(void) {
 			}
 		}error = lodepng_encode32_file("H.png", image, NTFF_IMG_SIZE, NTFF_IMG_SIZE);
 
-
+		*/
 		for (int i = 0; i < NTFF_IMG_SIZE; i++) {
 			for (int j = 0; j < NTFF_IMG_SIZE; j++) {
 				float val = sqrtf(FF_ecSr[j*NTFF_IMG_SIZE + i].real * FF_ecSr[j*NTFF_IMG_SIZE + i].real + FF_ecSr[j*NTFF_IMG_SIZE + i].imag * FF_ecSr[j*NTFF_IMG_SIZE + i].imag) * 255.0f / 300000.0f;
@@ -931,7 +1041,12 @@ void NTFF(void) {
 	//mkl_free(rho_inv_dx);
 	mkl_free(Hankel_dx);
 	mkl_free(NF_ecE); mkl_free(NF_H); mkl_free(NF_ecM); mkl_free(NF_J); mkl_free(normal);
-	mkl_free(FF_ecE_theta); mkl_free(FF_ecE_phi); mkl_free(FF_H_theta); mkl_free(FF_H_phi); mkl_free(NF_ecL_sum); mkl_free(NF_N_sum); mkl_free(FF_ecSr1); mkl_free(FF_ecSr2); mkl_free(FF_ecSr); mkl_free(FF_ecSr_magnitude);
+	//mkl_free(FF_ecE_theta); mkl_free(FF_ecE_phi); mkl_free(FF_H_theta); mkl_free(FF_H_phi); 
+	mkl_free(FF_ecE_x); mkl_free(FF_ecE_y); mkl_free(FF_ecE_z);
+	mkl_free(FF_H_x); mkl_free(FF_H_y); mkl_free(FF_H_z);
+	mkl_free(NF_ecL_sum); mkl_free(NF_N_sum);
+	// mkl_free(FF_ecSr1); mkl_free(FF_ecSr2); 
+	mkl_free(FF_ecSr); mkl_free(FF_ecSr_magnitude);
 	free(image);
 	mkl_free(NF_ecM_temp);	mkl_free(NF_J_temp);
 }

@@ -297,21 +297,11 @@ int main(int argc, char* argv[])
 	printf("\nCalculating field \n");
 	for (int i = 0; i <= _STEP; i++) {
 		printf("%f%%\r", 100.0f*(float)i / _STEP);
-		//		eps0_c_Ex[_INDEX_XYZ(50, 65, 50)] += sin(2.0f * M_PI * _c0 / 500e-9 * (float)i * _dt_) * exp(- 0.000001 * (i-100)*(i-100));
-//		float addval = 0.1 * sin(2.0f * M_PI * _c0 / 500e-9 * (float)i * _dt_) * exp(-((float)i - 500.0f)*((float)i - 500.0f) / 250.0f / 250.0f);
-		float addval = sin(2.0f * M_PI * _c0 / 500e-9 * (float)i * _dt_) ;
-		//float addval = 10.0f *sin(2.0f * M_PI * _c0 / 500e-9 * (float)i * _dt_) * exp(-((float)i - 50.0f)*((float)i - 50.0f) / 25.0f / 25.0f);
+		float addval = 10.0f * sin(2.0f * M_PI * _c0 / 500e-9 * (float)i * _dt_) * exp(-((float)i - 500.0f)*((float)i - 500.0f) / 250.0f / 250.0f);
+		//float addval = sin(2.0f * M_PI * _c0 / 500e-9 * (float)i * _dt_) ;
 		eps0_c_Ex[_INDEX_XYZ(50, 50, 50)] += addval;
-		//eps0_c_Ex[_INDEX_XYZ(51, 50, 50)] += addval;
-		//eps0_c_Ex[_INDEX_XYZ(49, 50, 50)] += addval;
-		//eps0_c_Ex[_INDEX_XYZ(50, 49, 50)] += addval;
-		//eps0_c_Ex[_INDEX_XYZ(50, 50, 50)] += addval;
-		//eps0_c_Ex[_INDEX_XYZ(50, 51, 50)] += addval;
-		//eps0_c_Ex[_INDEX_XYZ(50, 50, 49)] += addval;
-		//eps0_c_Ex[_INDEX_XYZ(50, 50, 50)] += addval;
-		//eps0_c_Ex[_INDEX_XYZ(50, 50, 51)] += addval;
 		DCP_HE_C();
-		RFT();
+		RFT(); //FIXME : print warning message if RFT would not reach its final step
 	}
 	printf("\ntime : %f\n", (double)(clock() - start) / CLK_TCK);
 	snapshot();

@@ -24,7 +24,7 @@ float pml_kappa_max = 8.0f;
 #define _NTFF_Margin_ (10)
 
 #define _S_factor (2.0f)
-#define _dx (5e-9)
+#define _dx (50e-9)
 
 #define _c0 299792458.0f
 #define _USE_MATH_DEFINES
@@ -297,10 +297,16 @@ int main(int argc, char* argv[])
 	printf("\nCalculating field \n");
 	for (int i = 0; i <= _STEP; i++) {
 		printf("%f%%\r", 100.0f*(float)i / _STEP);
-		float addval = 2.0*sin(2.0f * M_PI * _c0 / 500e-9 * (float)i * _dt_) * exp(-((float)i - 500.0f)*((float)i - 500.0f) / 250.0f / 250.0f);
-		//float addval = sin(2.0f * M_PI * _c0 / 500e-9 * (float)i * _dt_) ;
-		eps0_c_Ex[_INDEX_XYZ(50, 50, 50)] += addval;
-		//Hy[_INDEX_XYZ(50, 50, 50)] += addval;
+		//float addval = sin(2.0f * M_PI * _c0 / 500e-9 * (float)i * _dt_) * exp(-((float)i - 500.0f)*((float)i - 500.0f) / 250.0f / 250.0f);
+		float addval = sin(2.0f * M_PI * _c0 / 500e-9 * (float)i * _dt_) ;
+		for (int ii = 25; ii < 75; ii++){
+			eps0_c_Ey[_INDEX_XYZ(30, ii, 50)] += addval / 250.0f;
+			eps0_c_Ey[_INDEX_XYZ(40, ii, 50)] += addval / 250.0f;
+			eps0_c_Ey[_INDEX_XYZ(50, ii, 50)] += addval / 250.0f;
+			eps0_c_Ey[_INDEX_XYZ(60, ii, 50)] += addval / 250.0f;
+			eps0_c_Ey[_INDEX_XYZ(70, ii, 50)] += addval / 250.0f;
+			//Hy[_INDEX_XYZ(50, 50, 50)] += addval;
+		}
 		DCP_HE_C();
 		RFT(); //FIXME : print warning message if RFT would not reach its final step
 	}
@@ -507,7 +513,6 @@ void RFT(void) {
 //FT_H[i][j][1][0] += Hy[offset] / RFT_WINDOW * cosf(2 * M_PI*RFT_K_LIST_CALCULATED[j] / RFT_WINDOW*RFT_counter);
 //FT_H[i][j][2][0] += Hz[offset] / RFT_WINDOW * cosf(2 * M_PI*RFT_K_LIST_CALCULATED[j] / RFT_WINDOW*RFT_counter);
 
-
 #define NTFF_IMG_SIZE 200
 #define _SURF_MidX_ ((_SURF_StartX_+_SURF_EndX_)/2.0f)
 #define _SURF_MidY_ ((_SURF_StartY_+_SURF_EndY_)/2.0f)
@@ -539,8 +544,8 @@ void NTFF(void) {
 	MKL_Complex8 *FF_ecE_x, *FF_ecE_y, *FF_ecE_z, *FF_H_x, *FF_H_y, *FF_H_z;
 	MKL_Complex8 *FF_ecSr;
 	
-	NF_eyePos = (float*)malloc(NTFF_IMG_SIZE*NTFF_IMG_SIZE * 4 * sizeof(float)); //4 : x,y,z,sqrt(x^2+y^2) 
-																				 //use (float*)mkl_malloc(_SURF_SIZE_ * 9 * sizeof(float))
+	NF_eyePos = (float*)mkl_malloc(NTFF_IMG_SIZE*NTFF_IMG_SIZE * 3 * sizeof(float),64); //3 : x,y,z
+																				
 	Hankel_dx = (MKL_Complex8*)mkl_malloc(_SURF_SIZE_ * sizeof(MKL_Complex8), 64);
 	NF_ecE = (MKL_Complex8*)mkl_malloc(3 * _SURF_SIZE_ * sizeof(MKL_Complex8), 64);
 	NF_H = (MKL_Complex8*)mkl_malloc(3 * _SURF_SIZE_ * sizeof(MKL_Complex8), 64);
@@ -577,21 +582,18 @@ void NTFF(void) {
 				NF_eyePos[0 * NTFF_IMG_SIZE *NTFF_IMG_SIZE + j*NTFF_IMG_SIZE + i] = -1.0f;
 				NF_eyePos[1 * NTFF_IMG_SIZE *NTFF_IMG_SIZE + j*NTFF_IMG_SIZE + i] = -1.0f;
 				NF_eyePos[2 * NTFF_IMG_SIZE *NTFF_IMG_SIZE + j*NTFF_IMG_SIZE + i] = -1.0f;
-				NF_eyePos[3 * NTFF_IMG_SIZE *NTFF_IMG_SIZE + j*NTFF_IMG_SIZE + i] = -1.0f;
 				continue; }
 			if ( rr < 0.1f) { // ==0.0f
 				printf("center : %d, %d \n\n",i,j);
 				NF_eyePos[0 * NTFF_IMG_SIZE *NTFF_IMG_SIZE + j*NTFF_IMG_SIZE + i] = 0.0001f; //FIXME
 				NF_eyePos[1 * NTFF_IMG_SIZE *NTFF_IMG_SIZE + j*NTFF_IMG_SIZE + i] = 0.0001f;
 				NF_eyePos[2 * NTFF_IMG_SIZE *NTFF_IMG_SIZE + j*NTFF_IMG_SIZE + i] = 1.0f;
-				NF_eyePos[3 * NTFF_IMG_SIZE *NTFF_IMG_SIZE + j*NTFF_IMG_SIZE + i] = 0.0001f;
 				continue;
 			}
 			float NF_phi = (radius - rr) * 0.5f * M_PI / radius;
 			NF_eyePos[0 * NTFF_IMG_SIZE *NTFF_IMG_SIZE + j*NTFF_IMG_SIZE + i] = cosf(NF_phi) * xx / rr;
 			NF_eyePos[1 * NTFF_IMG_SIZE *NTFF_IMG_SIZE + j*NTFF_IMG_SIZE + i] = cosf(NF_phi) * yy / rr;    
 			NF_eyePos[2 * NTFF_IMG_SIZE *NTFF_IMG_SIZE + j*NTFF_IMG_SIZE + i] = sinf(NF_phi);
-			NF_eyePos[3 * NTFF_IMG_SIZE *NTFF_IMG_SIZE + j*NTFF_IMG_SIZE + i] = cosf(NF_phi);
 		}
 	}
 
@@ -918,6 +920,20 @@ void NTFF(void) {
 
 		for (int i = 0; i < NTFF_IMG_SIZE; i++) {
 			for (int j = 0; j < NTFF_IMG_SIZE; j++) {
+				float val =  255.0f / 3000.0f * sqrtf(
+					FF_ecE_x[j*NTFF_IMG_SIZE + i].real * FF_ecE_x[j*NTFF_IMG_SIZE + i].real +
+					FF_ecE_y[j*NTFF_IMG_SIZE + i].real * FF_ecE_y[j*NTFF_IMG_SIZE + i].real +
+					FF_ecE_z[j*NTFF_IMG_SIZE + i].real * FF_ecE_z[j*NTFF_IMG_SIZE + i].real +
+					FF_ecE_x[j*NTFF_IMG_SIZE + i].imag * FF_ecE_x[j*NTFF_IMG_SIZE + i].imag +
+					FF_ecE_y[j*NTFF_IMG_SIZE + i].imag * FF_ecE_y[j*NTFF_IMG_SIZE + i].imag +
+					FF_ecE_z[j*NTFF_IMG_SIZE + i].imag * FF_ecE_z[j*NTFF_IMG_SIZE + i].imag
+				);
+				image[4 * NTFF_IMG_SIZE * j + 4 * i + 0] = val > 0 ? (val < 255 ? val : 255) : 0;		image[4 * NTFF_IMG_SIZE * j + 4 * i + 1] = val < 0 ? (val > -255 ? -val : 255) : 0;		image[4 * NTFF_IMG_SIZE * j + 4 * i + 2] = 0;  image[4 * NTFF_IMG_SIZE * j + 4 * i + 3] = 255;
+			}
+		}error = lodepng_encode32_file("E2.png", image, NTFF_IMG_SIZE, NTFF_IMG_SIZE);
+
+		for (int i = 0; i < NTFF_IMG_SIZE; i++) {
+			for (int j = 0; j < NTFF_IMG_SIZE; j++) {
 				float val = 0.1*FF_H_x[j*NTFF_IMG_SIZE + i].real * 255.0f / 300.0f;
 				image[4 * NTFF_IMG_SIZE * j + 4 * i + 0] = val > 0 ? (val < 255 ? val : 255) : 0;		image[4 * NTFF_IMG_SIZE * j + 4 * i + 1] = val < 0 ? (val > -255 ? -val : 255) : 0;		image[4 * NTFF_IMG_SIZE * j + 4 * i + 2] = 0;  image[4 * NTFF_IMG_SIZE * j + 4 * i + 3] = 255;
 			}
@@ -955,7 +971,7 @@ void NTFF(void) {
 	}
 
 	free(image);
-	free(NF_eyePos);
+	mkl_free(NF_eyePos);
 	mkl_free(Hankel_dx);
 	mkl_free(NF_ecE); mkl_free(NF_H); mkl_free(normal);
 	mkl_free(NF_ecM); mkl_free(NF_J);

@@ -6,11 +6,11 @@
 //reference : Torok et al, 2006 (doi: 10.1364/JOSAA.23.000713) formulation used for NTFF
 
 
-#define _DimX (100)
-#define _DimY (100)
-#define _DimZ (100)
+#define _DimX (70)
+#define _DimY (70)
+#define _DimZ (600)
 
-#define _STEP (1000)
+#define _STEP (6*250*3+5000)
 
 //eq35
 //consider using simple PML for NTFF calculation
@@ -24,7 +24,67 @@ float pml_kappa_max = 8.0f;
 #define _NTFF_Margin_ (10)
 
 #define _S_factor (2.0f)
-#define _dx (50e-9)
+#define _dx (5e-9)
+
+
+#define __SUBSTRATE (100)
+#define __PITCH (60)
+#define __METAL_HOLE (14)
+#define __METAL_DISK  (4)
+#define __RADIUS_TOP_IN  (16)
+#define __RADIUS_BOT_IN ( 5)
+#define __RADIUS_TOP_OUT ( 27)
+#define __RADIUS_BOT_OUT  (16)
+#define __RADIUS_DISK_TOP ( 10)
+#define __RADIUS_DISK_BOT ( 14)
+#define __SLOT  (4.2)
+#define __SIN_BOT  (6)
+#define __SIN_TOP  (10)
+#define __DEPTH ( 4)
+#define __REF ( 1.0)
+#define __BACK  (1.3f)
+#define __SLOT_RADIUS  (24)
+#define __SMOOTHING  (9)
+
+#define STRUCTURE \
+eps_r_inv[offset] = 1.0f / (__BACK*__BACK);\
+if (((-__SLOT - __SIN_BOT<zz) && (zz <= -__SLOT))\
+	|| ((0<zz) && (zz <= __SIN_TOP))) {\
+	eps_r_inv[offset] = 1.0f / (1.8f*1.8f); /*SiN*/\
+}\
+if (((-__SLOT<zz) && (zz <= 0) && (__SLOT_RADIUS<rr))\
+	|| (zz <= (-__SLOT - __SIN_BOT))) {\
+	eps_r_inv[offset] = 1.0f / (1.46f*1.46f); /*SiO*/\
+}\
+if (((-__SLOT - __SIN_BOT - 8)<zz) && (zz <= (-__SLOT - __SIN_BOT))) {\
+	eps_r_inv[offset] = 1.0f / (1.8f*1.8f); /*ITO*/\
+}\
+if (\
+(-__SLOT < zz) && (zz <= (-__SLOT + __METAL_DISK))\
+	&& (rr <= ((__RADIUS_DISK_TOP - __RADIUS_DISK_BOT) / __METAL_DISK*(zz + __SLOT) + __RADIUS_DISK_BOT))\
+	) {\
+	mask[offset] = mask[offset] | (0b0001 << 4);\
+	eps_r_inv[offset] = 1.0f;\
+} /*Au disk*/\
+if (\
+(0 < zz) && (zz <= (__SIN_TOP + __METAL_HOLE))\
+	&& (rr <= __RADIUS_BOT_OUT + (__RADIUS_TOP_OUT - __RADIUS_BOT_OUT) / (__SIN_TOP + __METAL_HOLE) * zz)\
+	) {\
+	mask[offset] = mask[offset] | (0b0001 << 4);\
+	eps_r_inv[offset] = 1.0f;\
+} /*Au sidewall*/\
+if ((__SIN_TOP<zz) & (zz <= (__SIN_TOP + __METAL_HOLE))) {\
+	mask[offset] = mask[offset] | (0b0001 << 4);\
+}/*Au top*/\
+if (\
+(0 < zz) && (zz <= __SIN_TOP + __METAL_HOLE) &&\
+((rr <= __RADIUS_BOT_IN + (__RADIUS_TOP_IN - __RADIUS_BOT_IN) / (__SIN_TOP + __METAL_HOLE) * zz) ||\
+(rr <= __RADIUS_BOT_IN + __SMOOTHING - zz))\
+) {\
+	mask[offset] = mask[offset] & ~(0b0001 << 4);\
+} /*thruhole*/\
+
+
 
 #define _c0 299792458.0f
 #define _USE_MATH_DEFINES
@@ -295,23 +355,34 @@ int main(int argc, char* argv[])
 	time_t start;
 	start = clock();
 	printf("\nCalculating field \n");
+	FILE *f = fopen("output.txt", "a");
+
+	int sourcePos = _DimZ / 2 - __SLOT - __SIN_BOT - 10;
+	char filename[256];
 	for (int i = 0; i <= _STEP; i++) {
 		printf("%f%%\r", 100.0f*(float)i / _STEP);
 		//float addval = sin(2.0f * M_PI * _c0 / 500e-9 * (float)i * _dt_) * exp(-((float)i - 500.0f)*((float)i - 500.0f) / 250.0f / 250.0f);
-		float addval = sin(2.0f * M_PI * _c0 / 500e-9 * (float)i * _dt_) ;
-		for (int ii = 25; ii < 75; ii++){
-			eps0_c_Ey[_INDEX_XYZ(30, ii, 50)] += addval / 250.0f;
-			eps0_c_Ey[_INDEX_XYZ(40, ii, 50)] += addval / 250.0f;
-			eps0_c_Ey[_INDEX_XYZ(50, ii, 50)] += addval / 250.0f;
-			eps0_c_Ey[_INDEX_XYZ(60, ii, 50)] += addval / 250.0f;
-			eps0_c_Ey[_INDEX_XYZ(70, ii, 50)] += addval / 250.0f;
-			//Hy[_INDEX_XYZ(50, 50, 50)] += addval;
+		float addval = -sin(2 * M_PI* i * (_dt_ * _c0 / 700e-9)) * exp(-(i-6*250)*(i-6*250) / (2 * 250 * 250));
+		for (int ii = 0; ii < _DimX; ii++) {
+			for (int jj = 0; jj < _DimY; jj++) {
+				eps0_c_Ey[_INDEX_XYZ(ii, jj, sourcePos)] += addval*0.5 / 1.46;
+				eps0_c_Ey[_INDEX_XYZ(ii, jj, sourcePos)] += addval*0.5 / 1.46;
+				Hx[_INDEX_XYZ(ii, jj, sourcePos)] -= addval;
+			}
 		}
 		DCP_HE_C();
 		RFT(); //FIXME : print warning message if RFT would not reach its final step
+		if ((i) % 100 == 0) {
+			sprintf(filename, "Ex%05d", i);
+			snapshot(filename);
+		}
+		savePoint(f, _dt_*(float)i,eps0_c_Ey[_INDEX_XYZ((_DimX/2), (_DimY/2), (_DimZ / 2 + __SIN_TOP + __METAL_HOLE +20))]);
 	}
+
+	fclose(f);
+
+	
 	printf("\ntime : %f\n", (double)(clock() - start) / CLK_TCK);
-	snapshot();
 	NTFF();
 	return 0;
 }
@@ -1102,6 +1173,22 @@ int init(void)
 		}
 
 	}
+
+	int offset, xx, yy, zz;
+	float rr;
+	for (int x = 0; x < _DimX; x++) {
+		for (int y = 0; y < _DimY; y++) {
+			for (int z = 0; z < _DimZ; z++) {
+				xx = x - ((_DimX) / 2);
+				yy = y - ((_DimY) / 2);
+				zz = z - ((_DimZ) / 2);
+				rr = sqrtf((float)xx*(float)xx + (float)yy*(float)yy);
+				offset = _INDEX_XYZ(x, y, z);
+				STRUCTURE
+			}
+		}
+	}
+
 	printf("init done!\n");
 	return 0;
 }
@@ -1292,39 +1379,45 @@ void syncPadding(void) {
 			}
 }
 
+void savePoint(FILE *f, float time, float value) {
+	//const char* filename ="output.txt";
+	fprintf(f, "%f\t%f\n",time,value);
+}
 
 #define TEMP eps0_c_Ex
-int snapshot(void)
+int snapshot(char* filename)
 {
-	printf("snapshot : X=50\n");
-	int X = 50;
-	FILE *f = fopen("test.txt", "w");
+	//printf("snapshot : X=50\n");
+	char filenameFull[256];
+	sprintf(filenameFull, "Y0_%s.txt", filename);
+	int Y = _DimX / 2;
+	FILE *f = fopen(filenameFull, "w");
 	for (int Z = 0; Z < _DimZ; Z++) {
-		if (Z%_blockDimZ == 0) { for (int Y = 0; Y < _DimY + _gridDimY - 1 ; Y++) { fprintf(f,"%+04.3e \t ", TEMP[_INDEX_XYZ(X, Y, -1)]);  } 	fprintf(f,"\n");}
-		for (int Y = 0; Y < _DimY; Y++) {
-			if (Y%_blockDimY == 0) { fprintf(f,"%04.3f \t", TEMP[_INDEX_XYZ(-1, Y, Z)]);}
-			fprintf(f,"%+04.3e\t", TEMP[_INDEX_XYZ(-1, Y, Z)]);
-			if (Y%_blockDimY == _blockDimY-1) { fprintf(f,"%+04.3f\t ", TEMP[_INDEX_XYZ(_blockDimX, Y, Z)]); }
+		//if (X%_blockDimX == 0) { for (int Z = 0; Z < _DimZ + _gridDimZ - 1 ; Z++) { fprintf(f,"%+04.3e \t ", TEMP[_INDEX_XYZ(-1, Y, Z)]);  } 	fprintf(f,"\n");}
+		for (int X = 0; X < _DimX; X++) {
+			//if (Z%_blockDimZ == 0) { fprintf(f,"%04.3f \t", TEMP[_INDEX_XYZ(X, Y, -1)]);}
+			fprintf(f,"%+04.3e\t", TEMP[_INDEX_XYZ(X, Y, Z)]);
+			//if (Z%_blockDimZ == _blockDimZ-1) { fprintf(f,"%+04.3f\t ", TEMP[_INDEX_XYZ(_blockDimX, Y, Z)]); }
 		}
 		fprintf(f,"\n");
-		if (Z%_blockDimZ == _blockDimZ -1 ){ for (int Y = 0; Y < _DimY; Y++) 	{	fprintf(f,"%+04.3f\t ", eps0_c_Ex[_INDEX_XYZ(X, Y, _blockDimZ)]);	}fprintf(f,"\n");}
+		//if (X%_blockDimX == _blockDimX -1 ){ for (int Z = 0; Z < _DimZ; Z++) 	{	fprintf(f,"%+04.3f\t ", eps0_c_Ex[_INDEX_XYZ(_blockDimX, Y, Z)]);	}fprintf(f,"\n");}
 	}
 	fclose(f);
 
 
-	printf("snapshot : Z=70\n");
-	int Z = 70;
-	const char* filename = "test.png";
+	//printf("snapshot : Z=70\n");
+	Y = _DimX /2 ;
+	sprintf(filenameFull, "Y0_%s.png", filename);
 	unsigned width = _DimX, height = _DimY;
 	unsigned char* image = malloc(width * height * 4);
-	unsigned y, x;
-	for (x = 0; x < height; x++)
-		for (y = 0; y < width; y++)
+	unsigned z, x;
+	for (z = 0; z < height; z++)
+		for (x = 0; x < width; x++)
 		{
 			int surf_x, surf_y, surf_z;
-			int surf_index = _SURF_INDEX_XYZ(x, y, Z);
+			int surf_index = _SURF_INDEX_XYZ(x, Y, z);
 			_SET_SURF_XYZ_INDEX(surf_index);
-			int offset = _INDEX_XYZ(x, y, Z);
+			int offset = _INDEX_XYZ(x, Y, z);
 			int value =0;
 
 			//if (surf_index !=-1) value = (FT_eps0cE[_SURF_INDEX_XYZ(X, y, z)][1][0][0]* FT_eps0cE[_SURF_INDEX_XYZ(X, y, z)][1][0][0]+ FT_eps0cE[_SURF_INDEX_XYZ(X, y, z)][1][0][1]* FT_eps0cE[_SURF_INDEX_XYZ(X, y, z)][1][0][1]) * 255.0f * 5000.0f * 5000.0f;
@@ -1342,12 +1435,12 @@ int snapshot(void)
 			int val2 = (eps0_c_Ex[offset]) * 255.0f * 50.0f;
 			val2 = val2 > 255 ? 255 : val2;
 			val2 = val2 < -255 ? -255 : val2;
-			image[4 * width * y + 4 * x + 0] = (unsigned char)(value>0? value : 0);
-			image[4 * width * y + 4 * x + 1] = (unsigned char)(val2<0 ? -val2 : 0);
-			image[4 * width * y + 4 * x + 2] = (unsigned char)(val2>0 ? val2 : 0);
-			image[4 * width * y + 4 * x + 3] = 255;
+			image[4 * width * z + 4 * x + 0] = (unsigned char)(value>0? value : 0);
+			image[4 * width * z + 4 * x + 1] = (unsigned char)(val2<0 ? -val2 : 0);
+			image[4 * width * z + 4 * x + 2] = (unsigned char)(val2>0 ? val2 : 0);
+			image[4 * width * z + 4 * x + 3] = 255;
 		}
-	unsigned error = lodepng_encode32_file(filename, image, width, height);
+	unsigned error = lodepng_encode32_file(filenameFull, image, width, height);
 	if (error) printf("error %u: %s\n", error, lodepng_error_text(error));
 
 	free(image);

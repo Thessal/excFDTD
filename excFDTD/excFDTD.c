@@ -6,14 +6,15 @@
 //reference : Torok et al, 2006 (doi: 10.1364/JOSAA.23.000713) formulation used for NTFF
 
 
-#define _DimX (70)
-#define _DimY (70)
-#define _DimZ (600)
+#define _DimX (140)
+#define _DimY (140)
+#define _DimZ (200)
 
 #define _STEP (6*250*3+5000)
 
 //eq35
 //consider using simple PML for NTFF calculation
+//We really need periodic boundary condition for thinner PML
 #define _PML_PX_X_ (16)
 #define _PML_PX_Y_ (16)
 #define _PML_PX_Z_ (16)
@@ -21,7 +22,7 @@
 int pml_n = 3; //consider using macro
 float pml_R = 10e-4;
 float pml_kappa_max = 8.0f;
-#define _NTFF_Margin_ (10)
+#define _NTFF_Margin_ (5)
 
 #define _S_factor (2.0f)
 #define _dx (5e-9)
@@ -64,22 +65,28 @@ if (\
 	&& (rr <= ((__RADIUS_DISK_TOP - __RADIUS_DISK_BOT) / __METAL_DISK*(zz + __SLOT) + __RADIUS_DISK_BOT))\
 	) {\
 	mask[offset] = mask[offset] | (0b0001 << 4);\
-	eps_r_inv[offset] = 1.0f;\
+	eps_r_inv[offset] = 1.0f/(__BACK*__BACK);\
 } /*Au disk*/\
 if (\
 (0 < zz) && (zz <= (__SIN_TOP + __METAL_HOLE))\
 	&& (rr <= __RADIUS_BOT_OUT + (__RADIUS_TOP_OUT - __RADIUS_BOT_OUT) / (__SIN_TOP + __METAL_HOLE) * zz)\
 	) {\
 	mask[offset] = mask[offset] | (0b0001 << 4);\
-	eps_r_inv[offset] = 1.0f;\
+	eps_r_inv[offset] = 1.0f/(__BACK*__BACK);\
 } /*Au sidewall*/\
 if ((__SIN_TOP<zz) & (zz <= (__SIN_TOP + __METAL_HOLE))) {\
 	mask[offset] = mask[offset] | (0b0001 << 4);\
 }/*Au top*/\
 if (\
-(0 < zz) && (zz <= __SIN_TOP + __METAL_HOLE) &&\
-((rr <= __RADIUS_BOT_IN + (__RADIUS_TOP_IN - __RADIUS_BOT_IN) / (__SIN_TOP + __METAL_HOLE) * zz) ||\
-(rr <= __RADIUS_BOT_IN + __SMOOTHING - zz))\
+	(\
+		(0 < zz) && (zz <= __SIN_TOP + __METAL_HOLE) &&\
+		(rr <= __RADIUS_BOT_IN + ((float)(__RADIUS_TOP_IN - __RADIUS_BOT_IN) / (float)(__SIN_TOP + __METAL_HOLE)) * zz) \
+	)\
+			||\
+	(\
+		(0 < zz) && (zz <= __SMOOTHING) &&\
+		(rr <= __RADIUS_BOT_IN + __SMOOTHING - zz)\
+	)\
 ) {\
 	mask[offset] = mask[offset] & ~(0b0001 << 4);\
 } /*thruhole*/\
@@ -114,7 +121,7 @@ float stability_factor_inv = 1.0f / _S_factor;
 //	#define RFT_WINDOW _STEP
 //#endif
 #define FREQ_N 1
-float FREQ_LIST_DESIRED[FREQ_N] = {_c0 / 500e-9};
+float FREQ_LIST_DESIRED[FREQ_N] = {_c0 / 767e-9 * __BACK};
 //#define FREQ_N 3
 //float FREQ_LIST_DESIRED[FREQ_N] = { _c0 / 300e-9, _c0 / 500e-9, _c0 / 800e-9 };
 float RFT_K_LIST_CALCULATED[FREQ_N];
@@ -161,10 +168,10 @@ float RFT_K_LIST_CALCULATED[FREQ_N];
 #define _SURF_Margin_ _NTFF_Margin_
 #define _SURF_StartX_ ((_PML_PX_X_)+_SURF_Margin_)
 #define _SURF_StartY_ ((_PML_PX_Y_)+_SURF_Margin_)
-#define _SURF_StartZ_ ((_PML_PX_Z_)+_SURF_Margin_)
+#define _SURF_StartZ_ (_DimZ/2 + __SIN_TOP + __METAL_HOLE - 1)
 #define _SURF_EndX_ ((_DimX-1)-(_PML_PX_X_)-_SURF_Margin_) 
 #define _SURF_EndY_ ((_DimY-1)-(_PML_PX_Y_)-_SURF_Margin_)
-#define _SURF_EndZ_ ((_DimZ-1)-(_PML_PX_Z_)-_SURF_Margin_)
+#define _SURF_EndZ_ (_DimZ/2 + __SIN_TOP + __METAL_HOLE + 1)
 #define _SURF_DX_ ((_SURF_EndX_)-(_SURF_StartX_)+1) 
 #define _SURF_DY_ ((_SURF_EndY_)-(_SURF_StartY_)+1)
 #define _SURF_DZ_ ((_SURF_EndZ_)-(_SURF_StartZ_)+1)
@@ -347,6 +354,7 @@ void syncPadding(void);
 void RFT(void);
 void NTFF(void);
 int snapshot(void);
+void snapshotStructure(void);
 
 #include "mkl.h"
 int main(int argc, char* argv[])
@@ -363,26 +371,51 @@ int main(int argc, char* argv[])
 		printf("%f%%\r", 100.0f*(float)i / _STEP);
 		//float addval = sin(2.0f * M_PI * _c0 / 500e-9 * (float)i * _dt_) * exp(-((float)i - 500.0f)*((float)i - 500.0f) / 250.0f / 250.0f);
 		float addval = -sin(2 * M_PI* i * (_dt_ * _c0 / 700e-9)) * exp(-(i-6*250)*(i-6*250) / (2 * 250 * 250));
-		for (int ii = 0; ii < _DimX; ii++) {
-			for (int jj = 0; jj < _DimY; jj++) {
-				eps0_c_Ey[_INDEX_XYZ(ii, jj, sourcePos)] += addval*0.5 / 1.46;
-				eps0_c_Ey[_INDEX_XYZ(ii, jj, sourcePos)] += addval*0.5 / 1.46;
-				Hx[_INDEX_XYZ(ii, jj, sourcePos)] -= addval;
+		for (int ii = _PML_PX_X_ +16; ii < _DimX- _PML_PX_X_ -16; ii++) {
+			for (int jj = _PML_PX_Y_ +16; jj < _DimY - _PML_PX_Y_ -16; jj++) {
+				eps0_c_Ex[_INDEX_XYZ(ii, jj, sourcePos)] += addval*0.5 / 1.46;
+				eps0_c_Ex[_INDEX_XYZ(ii, jj, sourcePos)] += addval*0.5 / 1.46;
+				Hy[_INDEX_XYZ(ii, jj, sourcePos)] += addval;
 			}
 		}
 		DCP_HE_C();
 		RFT(); //FIXME : print warning message if RFT would not reach its final step
 		if ((i) % 100 == 0) {
-			sprintf(filename, "Ex%05d", i);
+			sprintf(filename, "%05d", i);
 			snapshot(filename);
 		}
-		savePoint(f, _dt_*(float)i,eps0_c_Ey[_INDEX_XYZ((_DimX/2), (_DimY/2), (_DimZ / 2 + __SIN_TOP + __METAL_HOLE +20))]);
+
+		fprintf(f, "%e\t%30e\n",
+			_dt_*(float)i,
+			(__BACK)*eps0_c_Ey[_INDEX_XYZ((_DimX / 2), (_DimY / 2), (_DimZ / 2 + __SIN_TOP + __METAL_HOLE + 20))]
+		);
 	}
 
 	fclose(f);
 
 	
 	printf("\ntime : %f\n", (double)(clock() - start) / CLK_TCK);
+
+	for (int i = 0; i < _SURF_SIZE_; i++) {
+		for (int j = 0; j < FREQ_N; j++) {
+			int surf_x, surf_y, surf_z;
+			_SET_SURF_XYZ_INDEX(i);
+			if (surf_z != _SURF_EndZ_) {
+				FT_eps0cE[i][j][0][0] = 0;
+				FT_eps0cE[i][j][1][0] = 0;
+				FT_eps0cE[i][j][2][0] = 0;
+				FT_eps0cE[i][j][0][1] = 0;
+				FT_eps0cE[i][j][1][1] = 0;
+				FT_eps0cE[i][j][2][1] = 0;
+				FT_H[i][j][0][0] = 0;
+				FT_H[i][j][1][0] = 0;
+				FT_H[i][j][2][0] = 0;
+				FT_H[i][j][0][1] = 0;
+				FT_H[i][j][1][1] = 0;
+				FT_H[i][j][2][1] = 0;
+			}
+		}
+	}
 	NTFF();
 	return 0;
 }
@@ -989,9 +1022,10 @@ void NTFF(void) {
 			}
 		}error = lodepng_encode32_file("E_z.png", image, NTFF_IMG_SIZE, NTFF_IMG_SIZE);
 
+		FILE *f = fopen("E2.txt", "w");
 		for (int i = 0; i < NTFF_IMG_SIZE; i++) {
 			for (int j = 0; j < NTFF_IMG_SIZE; j++) {
-				float val =  255.0f / 3000.0f * sqrtf(
+				float val =  sqrtf(
 					FF_ecE_x[j*NTFF_IMG_SIZE + i].real * FF_ecE_x[j*NTFF_IMG_SIZE + i].real +
 					FF_ecE_y[j*NTFF_IMG_SIZE + i].real * FF_ecE_y[j*NTFF_IMG_SIZE + i].real +
 					FF_ecE_z[j*NTFF_IMG_SIZE + i].real * FF_ecE_z[j*NTFF_IMG_SIZE + i].real +
@@ -999,9 +1033,12 @@ void NTFF(void) {
 					FF_ecE_y[j*NTFF_IMG_SIZE + i].imag * FF_ecE_y[j*NTFF_IMG_SIZE + i].imag +
 					FF_ecE_z[j*NTFF_IMG_SIZE + i].imag * FF_ecE_z[j*NTFF_IMG_SIZE + i].imag
 				);
+				fprintf(f, "%+04.3e\t", val);
+				val = 255.0f / 3000.0f *val;
 				image[4 * NTFF_IMG_SIZE * j + 4 * i + 0] = val > 0 ? (val < 255 ? val : 255) : 0;		image[4 * NTFF_IMG_SIZE * j + 4 * i + 1] = val < 0 ? (val > -255 ? -val : 255) : 0;		image[4 * NTFF_IMG_SIZE * j + 4 * i + 2] = 0;  image[4 * NTFF_IMG_SIZE * j + 4 * i + 3] = 255;
 			}
 		}error = lodepng_encode32_file("E2.png", image, NTFF_IMG_SIZE, NTFF_IMG_SIZE);
+		fclose(f);
 
 		for (int i = 0; i < NTFF_IMG_SIZE; i++) {
 			for (int j = 0; j < NTFF_IMG_SIZE; j++) {
@@ -1188,6 +1225,7 @@ int init(void)
 			}
 		}
 	}
+	snapshotStructure();
 
 	printf("init done!\n");
 	return 0;
@@ -1379,18 +1417,14 @@ void syncPadding(void) {
 			}
 }
 
-void savePoint(FILE *f, float time, float value) {
-	//const char* filename ="output.txt";
-	fprintf(f, "%f\t%f\n",time,value);
-}
 
 #define TEMP eps0_c_Ex
 int snapshot(char* filename)
 {
 	//printf("snapshot : X=50\n");
 	char filenameFull[256];
-	sprintf(filenameFull, "Y0_%s.txt", filename);
-	int Y = _DimX / 2;
+	sprintf(filenameFull, "Ex_Y0_%s.txt", filename);
+	int Y = _DimY / 2;
 	FILE *f = fopen(filenameFull, "w");
 	for (int Z = 0; Z < _DimZ; Z++) {
 		//if (X%_blockDimX == 0) { for (int Z = 0; Z < _DimZ + _gridDimZ - 1 ; Z++) { fprintf(f,"%+04.3e \t ", TEMP[_INDEX_XYZ(-1, Y, Z)]);  } 	fprintf(f,"\n");}
@@ -1406,19 +1440,19 @@ int snapshot(char* filename)
 
 
 	//printf("snapshot : Z=70\n");
-	Y = _DimX /2 ;
-	sprintf(filenameFull, "Y0_%s.png", filename);
-	unsigned width = _DimX, height = _DimY;
+	Y = _DimY /2 ;
+	sprintf(filenameFull, "Ex_Y0_%s.png", filename);
+	unsigned width = _DimX, height = _DimZ;
 	unsigned char* image = malloc(width * height * 4);
-	unsigned z, x;
-	for (z = 0; z < height; z++)
+	int z, x;
+	for (z = 0; z < height; z++) {
 		for (x = 0; x < width; x++)
 		{
 			int surf_x, surf_y, surf_z;
 			int surf_index = _SURF_INDEX_XYZ(x, Y, z);
 			_SET_SURF_XYZ_INDEX(surf_index);
 			int offset = _INDEX_XYZ(x, Y, z);
-			int value =0;
+			int value = 0;
 
 			//if (surf_index !=-1) value = (FT_eps0cE[_SURF_INDEX_XYZ(X, y, z)][1][0][0]* FT_eps0cE[_SURF_INDEX_XYZ(X, y, z)][1][0][0]+ FT_eps0cE[_SURF_INDEX_XYZ(X, y, z)][1][0][1]* FT_eps0cE[_SURF_INDEX_XYZ(X, y, z)][1][0][1]) * 255.0f * 5000.0f * 5000.0f;
 			if (surf_index != -1) value = 255.0f * 200.0f * 200.0f*(0
@@ -1432,18 +1466,96 @@ int snapshot(char* filename)
 			//int value = (((mask[offset] & (0b1111 << 4)) >> 4)) *50.0f ;
 			value = value > 255 ? 255 : value;
 			value = value < -255 ? -255 : value;
-			int val2 = (eps0_c_Ex[offset]) * 255.0f * 50.0f;
+			int val2 = (eps0_c_Ex[offset]) * 255.0f * 0.5f;
 			val2 = val2 > 255 ? 255 : val2;
 			val2 = val2 < -255 ? -255 : val2;
-			image[4 * width * z + 4 * x + 0] = (unsigned char)(value>0? value : 0);
-			image[4 * width * z + 4 * x + 1] = (unsigned char)(val2<0 ? -val2 : 0);
-			image[4 * width * z + 4 * x + 2] = (unsigned char)(val2>0 ? val2 : 0);
-			image[4 * width * z + 4 * x + 3] = 255;
+			image[4 * width * (height-z-1) + 4 * x + 0] = (unsigned char)(val2 > 0 ? val2 : 0);
+			image[4 * width * (height - z - 1) + 4 * x + 1] = (unsigned char)(value > 0 ? value : 0);
+			image[4 * width * (height - z - 1) + 4 * x + 2] = (unsigned char)(val2 < 0 ? -val2 : 0);
+			image[4 * width * (height - z - 1) + 4 * x + 3] = 255;
 		}
+	}
 	unsigned error = lodepng_encode32_file(filenameFull, image, width, height);
 	if (error) printf("error %u: %s\n", error, lodepng_error_text(error));
+
+
+	sprintf(filenameFull, "E2_Y0_%s.png", filename);
+	for (z = 0; z < height; z++) {
+		for (x = 0; x < width; x++)
+		{
+			int surf_x, surf_y, surf_z;
+			int surf_index = _SURF_INDEX_XYZ(x, Y, z);
+			_SET_SURF_XYZ_INDEX(surf_index);
+			int offset = _INDEX_XYZ(x, Y, z);
+			int value = 0;
+
+			//if (surf_index !=-1) value = (FT_eps0cE[_SURF_INDEX_XYZ(X, y, z)][1][0][0]* FT_eps0cE[_SURF_INDEX_XYZ(X, y, z)][1][0][0]+ FT_eps0cE[_SURF_INDEX_XYZ(X, y, z)][1][0][1]* FT_eps0cE[_SURF_INDEX_XYZ(X, y, z)][1][0][1]) * 255.0f * 5000.0f * 5000.0f;
+			//if (surf_index != -1) value = 255.0f * 200.0f * 200.0f*(0
+			//	+ (FT_eps0cE[surf_index][0][0][0]) * (FT_eps0cE[surf_index][0][0][0])
+			//	+ (FT_eps0cE[surf_index][0][0][1]) * (FT_eps0cE[surf_index][0][0][1])
+			//	+ (FT_eps0cE[surf_index][0][1][0]) * (FT_eps0cE[surf_index][0][1][0])
+			//	+ (FT_eps0cE[surf_index][0][1][1]) * (FT_eps0cE[surf_index][0][1][1])
+			//	+ (FT_eps0cE[surf_index][0][2][0]) * (FT_eps0cE[surf_index][0][2][0])
+			//	+ (FT_eps0cE[surf_index][0][2][1]) * (FT_eps0cE[surf_index][0][2][1])
+			//	);
+			//int value = (((mask[offset] & (0b1111 << 4)) >> 4)) *50.0f ;
+			value = value > 255 ? 255 : value;
+			value = value < -255 ? -255 : value;
+			int val2 = sqrtf(eps0_c_Ex[offset]* eps0_c_Ex[offset]+ eps0_c_Ey[offset] * eps0_c_Ey[offset]+ eps0_c_Ez[offset] * eps0_c_Ez[offset])
+				* 255.0f * 0.5f;
+			val2 = val2 > 255 ? 255 : val2;
+			val2 = val2 < -255 ? -255 : val2;
+			image[4 * width * (height - z - 1) + 4 * x + 0] = (unsigned char)(val2 > 0 ? val2 : 0);
+			image[4 * width * (height - z - 1) + 4 * x + 1] = (unsigned char)(value > 0 ? value : 0);
+			image[4 * width * (height - z - 1) + 4 * x + 2] = (unsigned char)(val2 < 0 ? -val2 : 0);
+			image[4 * width * (height - z - 1) + 4 * x + 3] = 255;
+		}
+	}
+	error = lodepng_encode32_file(filenameFull, image, width, height);
+	if (error) printf("error %u: %s\n", error, lodepng_error_text(error));
+
+
 
 	free(image);
 
 	return 0;
+}
+
+void snapshotStructure() {
+
+	printf("saving structure image\n");
+
+	int Y = _DimY / 2;
+	unsigned width = _DimX, height = _DimZ;
+	unsigned char* image = malloc(width * height * 4);
+	int z, x;
+	for (z = 0; z < height; z++) {
+		for (x = 0; x < width; x++)
+		{
+			int surf_x, surf_y, surf_z;
+			int surf_index = _SURF_INDEX_XYZ(x, Y, z);
+			_SET_SURF_XYZ_INDEX(surf_index);
+			int offset = _INDEX_XYZ(x, Y, z);
+			int value = 0;
+			int val2 = 0;
+
+			if (((mask[offset] >> 4) & 0b1111) > 0) { value = 255; }
+			else { val2 = 255.0f / sqrtf(eps_r_inv[offset]) * 0.5f; }
+
+			value = value > 255 ? 255 : value;
+			value = value < -255 ? -255 : value;
+			val2 = val2 > 255 ? 255 : val2;
+			val2 = val2 < -255 ? -255 : val2;
+			image[4 * width * (height - z - 1) + 4 * x + 0] = (unsigned char)(val2 > 0 ? val2 : 0);
+			image[4 * width * (height - z - 1) + 4 * x + 1] = (unsigned char)(value > 0 ? value : 0);
+			image[4 * width * (height - z - 1) + 4 * x + 2] = (unsigned char)(val2 < 0 ? -val2 : 0);
+			image[4 * width * (height - z - 1) + 4 * x + 3] = 255;
+		}
+	}
+	unsigned error = lodepng_encode32_file("structure.png", image, width, height);
+	if (error) printf("error %u: %s\n", error, lodepng_error_text(error));
+
+	printf("saved\n");
+	free(image);
+
 }

@@ -10,18 +10,18 @@
 #define _DimY (100)
 #define _DimZ (100)
 
-#define _STEP (100)
+#define _STEP (1)
 
 //eq35
 //consider using simple PML for NTFF calculation
 #define _PML_PX_X_ (16)
-#define _PML_PX_Y_ (16)
+#define _PML_PX_Y_ (0)
 #define _PML_PX_Z_ (16)
 #define _PML_ALPHA_TUNING_ 0.1f
 int pml_n = 3; //consider using macro
 float pml_R = 10e-4;
 float pml_kappa_max = 8.0f;
-#define _NTFF_Margin_ (10)
+#define _NTFF_Margin_ (20)
 
 #define _S_factor (2.0f)
 #define _dx (50e-9)
@@ -71,9 +71,9 @@ float RFT_K_LIST_CALCULATED[FREQ_N];
 
 //3D loop tiling with 1px padding, for L1 cache or cuda SHMEM utilization
 //1px padding required for easy L1 cache optimization
-#define _gridDimX ((_DimX + (_blockDimX-2) - 1) / (_blockDimX-2))
-#define _gridDimY ((_DimY + (_blockDimY-2) - 1) / (_blockDimY-2))
-#define _gridDimZ ((_DimZ + (_blockDimZ-2) - 1) / (_blockDimZ-2))
+#define _gridDimX ((int)((_DimX + (_blockDimX-2) - 1) / (_blockDimX-2)))
+#define _gridDimY ((int)((_DimY + (_blockDimY-2) - 1) / (_blockDimY-2)))
+#define _gridDimZ ((int)((_DimZ + (_blockDimZ-2) - 1) / (_blockDimZ-2)))
 
 #define _threadPerGrid (_blockDimX*_gridDimX*_blockDimY*_gridDimY*_blockDimZ*_gridDimZ)
 #define _offsetX (1)
@@ -299,9 +299,9 @@ int main(int argc, char* argv[])
 		printf("%f%%\r", 100.0f*(float)i / _STEP);
 		float addval = sin(2.0f * M_PI * _c0 / 500e-9 * (float)i * _dt_) * exp(-((float)i - 50.0f)*((float)i - 50.0f) / 25.0f / 25.0f);
 		//float addval = sin(2.0f * M_PI * _c0 / 500e-9 * (float)i * _dt_) ;
-		addval /= 100.0f * 32.0f;
-		for (int i = 40; i < 60; i++) {
-			for (int j = 40; j < 60; j++) {
+		addval /= 1000.0f * 32.0f;
+		for (int i = 5; i < 95; i++) {
+			for (int j = 5; j < 95; j++) {
 				eps0_c_Ey[_INDEX_XYZ(i, j, 50)] += addval / 1.0f;
 				Hx[_INDEX_XYZ(i, j, 50)] -= addval / 2.0f;
 				Hx[_INDEX_XYZ(i, j, 49)] -= addval / 2.0f;
@@ -312,7 +312,7 @@ int main(int argc, char* argv[])
 	}
 	printf("\ntime : %f\n", (double)(clock() - start) / CLK_TCK);
 	snapshot();
-	NTFF();
+	//NTFF();
 	return 0;
 }
 
@@ -456,9 +456,13 @@ void DCP_HE_C(void)
 		psiZY_dx[offset] *= b_Y[offset];
 		psiZY_dx[offset] += C_Y[offset] * (-Hx[offset - _offsetX - _offsetY] + Hx[offset - _offsetX]);
 		
-		eps0_c_Ex[offset] += ((Hy[offset - _offsetZ] - Hy[offset]) / kappaZ[offset] + (Hz[offset - _offsetZ] - Hz[offset - _offsetY - _offsetZ]) / kappaY[offset]) * eps_r_inv[offset] * _cdt_div_dx; // constant can be merged;
-		eps0_c_Ey[offset] += ((Hz[offset - _offsetZ] - Hz[offset + _offsetX - _offsetZ]) / kappaX[offset] + (Hx[offset] - Hx[offset - _offsetZ]) / kappaZ[offset]) * eps_r_inv[offset] * _cdt_div_dx; 
-		eps0_c_Ez[offset] += ((Hx[offset - _offsetX - _offsetY] - Hx[offset - _offsetX]) / kappaY[offset] + (Hy[offset] - Hy[offset - _offsetX]) / kappaX[offset]) * eps_r_inv[offset] * _cdt_div_dx; 
+		//FIXME : use kappa_inv
+		//eps0_c_Ex[offset] += ((Hy[offset - _offsetZ] - Hy[offset]) * kappaZ_inv[offset] + (Hz[offset - _offsetZ] - Hz[offset - _offsetY - _offsetZ]) * kappaY_inv[offset]) * eps_r_inv[offset] * _cdt_div_dx; // constant can be merged;
+		//eps0_c_Ey[offset] += ((Hz[offset - _offsetZ] - Hz[offset + _offsetX - _offsetZ]) * kappaX_inv[offset] + (Hx[offset] - Hx[offset - _offsetZ]) * kappaZ_inv[offset]) * eps_r_inv[offset] * _cdt_div_dx; 
+		//eps0_c_Ez[offset] += ((Hx[offset - _offsetX - _offsetY] - Hx[offset - _offsetX]) * kappaY_inv[offset] + (Hy[offset] - Hy[offset - _offsetX]) * kappaX_inv[offset]) * eps_r_inv[offset] * _cdt_div_dx; 
+		eps0_c_Ex[offset] += ((Hy[offset - _offsetZ] - Hy[offset]) * kappaZ[offset] + (Hz[offset - _offsetZ] - Hz[offset - _offsetY - _offsetZ]) * kappaY[offset]) * eps_r_inv[offset] * _cdt_div_dx; // constant can be merged;
+		eps0_c_Ey[offset] += ((Hz[offset - _offsetZ] - Hz[offset + _offsetX - _offsetZ]) * kappaX[offset] + (Hx[offset] - Hx[offset - _offsetZ]) * kappaZ[offset]) * eps_r_inv[offset] * _cdt_div_dx; 
+		eps0_c_Ez[offset] += ((Hx[offset - _offsetX - _offsetY] - Hx[offset - _offsetX]) * kappaY[offset] + (Hy[offset] - Hy[offset - _offsetX]) * kappaX[offset]) * eps_r_inv[offset] * _cdt_div_dx; 
 
 		float tryError = 1.0f;// FIXME;
 		eps0_c_Ex[offset] += (psiXY_dx[offset] - psiXZ_dx[offset]) * eps_r_inv[offset] * tryError; // constant can be merged;
@@ -1106,10 +1110,11 @@ int init(void)
 	printf("\n\n");
 
 	//PML constants
+	float pml_px_x = (_PML_PX_X_<1? 0.5: _PML_PX_X_), pml_px_y = (_PML_PX_Y_<1 ? 0.5 : _PML_PX_Y_), pml_px_z = (_PML_PX_Z_<1 ? 0.5 : _PML_PX_Z_);
 	float pml_eps0 = _eps0_;
-	float pml_sigma_x_dt_div_eps0_max = -((float)pml_n + 1.0f)*logf(pml_R) * 0.5f / (_PML_PX_X_) / _S_factor; //eq37
-	float pml_sigma_y_dt_div_eps0_max = -((float)pml_n + 1.0f)*logf(pml_R) * 0.5f / (_PML_PX_Y_) / _S_factor;
-	float pml_sigma_z_dt_div_eps0_max = -((float)pml_n + 1.0f)*logf(pml_R) * 0.5f / (_PML_PX_Z_) / _S_factor;
+	float pml_sigma_x_dt_div_eps0_max_inv = -(float)(pml_px_x) * (float)(_S_factor) * 2.0f / ((float)pml_n + 1.0f) / logf(pml_R);//eq37
+	float pml_sigma_y_dt_div_eps0_max_inv = -(float)(pml_px_y) * (float)(_S_factor) * 2.0f / ((float)pml_n + 1.0f) / logf(pml_R);
+	float pml_sigma_z_dt_div_eps0_max_inv = -(float)(pml_px_z) * (float)(_S_factor) * 2.0f / ((float)pml_n + 1.0f) / logf(pml_R);
 	printf("PML : \n");
 	printf("_eps0_ = %e\n", _eps0_);
 	printf("pml_eps0 = %e\n", pml_eps0);
@@ -1117,7 +1122,7 @@ int init(void)
 	printf("pml_n = %d\n", pml_n);
 	printf("pml_R = %e\n", pml_R);
 	printf("pml_kappa_max = %e\n", pml_kappa_max);
-	printf("pml_sigma_x_dt_div_eps0_max = %e\n", pml_sigma_x_dt_div_eps0_max);
+	printf("pml_sigma_x_dt_div_eps0_max_inv = %e\n", pml_sigma_x_dt_div_eps0_max_inv);
 	printf("\n");
 
 	for (unsigned __int64 i = 0; i < _threadPerGrid; i++)
@@ -1131,9 +1136,9 @@ int init(void)
 		//Indexing
 		unsigned __int64 tmp = i;
 		int X = 0, Y = 0, Z = 0;
-		X += tmp % _blockDimX - 1; tmp /= _blockDimX;
-		Y += tmp % _blockDimY - 1; tmp /= _blockDimY;
-		Z += tmp % _blockDimZ - 1; tmp /= _blockDimZ;
+		X += (tmp % _blockDimX) - 1; tmp /= _blockDimX;
+		Y += (tmp % _blockDimY) - 1; tmp /= _blockDimY;
+		Z += (tmp % _blockDimZ) - 1; tmp /= _blockDimZ;
 		if (X == -1 || X == _blockDimX - 2 || Y == -1 || Y == _blockDimY - 2 || Z == -1 || Z == _blockDimZ - 2) {
 			mask[i] |= (1 << 0); // 0th bit : Padding 
 			continue;
@@ -1141,31 +1146,34 @@ int init(void)
 		X += (tmp % _gridDimX) * (_blockDimX - 2); tmp /= _gridDimX;
 		Y += (tmp % _gridDimY) * (_blockDimY - 2); tmp /= _gridDimY;
 		Z += (tmp % _gridDimZ) * (_blockDimZ - 2); tmp /= _gridDimZ;
+		//if (X >= _DimX+1 || Y >= _DimY+1 || Z >= _DimZ+1) { continue; }
 
 		alpha_dt_div_eps0[i] = (_PML_ALPHA_TUNING_); // FIXME 
 
+
 		//FIXME : check PML area
+		//FIXME : sigma do not need to be an array
 		if ((X + 1 <= ((_PML_PX_X_)) || (_DimX)-((_PML_PX_X_)) <= X)) {
-			//if ((X + 1 <= ((_PML_PX_X_)) || (_DimX)-((_PML_PX_X_)) <= X) && ((_PML_PX_Y_)) < Y+1 && Y < (_DimY)-((_PML_PX_Y_)) && ((_PML_PX_Z_)) < Z + 1 && Z < (_DimZ)-((_PML_PX_Z_)) ) {
+			//if ((X + 1 <= ((pml_px_x)) || (_DimX)-((pml_px_x)) <= X) && ((pml_px_y)) < Y+1 && Y < (_DimY)-((_PML_PX_Y_)) && ((_PML_PX_Z_)) < Z + 1 && Z < (_DimZ)-((_PML_PX_Z_)) ) {
 			mask[i] |= (1 << 1); // 1st bit : PML
-			sigmaX_dt_div_eps0[i] = pml_sigma_x_dt_div_eps0_max * pow(fmin(fabs(((_PML_PX_X_))-X), fabs(((_PML_PX_X_))+X - (_DimX)+1)) / ((_PML_PX_X_)), (pml_n));
-			kappaX[i] = 1.0f + (pml_kappa_max - 1.0f) * pow((fmin(fabs(((_PML_PX_X_))-X), fabs(((_PML_PX_X_))+X - (_DimX)+1)) - 1.0f)/ ((_PML_PX_X_)), (pml_n)); //FIXME : 0.5f? -1.0f? check 
+			sigmaX_dt_div_eps0[i] = pow(fmin(fabs(((_PML_PX_X_))-X), fabs(((_PML_PX_X_))+X - (_DimX)+1)) / ((pml_px_x)), (pml_n)) / pml_sigma_x_dt_div_eps0_max_inv;
+			kappaX[i] = 1.0f + (pml_kappa_max - 1.0f) * pow((fmin(fabs(((_PML_PX_X_))-X), fabs(((_PML_PX_X_))+X - (_DimX)+1)) - 1.0f)/ ((pml_px_x)), (pml_n)); //FIXME : 0.5f? -1.0f? check 
 			b_X[i] = expf( -alpha_dt_div_eps0[i] - sigmaX_dt_div_eps0[i]/kappaX[i] ); //close to 0
 			C_X[i] = sigmaX_dt_div_eps0[i] / (sigmaX_dt_div_eps0[i] * kappaX[i] + alpha_dt_div_eps0[i] * kappaX[i] * kappaX[i] ) * (b_X[i] - 1.0f); //close to 1
 		}
 		if ((Y + 1 <= ((_PML_PX_Y_)) || (_DimY)-((_PML_PX_Y_)) <= Y)) {
 			//if ((Y + 1 <= ((_PML_PX_Y_)) || (_DimY)-((_PML_PX_Y_)) <= Y) && ((_PML_PX_Z_)) < Z + 1 && Z < (_DimY)-((_PML_PX_Z_)) && ((_PML_PX_X_)) < X + 1 && X < (_DimX)-((_PML_PX_X_)) ) {
 			mask[i] |= (1 << 1); // 1st bit : PML
-			sigmaY_dt_div_eps0[i] = pml_sigma_y_dt_div_eps0_max * pow(fmin(fabs(((_PML_PX_Y_))-Y), fabs(((_PML_PX_Y_))+Y - (_DimY)+1)) / ((_PML_PX_Y_)), (pml_n));
-			kappaY[i] = 1.0f + (pml_kappa_max - 1.0f) * pow((fmin(fabs(((_PML_PX_Y_))-Y), fabs(((_PML_PX_Y_))+Y - (_DimY)+1)) - 1.0f)/ ((_PML_PX_Y_)), (pml_n));
+			sigmaY_dt_div_eps0[i] = pow(fmin(fabs(((_PML_PX_Y_))-Y), fabs(((_PML_PX_Y_))+Y - (_DimY)+1)) / ((pml_px_y)), (pml_n)) / pml_sigma_y_dt_div_eps0_max_inv;
+			kappaY[i] = 1.0f + (pml_kappa_max - 1.0f) * pow((fmin(fabs(((_PML_PX_Y_))-Y), fabs(((_PML_PX_Y_))+Y - (_DimY)+1)) - 1.0f)/ ((pml_px_y)), (pml_n));
 			b_Y[i] = expf(-alpha_dt_div_eps0[i] - sigmaY_dt_div_eps0[i] / kappaY[i]);
 			C_Y[i] = sigmaY_dt_div_eps0[i] / (sigmaY_dt_div_eps0[i] * kappaY[i] + alpha_dt_div_eps0[i] * kappaY[i] * kappaY[i]) * (b_Y[i] - 1.0f);
 		}
 		if ((Z + 1 <= ((_PML_PX_Z_)) || (_DimZ)-((_PML_PX_Z_)) <= Z)) {
 			//if ((Z + 1 <= ((_PML_PX_Z_)) || (_DimZ)-((_PML_PX_Z_)) <= Z) && ((_PML_PX_X_)) < X + 1 && X < (_DimX)-((_PML_PX_X_)) && ((_PML_PX_Y_)) < Y + 1 && Y < (_DimY)-((_PML_PX_Y_)) ) {
 			mask[i] |= (1 << 1); // 1st bit : PML
-			sigmaZ_dt_div_eps0[i] = pml_sigma_z_dt_div_eps0_max * pow(fmin(fabs(((_PML_PX_Z_))-Z), fabs(((_PML_PX_Z_))+Z - (_DimZ)+1)) / ((_PML_PX_Z_)), (pml_n));
-			kappaZ[i] = 1.0f + (pml_kappa_max - 1.0f) * pow((fmin(fabs(((_PML_PX_Z_))-Z), fabs(((_PML_PX_Z_))+Z - (_DimZ)+1)) - 1.0f)/ ((_PML_PX_Z_)), (pml_n));
+			sigmaZ_dt_div_eps0[i] = pow(fmin(fabs(((_PML_PX_Z_))-Z), fabs(((_PML_PX_Z_))+Z - (_DimZ)+1)) / ((pml_px_z)), (pml_n)) / pml_sigma_z_dt_div_eps0_max_inv;
+			kappaZ[i] = 1.0f + (pml_kappa_max - 1.0f) * pow((fmin(fabs(((_PML_PX_Z_))-Z), fabs(((_PML_PX_Z_))+Z - (_DimZ)+1)) - 1.0f)/ ((pml_px_z)), (pml_n));
 			b_Z[i] = expf(-alpha_dt_div_eps0[i] - sigmaZ_dt_div_eps0[i] / kappaZ[i]);
 			C_Z[i] = sigmaZ_dt_div_eps0[i] / (sigmaZ_dt_div_eps0[i] * kappaZ[i] + alpha_dt_div_eps0[i] * kappaZ[i] * kappaZ[i]) * (b_Z[i] - 1.0f);
 		}
@@ -1307,6 +1315,7 @@ FIELD[_INDEX_THREAD(X - 1, Y, Z - 1, _blockDimX - 1, yy, _blockDimZ - 1)] = FIEL
 FIELD[_INDEX_THREAD(X, Y, Z, 0, yy, 0)] = FIELD[_INDEX_THREAD(X - 1, Y, Z - 1, _blockDimX - 2, yy, _blockDimZ - 2)]; \
 FIELD[_INDEX_THREAD(X - 1, Y, Z, _blockDimX - 1, yy, 0)] = FIELD[_INDEX_THREAD(X, Y, Z - 1, 1, yy, _blockDimZ - 2)]; \
 FIELD[_INDEX_THREAD(X, Y, Z - 1, 0, yy, _blockDimZ - 1)] = FIELD[_INDEX_THREAD(X - 1, Y, Z, _blockDimX - 2, yy, 1)];
+
 #define _syncXall _syncX_(eps0_c_Ex) _syncX_(eps0_c_Ey) _syncX_(eps0_c_Ez) _syncX_(Hx)  _syncX_(Hy) _syncX_(Hz) \
 _syncX_(eps0_c_Pdx) _syncX_(eps0_c_Pdy) _syncX_(eps0_c_Pdz)  \
 _syncX_(eps0_c_Pcp1x) _syncX_(eps0_c_Pcp1y) _syncX_(eps0_c_Pcp1z)  \
@@ -1344,11 +1353,55 @@ _syncZX_(eps0_c_Pcp2x) _syncZX_(eps0_c_Pcp2y) _syncZX_(eps0_c_Pcp2z)
 // \
 //_syncZX_(eps0_c_Rx) _syncZX_(eps0_c_Ry) _syncZX_(eps0_c_Rz)  
 
-//이거 안넣으면 periodic boundary 안됨
-//#define _syncBoundaryX(FIELD) \
-//FIELD[_INDEX_THREAD(_gridDimX-1, Y, Z, _blockDimX - 1, yy, zz)] = FIELD[_INDEX_THREAD(0, Y, Z, 1, yy, zz)]; \
-//FIELD[_INDEX_THREAD(0, Y, Z, 0, yy, zz)] = FIELD[_INDEX_THREAD(_gridDimX-1, Y, Z, _blockDimX - 2, yy, zz)]; \
-//#define _syncBoundaryall _syncBoundary(eps0_c_Ex) _syncBoundary(eps0_c_Ey) _syncBoundary(eps0_c_Ez)  _syncBoundary(Hx)  _syncBoundary(Hy) _syncBoundary(Hz) 
+#define _syncPeriodicX(FIELD) \
+FIELD[ \
+	_INDEX_THREAD( \
+		((_DimX - 1))/(_blockDimX-2) , ((Y))/(_blockDimY-2), ((Z))/(_blockDimZ-2), \
+		((_DimX - 1))%(_blockDimX-2)+2 , ((Y))%(_blockDimY-2)+1 , ((Z))%(_blockDimZ-2)+1 ) \
+	] = FIELD[_INDEX_XYZ(0, Y, Z)]; \
+FIELD[ \
+	_INDEX_THREAD( \
+		0 , ((Y))/(_blockDimY-2), ((Z))/(_blockDimZ-2), \
+		0 , ((Y))%(_blockDimY-2)+1 , ((Z))%(_blockDimZ-2)+1 ) \
+	] = FIELD[_INDEX_XYZ(_DimX - 1, Y, Z)]; 
+////should work : FIELD[_INDEX_THREAD( _gridDimX -1 , ((Y))/(_blockDimY-2), ((Z))/(_blockDimZ-2), ((_DimX - 1))%(_blockDimX-2)+2 , ((Y))%(_blockDimY-2)+1 , ((Z))%(_blockDimZ-2)+1 ) ] 
+
+#define _syncPeriodicY(FIELD) \
+FIELD[_INDEX_THREAD( ((X))/(_blockDimX-2) , _gridDimY -1 , ((Z))/(_blockDimZ-2), \
+	((X))%(_blockDimX-2)+1 ,((_DimY - 1))%(_blockDimY-2)+2, ((Z))%(_blockDimZ-2)+1 ) ] \
+	= 999; \
+FIELD[_INDEX_THREAD( ((X))/(_blockDimX-2) , 0, ((Z))/(_blockDimZ-2),\
+	((X))%(_blockDimX-2)+1 , 0 , ((Z))%(_blockDimZ-2)+1 ) ] \
+	= 999;
+
+//  FIELD[_INDEX_XYZ(X, 0, Z)]; \
+//FIELD[_INDEX_XYZ(X, _DimY - 1, Z)]; 
+
+#define _syncPeriodicZ(FIELD) \
+FIELD[_INDEX_THREAD(\
+	((X))/(_blockDimX-2) , ((Y))/(_blockDimY-2), ((_DimZ - 1))/(_blockDimZ-2),\
+	((X))%(_blockDimX-2)+1 , ((Y))%(_blockDimY-2)+1 , ((_DimZ - 1))%(_blockDimZ-2)+2 ) ] \
+	= FIELD[_INDEX_XYZ(X, Y, 0)]; \
+FIELD[_INDEX_THREAD(\
+	((X))/(_blockDimX-2) , ((Y))/(_blockDimY-2), 0,\
+	((X))%(_blockDimX-2)+1 , ((Y))%(_blockDimY-2)+1 , 0 ) ] \
+= FIELD[_INDEX_XYZ(X, Y, _DimZ - 1)]; 
+
+//syncing P/ Pcp field required?
+#define _syncPeriodicXall _syncPeriodicX(eps0_c_Ex) _syncPeriodicX(eps0_c_Ey) _syncPeriodicX(eps0_c_Ez) _syncPeriodicX(Hx)  _syncPeriodicX(Hy) _syncPeriodicX(Hz) \
+_syncPeriodicX(eps0_c_Pdx) _syncPeriodicX(eps0_c_Pdy) _syncPeriodicX(eps0_c_Pdz)  \
+_syncPeriodicX(eps0_c_Pcp1x) _syncPeriodicX(eps0_c_Pcp1y) _syncPeriodicX(eps0_c_Pcp1z)  \
+_syncPeriodicX(eps0_c_Pcp2x) _syncPeriodicX(eps0_c_Pcp2y) _syncPeriodicX(eps0_c_Pcp2z) 
+#define _syncPeriodicYall _syncPeriodicY(eps0_c_Ex) _syncPeriodicY(eps0_c_Ey) _syncPeriodicY(eps0_c_Ez) _syncPeriodicY(Hx)  _syncPeriodicY(Hy) _syncPeriodicY(Hz)  \
+_syncPeriodicY(eps0_c_Pdx) _syncPeriodicY(eps0_c_Pdy) _syncPeriodicY(eps0_c_Pdz)  \
+_syncPeriodicY(eps0_c_Pcp1x) _syncPeriodicY(eps0_c_Pcp1y) _syncPeriodicY(eps0_c_Pcp1z)  \
+_syncPeriodicY(eps0_c_Pcp2x) _syncPeriodicY(eps0_c_Pcp2y) _syncPeriodicY(eps0_c_Pcp2z) 
+#define _syncPeriodicZall _syncPeriodicZ(eps0_c_Ex) _syncPeriodicZ(eps0_c_Ey) _syncPeriodicZ(eps0_c_Ez) _syncPeriodicZ(Hx)  _syncPeriodicZ(Hy) _syncPeriodicZ(Hz)  \
+_syncPeriodicZ(eps0_c_Pdx) _syncPeriodicZ(eps0_c_Pdy) _syncPeriodicZ(eps0_c_Pdz)  \
+_syncPeriodicZ(eps0_c_Pcp1x) _syncPeriodicZ(eps0_c_Pcp1y) _syncPeriodicZ(eps0_c_Pcp1z)  \
+_syncPeriodicZ(eps0_c_Pcp2x) _syncPeriodicZ(eps0_c_Pcp2y) _syncPeriodicZ(eps0_c_Pcp2z) 
+
+
 #define STR(x)   #x
 #define SHOW_DEFINE(x) printf("%s=%s\n", #x, STR(x))
 
@@ -1372,6 +1425,17 @@ void syncPadding(void) {
 				if (Z>0 && X>0)
 					for (int yy = 0; yy < _blockDimY; yy++) {_syncZXall }
 			}
+
+	//for (int Y = 0; Y < _DimY; Y++)
+	//	for (int Z = 0; Z < _DimZ; Z++) { _syncPeriodicXall }
+	for (int Z = 0; Z < _DimZ; Z++)
+		for (int X = 0; X < _DimX; X++)
+			if ((Z % (_blockDimZ - 2)) != 0 && (Z % (_blockDimZ - 2)) != _blockDimZ - 3 &&
+				(X % (_blockDimX - 2)) != 0 && (X % (_blockDimX - 2)) != _blockDimX - 3)
+				{ _syncPeriodicYall }
+	//for (int X = 0; X < _DimX; X++)
+	//	for (int Y = 0; Y < _DimY; Y++) { _syncPeriodicZall }
+
 }
 
 

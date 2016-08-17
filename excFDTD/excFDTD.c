@@ -6,11 +6,11 @@
 //reference : Torok et al, 2006 (doi: 10.1364/JOSAA.23.000713) formulation used for NTFF
 
 
-#define _DimX (100)
-#define _DimY (100)
-#define _DimZ (100)
+#define _DimX (140)
+#define _DimY (140)
+#define _DimZ (200)
 
-#define _STEP (50)
+#define _STEP (6*250*3+5000)
 
 //eq35
 //consider using simple PML for NTFF calculation
@@ -24,7 +24,70 @@ float pml_kappa_max = 8.0f;
 #define _NTFF_Margin_ (20)
 
 #define _S_factor (2.0f)
-#define _dx (50e-9)
+#define _dx (5e-9)
+
+#define __SUBSTRATE (100)
+#define __PITCH (60)
+#define __METAL_HOLE (14)
+#define __METAL_DISK  (4)
+#define __RADIUS_TOP_IN  (16)
+#define __RADIUS_BOT_IN ( 5)
+#define __RADIUS_TOP_OUT ( 27)
+#define __RADIUS_BOT_OUT  (16)
+#define __RADIUS_DISK_TOP ( 10)
+#define __RADIUS_DISK_BOT ( 14)
+#define __SLOT  (4.2)
+#define __SIN_BOT  (6)
+#define __SIN_TOP  (10)
+#define __DEPTH ( 4)
+#define __REF ( 1.0)
+#define __BACK  (1.3f)
+#define __SLOT_RADIUS  (24)
+#define __SMOOTHING  (9)
+
+#define STRUCTURE \
+eps_r_inv[offset] = 1.0f / (__BACK*__BACK);\
+if (((-__SLOT - __SIN_BOT<zz) && (zz <= -__SLOT))\
+	|| ((0<zz) && (zz <= __SIN_TOP))) {\
+	eps_r_inv[offset] = 1.0f / (1.8f*1.8f); /*SiN*/\
+}\
+if (((-__SLOT<zz) && (zz <= 0) && (__SLOT_RADIUS<rr))\
+	|| (zz <= (-__SLOT - __SIN_BOT))) {\
+	eps_r_inv[offset] = 1.0f / (1.46f*1.46f); /*SiO*/\
+}\
+if (((-__SLOT - __SIN_BOT - 8)<zz) && (zz <= (-__SLOT - __SIN_BOT))) {\
+	eps_r_inv[offset] = 1.0f / (1.8f*1.8f); /*ITO*/\
+}\
+if (\
+(-__SLOT < zz) && (zz <= (-__SLOT + __METAL_DISK))\
+	&& (rr <= ((__RADIUS_DISK_TOP - __RADIUS_DISK_BOT) / __METAL_DISK*(zz + __SLOT) + __RADIUS_DISK_BOT))\
+	) {\
+	mask[offset] = mask[offset] | (0b0001 << 4);\
+	eps_r_inv[offset] = 1.0f/(__BACK*__BACK);\
+} /*Au disk*/\
+if (\
+(0 < zz) && (zz <= (__SIN_TOP + __METAL_HOLE))\
+	&& (rr <= __RADIUS_BOT_OUT + (__RADIUS_TOP_OUT - __RADIUS_BOT_OUT) / (__SIN_TOP + __METAL_HOLE) * zz)\
+	) {\
+	mask[offset] = mask[offset] | (0b0001 << 4);\
+	eps_r_inv[offset] = 1.0f/(__BACK*__BACK);\
+} /*Au sidewall*/\
+if ((__SIN_TOP<zz) & (zz <= (__SIN_TOP + __METAL_HOLE))) {\
+	mask[offset] = mask[offset] | (0b0001 << 4);\
+}/*Au top*/\
+if (\
+	(\
+		(0 < zz) && (zz <= __SIN_TOP + __METAL_HOLE) &&\
+		(rr <= __RADIUS_BOT_IN + ((float)(__RADIUS_TOP_IN - __RADIUS_BOT_IN) / (float)(__SIN_TOP + __METAL_HOLE)) * zz) \
+	)\
+			||\
+	(\
+		(0 < zz) && (zz <= __SMOOTHING) &&\
+		(rr <= __RADIUS_BOT_IN + __SMOOTHING - zz)\
+	)\
+) {\
+	mask[offset] = mask[offset] & ~(0b0001 << 4);\
+} /*thruhole*/\
 
 #define _c0 299792458.0f
 #define _USE_MATH_DEFINES
@@ -287,7 +350,8 @@ void syncPadding(void);
 void RFT(void);
 void NTFF_onlyUpside(void);
 void NTFF(void);
-int snapshot(void);
+int snapshot(char*);
+void snapshotStructure(void);
 
 #include "mkl.h"
 int main(int argc, char* argv[])
@@ -296,6 +360,9 @@ int main(int argc, char* argv[])
 	time_t start;
 	start = clock();
 	printf("\nCalculating field \n");
+
+	int sourcePos = _DimZ / 2 - __SLOT - __SIN_BOT - 10;
+	char filename[256];
 	for (int i = 0; i <= _STEP; i++) {
 		printf("%f%%\r", 100.0f*(float)i / _STEP);
 		float addval = sin(2.0f * M_PI * _c0 / 500e-9 * (float)i * _dt_) * exp(-((float)i - 50.0f)*((float)i - 50.0f) / 25.0f / 25.0f);
@@ -303,16 +370,21 @@ int main(int argc, char* argv[])
 		addval /= 1000.0f * 32.0f;
 		for (int i = 0; i < _DimX; i++) {
 			for (int j = 0; j < _DimX; j++) {
-				eps0_c_Ey[_INDEX_XYZ(i, j, 50)] += addval / 1.0f;
-				Hx[_INDEX_XYZ(i, j, 50)] -= addval / 2.0f;
-				Hx[_INDEX_XYZ(i, j, 49)] -= addval / 2.0f;
+				eps0_c_Ey[_INDEX_XYZ(i, j, sourcePos)] += addval / 1.0f;
+				Hx[_INDEX_XYZ(i, j, sourcePos)] -= addval / 2.0f;
+				Hx[_INDEX_XYZ(i, j, sourcePos)] -= addval / 2.0f;
+
 			}
 		}
 		DCP_HE_C();
 		RFT(); //FIXME : print warning message if RFT would not reach its final step
+		if ((i) % 100 == 0) {
+			sprintf(filename, "%05d", i);
+			snapshot(filename);
+		}
 	}
 	printf("\ntime : %f\n", (double)(clock() - start) / CLK_TCK);
-	snapshot();
+	//snapshot();
 	NTFF_onlyUpside();
 	NTFF();
 	return 0;
@@ -462,9 +534,9 @@ void DCP_HE_C(void)
 		//eps0_c_Ex[offset] += ((Hy[offset - _offsetZ] - Hy[offset]) * kappaZ_inv[offset] + (Hz[offset - _offsetZ] - Hz[offset - _offsetY - _offsetZ]) * kappaY_inv[offset]) * eps_r_inv[offset] * _cdt_div_dx; // constant can be merged;
 		//eps0_c_Ey[offset] += ((Hz[offset - _offsetZ] - Hz[offset + _offsetX - _offsetZ]) * kappaX_inv[offset] + (Hx[offset] - Hx[offset - _offsetZ]) * kappaZ_inv[offset]) * eps_r_inv[offset] * _cdt_div_dx; 
 		//eps0_c_Ez[offset] += ((Hx[offset - _offsetX - _offsetY] - Hx[offset - _offsetX]) * kappaY_inv[offset] + (Hy[offset] - Hy[offset - _offsetX]) * kappaX_inv[offset]) * eps_r_inv[offset] * _cdt_div_dx; 
-		eps0_c_Ex[offset] += ((Hy[offset - _offsetZ] - Hy[offset]) * kappaZ[offset] + (Hz[offset - _offsetZ] - Hz[offset - _offsetY - _offsetZ]) * kappaY[offset]) * eps_r_inv[offset] * _cdt_div_dx; // constant can be merged;
-		eps0_c_Ey[offset] += ((Hz[offset - _offsetZ] - Hz[offset + _offsetX - _offsetZ]) * kappaX[offset] + (Hx[offset] - Hx[offset - _offsetZ]) * kappaZ[offset]) * eps_r_inv[offset] * _cdt_div_dx; 
-		eps0_c_Ez[offset] += ((Hx[offset - _offsetX - _offsetY] - Hx[offset - _offsetX]) * kappaY[offset] + (Hy[offset] - Hy[offset - _offsetX]) * kappaX[offset]) * eps_r_inv[offset] * _cdt_div_dx; 
+		eps0_c_Ex[offset] += ((Hy[offset - _offsetZ] - Hy[offset]) / kappaZ[offset] + (Hz[offset - _offsetZ] - Hz[offset - _offsetY - _offsetZ]) / kappaY[offset]) * eps_r_inv[offset] * _cdt_div_dx; // constant can be merged;
+		eps0_c_Ey[offset] += ((Hz[offset - _offsetZ] - Hz[offset + _offsetX - _offsetZ]) / kappaX[offset] + (Hx[offset] - Hx[offset - _offsetZ]) / kappaZ[offset]) * eps_r_inv[offset] * _cdt_div_dx; 
+		eps0_c_Ez[offset] += ((Hx[offset - _offsetX - _offsetY] - Hx[offset - _offsetX]) / kappaY[offset] + (Hy[offset] - Hy[offset - _offsetX]) / kappaX[offset]) * eps_r_inv[offset] * _cdt_div_dx; 
 
 		float tryError = 1.0f;// FIXME;
 		eps0_c_Ex[offset] += (psiXY_dx[offset] - psiXZ_dx[offset]) * eps_r_inv[offset] * tryError; // constant can be merged;
@@ -1220,6 +1292,23 @@ int init(void)
 		}
 
 	}
+
+	int offset, xx, yy, zz;
+	float rr;
+	for (int x = 0; x < _DimX; x++) {
+		for (int y = 0; y < _DimY; y++) {
+			for (int z = 0; z < _DimZ; z++) {
+				xx = x - ((_DimX) / 2);
+				yy = y - ((_DimY) / 2);
+				zz = z - ((_DimZ) / 2);
+				rr = sqrtf((float)xx*(float)xx + (float)yy*(float)yy);
+				offset = _INDEX_XYZ(x, y, z);
+				STRUCTURE
+			}
+		}
+	}
+	snapshotStructure();
+
 	printf("init done!\n");
 	return 0;
 }
@@ -1465,27 +1554,14 @@ void syncPadding(void) {
 
 
 #define TEMP eps0_c_Ex
-int snapshot(void)
+int snapshot(char* filename)
 {
-	//printf("snapshot : X=50\n");
-	//int X = 50;
-	//FILE *f = fopen("test.txt", "w");
-	//for (int Z = 0; Z < _DimZ; Z++) {
-	//	if (Z%_blockDimZ == 0) { for (int Y = 0; Y < _DimY + _gridDimY - 1 ; Y++) { fprintf(f,"%+04.3e \t ", TEMP[_INDEX_XYZ(X, Y, -1)]);  } 	fprintf(f,"\n");}
-	//	for (int Y = 0; Y < _DimY; Y++) {
-	//		if (Y%_blockDimY == 0) { fprintf(f,"%04.3f \t", TEMP[_INDEX_XYZ(-1, Y, Z)]);}
-	//		fprintf(f,"%+04.3e\t", TEMP[_INDEX_XYZ(-1, Y, Z)]);
-	//		if (Y%_blockDimY == _blockDimY-1) { fprintf(f,"%+04.3f\t ", TEMP[_INDEX_XYZ(_blockDimX, Y, Z)]); }
-	//	}
-	//	fprintf(f,"\n");
-	//	if (Z%_blockDimZ == _blockDimZ -1 ){ for (int Y = 0; Y < _DimY; Y++) 	{	fprintf(f,"%+04.3f\t ", eps0_c_Ex[_INDEX_XYZ(X, Y, _blockDimZ)]);	}fprintf(f,"\n");}
-	//}
-	//fclose(f);
 
+	char filenameFull[256];
+	sprintf(filenameFull, "Ex_Y0_%s.png", filename);
 
 	printf("snapshot : X=50\n");
 	int X = 50;
-	const char* filename = "snapshot.png";
 	unsigned width = _DimY, height = _DimZ;
 	unsigned char* image = malloc(width * height * 4);
 	unsigned y, z;
@@ -1522,10 +1598,51 @@ int snapshot(void)
 			image[4 * width * (height - 1 - z) + 4 * y + 2] = (unsigned char)(val2>0 ? val2 : 0);
 			image[4 * width * (height - 1 - z) + 4 * y + 3] = 255;
 		}
-	unsigned error = lodepng_encode32_file(filename, image, width, height);
+	unsigned error = lodepng_encode32_file(filenameFull, image, width, height);
 	if (error) printf("error %u: %s\n", error, lodepng_error_text(error));
 
 	free(image);
 
 	return 0;
+}
+
+
+
+void snapshotStructure() {
+
+	printf("saving structure image\n");
+
+	int Y = _DimY / 2;
+	unsigned width = _DimX, height = _DimZ;
+	unsigned char* image = malloc(width * height * 4);
+	int z, x;
+	for (z = 0; z < height; z++) {
+		for (x = 0; x < width; x++)
+		{
+			int surf_x, surf_y, surf_z;
+			int surf_index = _SURF_INDEX_XYZ(x, Y, z);
+			_SET_SURF_XYZ_INDEX(surf_index);
+			int offset = _INDEX_XYZ(x, Y, z);
+			int value = 0;
+			int val2 = 0;
+
+			if (((mask[offset] >> 4) & 0b1111) > 0) { value = 255; }
+			else { val2 = 255.0f / sqrtf(eps_r_inv[offset]) * 0.5f; }
+
+			value = value > 255 ? 255 : value;
+			value = value < -255 ? -255 : value;
+			val2 = val2 > 255 ? 255 : val2;
+			val2 = val2 < -255 ? -255 : val2;
+			image[4 * width * (height - z - 1) + 4 * x + 0] = (unsigned char)(val2 > 0 ? val2 : 0);
+			image[4 * width * (height - z - 1) + 4 * x + 1] = (unsigned char)(value > 0 ? value : 0);
+			image[4 * width * (height - z - 1) + 4 * x + 2] = (unsigned char)(val2 < 0 ? -val2 : 0);
+			image[4 * width * (height - z - 1) + 4 * x + 3] = 255;
+		}
+	}
+	unsigned error = lodepng_encode32_file("structure.png", image, width, height);
+	if (error) printf("error %u: %s\n", error, lodepng_error_text(error));
+
+	printf("saved\n");
+	free(image);
+
 }

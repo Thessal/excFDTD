@@ -10,11 +10,11 @@
 #define _DimY (100)
 #define _DimZ (100)
 
-#define _STEP (1)
+#define _STEP (50)
 
 //eq35
 //consider using simple PML for NTFF calculation
-#define _PML_PX_X_ (16)
+#define _PML_PX_X_ (0)
 #define _PML_PX_Y_ (0)
 #define _PML_PX_Z_ (16)
 #define _PML_ALPHA_TUNING_ 0.1f
@@ -285,6 +285,7 @@ void Dielectric_HE_C(void);
 void DCP_HE_C(void);
 void syncPadding(void);
 void RFT(void);
+void NTFF_onlyUpside(void);
 void NTFF(void);
 int snapshot(void);
 
@@ -300,8 +301,8 @@ int main(int argc, char* argv[])
 		float addval = sin(2.0f * M_PI * _c0 / 500e-9 * (float)i * _dt_) * exp(-((float)i - 50.0f)*((float)i - 50.0f) / 25.0f / 25.0f);
 		//float addval = sin(2.0f * M_PI * _c0 / 500e-9 * (float)i * _dt_) ;
 		addval /= 1000.0f * 32.0f;
-		for (int i = 5; i < 95; i++) {
-			for (int j = 5; j < 95; j++) {
+		for (int i = 0; i < _DimX; i++) {
+			for (int j = 0; j < _DimX; j++) {
 				eps0_c_Ey[_INDEX_XYZ(i, j, 50)] += addval / 1.0f;
 				Hx[_INDEX_XYZ(i, j, 50)] -= addval / 2.0f;
 				Hx[_INDEX_XYZ(i, j, 49)] -= addval / 2.0f;
@@ -312,7 +313,8 @@ int main(int argc, char* argv[])
 	}
 	printf("\ntime : %f\n", (double)(clock() - start) / CLK_TCK);
 	snapshot();
-	//NTFF();
+	NTFF_onlyUpside();
+	NTFF();
 	return 0;
 }
 
@@ -523,6 +525,28 @@ void RFT(void) {
 	RFT_counter++;
 }
 
+void NTFF_onlyUpside(void){
+	for (int i = 0; i < _SURF_SIZE_; i++) {
+		for (int j = 0; j < FREQ_N; j++) {
+			int surf_x, surf_y, surf_z;
+			_SET_SURF_XYZ_INDEX(i);
+			if (surf_z != _SURF_EndZ_) {
+				FT_eps0cE[i][j][0][0] = 0;
+				FT_eps0cE[i][j][1][0] = 0;
+				FT_eps0cE[i][j][2][0] = 0;
+				FT_eps0cE[i][j][0][1] = 0;
+				FT_eps0cE[i][j][1][1] = 0;
+				FT_eps0cE[i][j][2][1] = 0;
+				FT_H[i][j][0][0] = 0;
+				FT_H[i][j][1][0] = 0;
+				FT_H[i][j][2][0] = 0;
+				FT_H[i][j][0][1] = 0;
+				FT_H[i][j][1][1] = 0;
+				FT_H[i][j][2][1] = 0;
+			}
+		}
+	}
+}
 
 #define NTFF_IMG_SIZE 200
 #define _SURF_MidX_ ((_SURF_StartX_+_SURF_EndX_)/2.0f)
@@ -1147,13 +1171,17 @@ int init(void)
 		Y += (tmp % _gridDimY) * (_blockDimY - 2); tmp /= _gridDimY;
 		Z += (tmp % _gridDimZ) * (_blockDimZ - 2); tmp /= _gridDimZ;
 		//if (X >= _DimX+1 || Y >= _DimY+1 || Z >= _DimZ+1) { continue; }
+		if (X>= _DimX || Y >= _DimY || Z >= _DimZ) {
+			mask[i] |= (1 << 0); // 0th bit : Padding 
+			continue;
+		}
 
 		alpha_dt_div_eps0[i] = (_PML_ALPHA_TUNING_); // FIXME 
 
 
 		//FIXME : check PML area
 		//FIXME : sigma do not need to be an array
-		if ((X + 1 <= ((_PML_PX_X_)) || (_DimX)-((_PML_PX_X_)) <= X)) {
+		if ((X + 1 <= ((_PML_PX_X_)) || (_DimX)-((_PML_PX_X_)) <= X) && Y<_DimX) {
 			//if ((X + 1 <= ((pml_px_x)) || (_DimX)-((pml_px_x)) <= X) && ((pml_px_y)) < Y+1 && Y < (_DimY)-((_PML_PX_Y_)) && ((_PML_PX_Z_)) < Z + 1 && Z < (_DimZ)-((_PML_PX_Z_)) ) {
 			mask[i] |= (1 << 1); // 1st bit : PML
 			sigmaX_dt_div_eps0[i] = pow(fmin(fabs(((_PML_PX_X_))-X), fabs(((_PML_PX_X_))+X - (_DimX)+1)) / ((pml_px_x)), (pml_n)) / pml_sigma_x_dt_div_eps0_max_inv;
@@ -1161,7 +1189,7 @@ int init(void)
 			b_X[i] = expf( -alpha_dt_div_eps0[i] - sigmaX_dt_div_eps0[i]/kappaX[i] ); //close to 0
 			C_X[i] = sigmaX_dt_div_eps0[i] / (sigmaX_dt_div_eps0[i] * kappaX[i] + alpha_dt_div_eps0[i] * kappaX[i] * kappaX[i] ) * (b_X[i] - 1.0f); //close to 1
 		}
-		if ((Y + 1 <= ((_PML_PX_Y_)) || (_DimY)-((_PML_PX_Y_)) <= Y)) {
+		if ((Y + 1 <= ((_PML_PX_Y_)) || (_DimY)-((_PML_PX_Y_)) <= Y) && Y<_DimY) {
 			//if ((Y + 1 <= ((_PML_PX_Y_)) || (_DimY)-((_PML_PX_Y_)) <= Y) && ((_PML_PX_Z_)) < Z + 1 && Z < (_DimY)-((_PML_PX_Z_)) && ((_PML_PX_X_)) < X + 1 && X < (_DimX)-((_PML_PX_X_)) ) {
 			mask[i] |= (1 << 1); // 1st bit : PML
 			sigmaY_dt_div_eps0[i] = pow(fmin(fabs(((_PML_PX_Y_))-Y), fabs(((_PML_PX_Y_))+Y - (_DimY)+1)) / ((pml_px_y)), (pml_n)) / pml_sigma_y_dt_div_eps0_max_inv;
@@ -1169,7 +1197,7 @@ int init(void)
 			b_Y[i] = expf(-alpha_dt_div_eps0[i] - sigmaY_dt_div_eps0[i] / kappaY[i]);
 			C_Y[i] = sigmaY_dt_div_eps0[i] / (sigmaY_dt_div_eps0[i] * kappaY[i] + alpha_dt_div_eps0[i] * kappaY[i] * kappaY[i]) * (b_Y[i] - 1.0f);
 		}
-		if ((Z + 1 <= ((_PML_PX_Z_)) || (_DimZ)-((_PML_PX_Z_)) <= Z)) {
+		if ((Z + 1 <= ((_PML_PX_Z_)) || (_DimZ)-((_PML_PX_Z_)) <= Z) && Y<_DimZ) {
 			//if ((Z + 1 <= ((_PML_PX_Z_)) || (_DimZ)-((_PML_PX_Z_)) <= Z) && ((_PML_PX_X_)) < X + 1 && X < (_DimX)-((_PML_PX_X_)) && ((_PML_PX_Y_)) < Y + 1 && Y < (_DimY)-((_PML_PX_Y_)) ) {
 			mask[i] |= (1 << 1); // 1st bit : PML
 			sigmaZ_dt_div_eps0[i] = pow(fmin(fabs(((_PML_PX_Z_))-Z), fabs(((_PML_PX_Z_))+Z - (_DimZ)+1)) / ((pml_px_z)), (pml_n)) / pml_sigma_z_dt_div_eps0_max_inv;
@@ -1356,7 +1384,7 @@ _syncZX_(eps0_c_Pcp2x) _syncZX_(eps0_c_Pcp2y) _syncZX_(eps0_c_Pcp2z)
 #define _syncPeriodicX(FIELD) \
 FIELD[ \
 	_INDEX_THREAD( \
-		((_DimX - 1))/(_blockDimX-2) , ((Y))/(_blockDimY-2), ((Z))/(_blockDimZ-2), \
+		_gridDimX -1                 , ((Y))/(_blockDimY-2), ((Z))/(_blockDimZ-2), \
 		((_DimX - 1))%(_blockDimX-2)+2 , ((Y))%(_blockDimY-2)+1 , ((Z))%(_blockDimZ-2)+1 ) \
 	] = FIELD[_INDEX_XYZ(0, Y, Z)]; \
 FIELD[ \
@@ -1364,22 +1392,22 @@ FIELD[ \
 		0 , ((Y))/(_blockDimY-2), ((Z))/(_blockDimZ-2), \
 		0 , ((Y))%(_blockDimY-2)+1 , ((Z))%(_blockDimZ-2)+1 ) \
 	] = FIELD[_INDEX_XYZ(_DimX - 1, Y, Z)]; 
-////should work : FIELD[_INDEX_THREAD( _gridDimX -1 , ((Y))/(_blockDimY-2), ((Z))/(_blockDimZ-2), ((_DimX - 1))%(_blockDimX-2)+2 , ((Y))%(_blockDimY-2)+1 , ((Z))%(_blockDimZ-2)+1 ) ] 
+
+////should work : FIELD[_INDEX_THREAD((_DimX - 1))/(_blockDimX-2), ((Y))/(_blockDimY-2), ((Z))/(_blockDimZ-2), ((_DimX - 1))%(_blockDimX-2)+2 , ((Y))%(_blockDimY-2)+1 , ((Z))%(_blockDimZ-2)+1 ) ] 
 
 #define _syncPeriodicY(FIELD) \
-FIELD[_INDEX_THREAD( ((X))/(_blockDimX-2) , _gridDimY -1 , ((Z))/(_blockDimZ-2), \
-	((X))%(_blockDimX-2)+1 ,((_DimY - 1))%(_blockDimY-2)+2, ((Z))%(_blockDimZ-2)+1 ) ] \
-	= 999; \
-FIELD[_INDEX_THREAD( ((X))/(_blockDimX-2) , 0, ((Z))/(_blockDimZ-2),\
+FIELD[_INDEX_THREAD( \
+	((X))/(_blockDimX-2)   , _gridDimY -1 ,                   ((Z))/(_blockDimZ-2), \
+	((X))%(_blockDimX-2)+1 ,((_DimY -1 ))%(_blockDimY-2) + 2, ((Z))%(_blockDimZ-2)+1 ) ] \
+	= FIELD[_INDEX_XYZ(X, 0, Z)];\
+FIELD[_INDEX_THREAD( \
+	((X))/(_blockDimX-2)   , 0 , ((Z))/(_blockDimZ-2),\
 	((X))%(_blockDimX-2)+1 , 0 , ((Z))%(_blockDimZ-2)+1 ) ] \
-	= 999;
-
-//  FIELD[_INDEX_XYZ(X, 0, Z)]; \
-//FIELD[_INDEX_XYZ(X, _DimY - 1, Z)]; 
+	= FIELD[_INDEX_XYZ(X, _DimY - 1, Z)]; 
 
 #define _syncPeriodicZ(FIELD) \
 FIELD[_INDEX_THREAD(\
-	((X))/(_blockDimX-2) , ((Y))/(_blockDimY-2), ((_DimZ - 1))/(_blockDimZ-2),\
+	((X))/(_blockDimX-2) , ((Y))/(_blockDimY-2), _gridDimZ -1,\
 	((X))%(_blockDimX-2)+1 , ((Y))%(_blockDimY-2)+1 , ((_DimZ - 1))%(_blockDimZ-2)+2 ) ] \
 	= FIELD[_INDEX_XYZ(X, Y, 0)]; \
 FIELD[_INDEX_THREAD(\
@@ -1426,15 +1454,12 @@ void syncPadding(void) {
 					for (int yy = 0; yy < _blockDimY; yy++) {_syncZXall }
 			}
 
-	//for (int Y = 0; Y < _DimY; Y++)
-	//	for (int Z = 0; Z < _DimZ; Z++) { _syncPeriodicXall }
+	for (int Y = 0; Y < _DimY; Y++)
+		for (int Z = 0; Z < _DimZ; Z++) { _syncPeriodicXall }
 	for (int Z = 0; Z < _DimZ; Z++)
-		for (int X = 0; X < _DimX; X++)
-			if ((Z % (_blockDimZ - 2)) != 0 && (Z % (_blockDimZ - 2)) != _blockDimZ - 3 &&
-				(X % (_blockDimX - 2)) != 0 && (X % (_blockDimX - 2)) != _blockDimX - 3)
-				{ _syncPeriodicYall }
-	//for (int X = 0; X < _DimX; X++)
-	//	for (int Y = 0; Y < _DimY; Y++) { _syncPeriodicZall }
+		for (int X = 0; X < _DimX; X++)	{ _syncPeriodicYall }
+	for (int X = 0; X < _DimX; X++)
+		for (int Y = 0; Y < _DimY; Y++) { _syncPeriodicZall }
 
 }
 

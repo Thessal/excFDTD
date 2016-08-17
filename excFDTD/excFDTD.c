@@ -462,9 +462,9 @@ void DCP_HE_C(void)
 		//eps0_c_Ex[offset] += ((Hy[offset - _offsetZ] - Hy[offset]) * kappaZ_inv[offset] + (Hz[offset - _offsetZ] - Hz[offset - _offsetY - _offsetZ]) * kappaY_inv[offset]) * eps_r_inv[offset] * _cdt_div_dx; // constant can be merged;
 		//eps0_c_Ey[offset] += ((Hz[offset - _offsetZ] - Hz[offset + _offsetX - _offsetZ]) * kappaX_inv[offset] + (Hx[offset] - Hx[offset - _offsetZ]) * kappaZ_inv[offset]) * eps_r_inv[offset] * _cdt_div_dx; 
 		//eps0_c_Ez[offset] += ((Hx[offset - _offsetX - _offsetY] - Hx[offset - _offsetX]) * kappaY_inv[offset] + (Hy[offset] - Hy[offset - _offsetX]) * kappaX_inv[offset]) * eps_r_inv[offset] * _cdt_div_dx; 
-		eps0_c_Ex[offset] += ((Hy[offset - _offsetZ] - Hy[offset]) * kappaZ[offset] + (Hz[offset - _offsetZ] - Hz[offset - _offsetY - _offsetZ]) * kappaY[offset]) * eps_r_inv[offset] * _cdt_div_dx; // constant can be merged;
-		eps0_c_Ey[offset] += ((Hz[offset - _offsetZ] - Hz[offset + _offsetX - _offsetZ]) * kappaX[offset] + (Hx[offset] - Hx[offset - _offsetZ]) * kappaZ[offset]) * eps_r_inv[offset] * _cdt_div_dx; 
-		eps0_c_Ez[offset] += ((Hx[offset - _offsetX - _offsetY] - Hx[offset - _offsetX]) * kappaY[offset] + (Hy[offset] - Hy[offset - _offsetX]) * kappaX[offset]) * eps_r_inv[offset] * _cdt_div_dx; 
+		eps0_c_Ex[offset] += ((Hy[offset - _offsetZ] - Hy[offset]) / kappaZ[offset] + (Hz[offset - _offsetZ] - Hz[offset - _offsetY - _offsetZ]) / kappaY[offset]) * eps_r_inv[offset] * _cdt_div_dx; // constant can be merged;
+		eps0_c_Ey[offset] += ((Hz[offset - _offsetZ] - Hz[offset + _offsetX - _offsetZ]) / kappaX[offset] + (Hx[offset] - Hx[offset - _offsetZ]) / kappaZ[offset]) * eps_r_inv[offset] * _cdt_div_dx; 
+		eps0_c_Ez[offset] += ((Hx[offset - _offsetX - _offsetY] - Hx[offset - _offsetX]) / kappaY[offset] + (Hy[offset] - Hy[offset - _offsetX]) / kappaX[offset]) * eps_r_inv[offset] * _cdt_div_dx; 
 
 		float tryError = 1.0f;// FIXME;
 		eps0_c_Ex[offset] += (psiXY_dx[offset] - psiXZ_dx[offset]) * eps_r_inv[offset] * tryError; // constant can be merged;

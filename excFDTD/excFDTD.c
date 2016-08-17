@@ -67,7 +67,7 @@ if (\
 } /*Au disk*/\
 if (\
 (0 < zz) && (zz <= (__SIN_TOP + __METAL_HOLE))\
-	&& (rr <= __RADIUS_BOT_OUT + (__RADIUS_TOP_OUT - __RADIUS_BOT_OUT) / (__SIN_TOP + __METAL_HOLE) * zz)\
+	&& (rr <= __RADIUS_BOT_OUT + (float)(__RADIUS_TOP_OUT - __RADIUS_BOT_OUT) / (float)(__SIN_TOP + __METAL_HOLE) * zz)\
 	) {\
 	mask[offset] = mask[offset] | (0b0001 << 4);\
 	eps_r_inv[offset] = 1.0f/(__BACK*__BACK);\
@@ -530,10 +530,6 @@ void DCP_HE_C(void)
 		psiZY_dx[offset] *= b_Y[offset];
 		psiZY_dx[offset] += C_Y[offset] * (-Hx[offset - _offsetX - _offsetY] + Hx[offset - _offsetX]);
 		
-		//FIXME : use kappa_inv
-		//eps0_c_Ex[offset] += ((Hy[offset - _offsetZ] - Hy[offset]) * kappaZ_inv[offset] + (Hz[offset - _offsetZ] - Hz[offset - _offsetY - _offsetZ]) * kappaY_inv[offset]) * eps_r_inv[offset] * _cdt_div_dx; // constant can be merged;
-		//eps0_c_Ey[offset] += ((Hz[offset - _offsetZ] - Hz[offset + _offsetX - _offsetZ]) * kappaX_inv[offset] + (Hx[offset] - Hx[offset - _offsetZ]) * kappaZ_inv[offset]) * eps_r_inv[offset] * _cdt_div_dx; 
-		//eps0_c_Ez[offset] += ((Hx[offset - _offsetX - _offsetY] - Hx[offset - _offsetX]) * kappaY_inv[offset] + (Hy[offset] - Hy[offset - _offsetX]) * kappaX_inv[offset]) * eps_r_inv[offset] * _cdt_div_dx; 
 		eps0_c_Ex[offset] += ((Hy[offset - _offsetZ] - Hy[offset]) / kappaZ[offset] + (Hz[offset - _offsetZ] - Hz[offset - _offsetY - _offsetZ]) / kappaY[offset]) * eps_r_inv[offset] * _cdt_div_dx; // constant can be merged;
 		eps0_c_Ey[offset] += ((Hz[offset - _offsetZ] - Hz[offset + _offsetX - _offsetZ]) / kappaX[offset] + (Hx[offset] - Hx[offset - _offsetZ]) / kappaZ[offset]) * eps_r_inv[offset] * _cdt_div_dx; 
 		eps0_c_Ez[offset] += ((Hx[offset - _offsetX - _offsetY] - Hx[offset - _offsetX]) / kappaY[offset] + (Hy[offset] - Hy[offset - _offsetX]) / kappaX[offset]) * eps_r_inv[offset] * _cdt_div_dx; 
@@ -1470,59 +1466,67 @@ _syncZX_(eps0_c_Pcp2x) _syncZX_(eps0_c_Pcp2y) _syncZX_(eps0_c_Pcp2z)
 // \
 //_syncZX_(eps0_c_Rx) _syncZX_(eps0_c_Ry) _syncZX_(eps0_c_Rz)  
 
+
 #define _syncPeriodicX(FIELD) \
 FIELD[ \
 	_INDEX_THREAD( \
-		_gridDimX -1                 , ((Y))/(_blockDimY-2), ((Z))/(_blockDimZ-2), \
-		((_DimX - 1))%(_blockDimX-2)+2 , ((Y))%(_blockDimY-2)+1 , ((Z))%(_blockDimZ-2)+1 ) \
-	] = FIELD[_INDEX_XYZ(0, Y, Z)]; \
+		_gridDimX -1                 , ((yy))/(_blockDimY-2), ((zz))/(_blockDimZ-2), \
+		((_DimX - 1))%(_blockDimX-2)+2 , ((yy))%(_blockDimY-2)+1 , ((zz))%(_blockDimZ-2)+1 ) \
+	] = FIELD[_INDEX_XYZ(0, yy, zz)]; \
 FIELD[ \
 	_INDEX_THREAD( \
-		0 , ((Y))/(_blockDimY-2), ((Z))/(_blockDimZ-2), \
-		0 , ((Y))%(_blockDimY-2)+1 , ((Z))%(_blockDimZ-2)+1 ) \
-	] = FIELD[_INDEX_XYZ(_DimX - 1, Y, Z)]; 
+		0 , ((yy))/(_blockDimY-2), ((zz))/(_blockDimZ-2), \
+		0 , ((yy))%(_blockDimY-2)+1 , ((zz))%(_blockDimZ-2)+1 ) \
+	] = FIELD[_INDEX_XYZ(_DimX - 1, yy, zz)]; 
 
-////should work : FIELD[_INDEX_THREAD((_DimX - 1))/(_blockDimX-2), ((Y))/(_blockDimY-2), ((Z))/(_blockDimZ-2), ((_DimX - 1))%(_blockDimX-2)+2 , ((Y))%(_blockDimY-2)+1 , ((Z))%(_blockDimZ-2)+1 ) ] 
+////should work : FIELD[_INDEX_THREAD((_DimX - 1))/(_blockDimX-2), ((yy))/(_blockDimY-2), ((zz))/(_blockDimZ-2), ((_DimX - 1))%(_blockDimX-2)+2 , ((yy))%(_blockDimY-2)+1 , ((zz))%(_blockDimZ-2)+1 ) ] 
 
 #define _syncPeriodicY(FIELD) \
 FIELD[_INDEX_THREAD( \
-	((X))/(_blockDimX-2)   , _gridDimY -1 ,                   ((Z))/(_blockDimZ-2), \
-	((X))%(_blockDimX-2)+1 ,((_DimY -1 ))%(_blockDimY-2) + 2, ((Z))%(_blockDimZ-2)+1 ) ] \
-	= FIELD[_INDEX_XYZ(X, 0, Z)];\
+	((xx))/(_blockDimX-2)   , _gridDimY -1 ,                   ((zz))/(_blockDimZ-2), \
+	((xx))%(_blockDimX-2)+1 ,((_DimY -1 ))%(_blockDimY-2) + 2, ((zz))%(_blockDimZ-2)+1 ) ] \
+	= FIELD[_INDEX_XYZ(xx, 0, zz)];\
 FIELD[_INDEX_THREAD( \
-	((X))/(_blockDimX-2)   , 0 , ((Z))/(_blockDimZ-2),\
-	((X))%(_blockDimX-2)+1 , 0 , ((Z))%(_blockDimZ-2)+1 ) ] \
-	= FIELD[_INDEX_XYZ(X, _DimY - 1, Z)]; 
+	((xx))/(_blockDimX-2)   , 0 , ((zz))/(_blockDimZ-2),\
+	((xx))%(_blockDimX-2)+1 , 0 , ((zz))%(_blockDimZ-2)+1 ) ] \
+	= FIELD[_INDEX_XYZ(xx, _DimY - 1, zz)]; 
 
 #define _syncPeriodicZ(FIELD) \
 FIELD[_INDEX_THREAD(\
-	((X))/(_blockDimX-2) , ((Y))/(_blockDimY-2), _gridDimZ -1,\
-	((X))%(_blockDimX-2)+1 , ((Y))%(_blockDimY-2)+1 , ((_DimZ - 1))%(_blockDimZ-2)+2 ) ] \
-	= FIELD[_INDEX_XYZ(X, Y, 0)]; \
+	((xx))/(_blockDimX-2) , ((yy))/(_blockDimY-2), _gridDimZ -1,\
+	((xx))%(_blockDimX-2)+1 , ((yy))%(_blockDimY-2)+1 , ((_DimZ - 1))%(_blockDimZ-2)+2 ) ] \
+	= FIELD[_INDEX_XYZ(xx, yy, 0)]; \
 FIELD[_INDEX_THREAD(\
-	((X))/(_blockDimX-2) , ((Y))/(_blockDimY-2), 0,\
-	((X))%(_blockDimX-2)+1 , ((Y))%(_blockDimY-2)+1 , 0 ) ] \
-= FIELD[_INDEX_XYZ(X, Y, _DimZ - 1)]; 
+	((xx))/(_blockDimX-2) , ((yy))/(_blockDimY-2), 0,\
+	((xx))%(_blockDimX-2)+1 , ((yy))%(_blockDimY-2)+1 , 0 ) ] \
+= FIELD[_INDEX_XYZ(xx, yy, _DimZ - 1)]; 
 
 //syncing P/ Pcp field required?
-#define _syncPeriodicXall _syncPeriodicX(eps0_c_Ex) _syncPeriodicX(eps0_c_Ey) _syncPeriodicX(eps0_c_Ez) _syncPeriodicX(Hx)  _syncPeriodicX(Hy) _syncPeriodicX(Hz) \
-_syncPeriodicX(eps0_c_Pdx) _syncPeriodicX(eps0_c_Pdy) _syncPeriodicX(eps0_c_Pdz)  \
-_syncPeriodicX(eps0_c_Pcp1x) _syncPeriodicX(eps0_c_Pcp1y) _syncPeriodicX(eps0_c_Pcp1z)  \
-_syncPeriodicX(eps0_c_Pcp2x) _syncPeriodicX(eps0_c_Pcp2y) _syncPeriodicX(eps0_c_Pcp2z) 
-#define _syncPeriodicYall _syncPeriodicY(eps0_c_Ex) _syncPeriodicY(eps0_c_Ey) _syncPeriodicY(eps0_c_Ez) _syncPeriodicY(Hx)  _syncPeriodicY(Hy) _syncPeriodicY(Hz)  \
-_syncPeriodicY(eps0_c_Pdx) _syncPeriodicY(eps0_c_Pdy) _syncPeriodicY(eps0_c_Pdz)  \
-_syncPeriodicY(eps0_c_Pcp1x) _syncPeriodicY(eps0_c_Pcp1y) _syncPeriodicY(eps0_c_Pcp1z)  \
-_syncPeriodicY(eps0_c_Pcp2x) _syncPeriodicY(eps0_c_Pcp2y) _syncPeriodicY(eps0_c_Pcp2z) 
-#define _syncPeriodicZall _syncPeriodicZ(eps0_c_Ex) _syncPeriodicZ(eps0_c_Ey) _syncPeriodicZ(eps0_c_Ez) _syncPeriodicZ(Hx)  _syncPeriodicZ(Hy) _syncPeriodicZ(Hz)  \
-_syncPeriodicZ(eps0_c_Pdx) _syncPeriodicZ(eps0_c_Pdy) _syncPeriodicZ(eps0_c_Pdz)  \
-_syncPeriodicZ(eps0_c_Pcp1x) _syncPeriodicZ(eps0_c_Pcp1y) _syncPeriodicZ(eps0_c_Pcp1z)  \
-_syncPeriodicZ(eps0_c_Pcp2x) _syncPeriodicZ(eps0_c_Pcp2y) _syncPeriodicZ(eps0_c_Pcp2z) 
+#define _syncPeriodicXall _syncPeriodicX(eps0_c_Ex) _syncPeriodicX(eps0_c_Ey) _syncPeriodicX(eps0_c_Ez) _syncPeriodicX(Hx)  _syncPeriodicX(Hy) _syncPeriodicX(Hz) 
+//_syncPeriodicX(eps0_c_Pdx) _syncPeriodicX(eps0_c_Pdy) _syncPeriodicX(eps0_c_Pdz)  \
+//_syncPeriodicX(eps0_c_Pcp1x) _syncPeriodicX(eps0_c_Pcp1y) _syncPeriodicX(eps0_c_Pcp1z)  \
+//_syncPeriodicX(eps0_c_Pcp2x) _syncPeriodicX(eps0_c_Pcp2y) _syncPeriodicX(eps0_c_Pcp2z) 
+#define _syncPeriodicYall _syncPeriodicY(eps0_c_Ex) _syncPeriodicY(eps0_c_Ey) _syncPeriodicY(eps0_c_Ez) _syncPeriodicY(Hx)  _syncPeriodicY(Hy) _syncPeriodicY(Hz)  
+//_syncPeriodicY(eps0_c_Pdx) _syncPeriodicY(eps0_c_Pdy) _syncPeriodicY(eps0_c_Pdz)  \
+//_syncPeriodicY(eps0_c_Pcp1x) _syncPeriodicY(eps0_c_Pcp1y) _syncPeriodicY(eps0_c_Pcp1z)  \
+//_syncPeriodicY(eps0_c_Pcp2x) _syncPeriodicY(eps0_c_Pcp2y) _syncPeriodicY(eps0_c_Pcp2z) 
+#define _syncPeriodicZall _syncPeriodicZ(eps0_c_Ex) _syncPeriodicZ(eps0_c_Ey) _syncPeriodicZ(eps0_c_Ez) _syncPeriodicZ(Hx)  _syncPeriodicZ(Hy) _syncPeriodicZ(Hz)  
+//_syncPeriodicZ(eps0_c_Pdx) _syncPeriodicZ(eps0_c_Pdy) _syncPeriodicZ(eps0_c_Pdz)  \
+//_syncPeriodicZ(eps0_c_Pcp1x) _syncPeriodicZ(eps0_c_Pcp1y) _syncPeriodicZ(eps0_c_Pcp1z)  \
+//_syncPeriodicZ(eps0_c_Pcp2x) _syncPeriodicZ(eps0_c_Pcp2y) _syncPeriodicZ(eps0_c_Pcp2z) 
 
 
 #define STR(x)   #x
 #define SHOW_DEFINE(x) printf("%s=%s\n", #x, STR(x))
 
 void syncPadding(void) {
+	for (int yy = 0; yy < _DimY; yy++)
+		for (int zz = 0; zz < _DimZ; zz++) { _syncPeriodicXall }
+	for (int zz = 0; zz < _DimZ; zz++)
+		for (int xx = 0; xx < _DimX; xx++) { _syncPeriodicYall }
+	for (int xx = 0; xx < _DimX; xx++)
+		for (int yy = 0; yy < _DimY; yy++) { _syncPeriodicZall }
+
 	for (int X = 0; X < _gridDimX; X++)
 		for (int Y = 0; Y < _gridDimY; Y++)
 			for (int Z = 0; Z < _gridDimZ; Z++) {
@@ -1543,12 +1547,6 @@ void syncPadding(void) {
 					for (int yy = 0; yy < _blockDimY; yy++) {_syncZXall }
 			}
 
-	for (int Y = 0; Y < _DimY; Y++)
-		for (int Z = 0; Z < _DimZ; Z++) { _syncPeriodicXall }
-	for (int Z = 0; Z < _DimZ; Z++)
-		for (int X = 0; X < _DimX; X++)	{ _syncPeriodicYall }
-	for (int X = 0; X < _DimX; X++)
-		for (int Y = 0; Y < _DimY; Y++) { _syncPeriodicZall }
 
 }
 

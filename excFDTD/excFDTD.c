@@ -1786,13 +1786,13 @@ void snapshotStructure() {
 			value = value < -255 ? -255 : value;
 			val2 = val2 > 255 ? 255 : val2;
 			val2 = val2 < -255 ? -255 : val2;
-			image[4 * width * (z ) + 4 * x + 0] = (unsigned char)(val2 > 0 ? val2 : 0);
-			image[4 * width * (z ) + 4 * x + 1] = (unsigned char)(value > 0 ? value : 0);
-			image[4 * width * (z ) + 4 * x + 2] = (unsigned char)(val2 < 0 ? -val2 : 0);
-			image[4 * width * (z ) + 4 * x + 3] = 255;
+			image2[4 * width * (z ) + 4 * x + 0] = (unsigned char)(val2 > 0 ? val2 : 0);
+			image2[4 * width * (z ) + 4 * x + 1] = (unsigned char)(value > 0 ? value : 0);
+			image2[4 * width * (z ) + 4 * x + 2] = (unsigned char)(val2 < 0 ? -val2 : 0);
+			image2[4 * width * (z ) + 4 * x + 3] = 255;
 		}
 	}
-	error = lodepng_encode32_file("structure_Z.png", image, width, height);
+	error = lodepng_encode32_file("structure_Z.png", image2, width, height);
 	if (error) printf("error %u: %s\n", error, lodepng_error_text(error));
 
 	free(image2);

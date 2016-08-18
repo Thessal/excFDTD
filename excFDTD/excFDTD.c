@@ -59,7 +59,7 @@ if (((-__SLOT<zz) && (zz <= 0) )\
 }\
 for(int ind = 0; ind < 5; ind++){\
 if ((-__SLOT<zz) && (zz <= 0) && (rr[ind] <= __SLOT_RADIUS))\
-{eps_r_inv[offset] = 1.0f / (__BACK*__BACK); /*SiO slot*/} \
+{/*eps_r_inv[offset] = 1.0f / (__BACK*__BACK);*/ /*SiO slot*/} \
 }\
 if (((-__SLOT - __SIN_BOT - 8)<zz) && (zz <= (-__SLOT - __SIN_BOT))) {\
 	eps_r_inv[offset] = 1.0f / (1.8f*1.8f); /*ITO*/\
@@ -69,19 +69,19 @@ if (\
 (-__SLOT < zz) && (zz <= (-__SLOT + __METAL_DISK))\
 	&& (rr[ind] <= ((__RADIUS_DISK_TOP - __RADIUS_DISK_BOT) / __METAL_DISK*(zz + __SLOT) + __RADIUS_DISK_BOT))\
 	) {\
-	mask[offset] = mask[offset] | (0b0001 << 4);\
-	eps_r_inv[offset] = 1.0f/(__BACK*__BACK);\
+	/*mask[offset] = mask[offset] | (0b0001 << 4);\
+	eps_r_inv[offset] = 1.0f/(__BACK*__BACK);*/\
 } /*Au disk*/\
 if (\
 (0 < zz) && (zz <= (__SIN_TOP + __METAL_HOLE))\
 	&& (rr[ind] <= __RADIUS_BOT_OUT + (float)(__RADIUS_TOP_OUT - __RADIUS_BOT_OUT) / (float)(__SIN_TOP + __METAL_HOLE) * zz)\
 	) {\
-	mask[offset] = mask[offset] | (0b0001 << 4);\
-	eps_r_inv[offset] = 1.0f/(__BACK*__BACK);\
+	/*mask[offset] = mask[offset] | (0b0001 << 4);\
+	eps_r_inv[offset] = 1.0f/(__BACK*__BACK);*/\
 } /*Au sidewall*/\
 }\
 if ((__SIN_TOP<zz) & (zz <= (__SIN_TOP + __METAL_HOLE))) {\
-	mask[offset] = mask[offset] | (0b0001 << 4);\
+	/*mask[offset] = mask[offset] | (0b0001 << 4);*/\
 }/*Au top*/\
 for(int ind = 0; ind < 5; ind++){\
 if (\
@@ -95,7 +95,7 @@ if (\
 		(rr[ind] <= __RADIUS_BOT_IN + __SMOOTHING - zz)\
 	)\
 ) {\
-	mask[offset] = mask[offset] & ~(0b0001 << 4);\
+	/*mask[offset] = mask[offset] & ~(0b0001 << 4);*/\
 } /*thruhole*/\
 } \
 

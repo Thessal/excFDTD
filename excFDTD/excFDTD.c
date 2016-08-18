@@ -769,6 +769,9 @@ void NTFF(void) {
 	char filename[] = "FF_00.png";
 	unsigned error;
 	unsigned char* image = malloc(NTFF_IMG_SIZE * NTFF_IMG_SIZE * 4);
+	unsigned char* image2 = malloc(_SURF_DX_ * _SURF_DY_ * 4);
+	FILE *f;
+	char filenameFull[256];
 
 	int surf_x, surf_y, surf_z;
 	float k_vector;
@@ -836,9 +839,6 @@ void NTFF(void) {
 	}
 
 
-	unsigned char* image2 = malloc(_SURF_DX_ * _SURF_DY_ * 4);
-	FILE *f;
-	char filenameFull[256];
 
 	for (int freqN = 0; freqN < FREQ_N; freqN++) { //each frequency
 		k_vector = RFT_K_LIST_CALCULATED[freqN] * 2.0f * M_PI / RFT_WINDOW / _c0 / _dt_;
@@ -859,6 +859,7 @@ void NTFF(void) {
 		}
 
 		//normal vector  FIXME : inefficient
+		//FIXME : do not repeat
 		float normal_temp;
 		for (int k = 0; k < _SURF_SIZE_; k++) {
 			_SET_SURF_XYZ_INDEX(k);
@@ -916,6 +917,7 @@ void NTFF(void) {
 		printf("Phase calculation\n");
 		ippsZero_64fc(NF_ecL_sum, 3 * NTFF_IMG_SIZE *NTFF_IMG_SIZE);
 		ippsZero_64fc(NF_N_sum, 3 * NTFF_IMG_SIZE *NTFF_IMG_SIZE);
+		
 		for (int i = 0; i < NTFF_IMG_SIZE; i++) {
 			printf("%f%%\r", 100.0f*(float)i / (NTFF_IMG_SIZE - 1.0f));
 			for (int j = 0; j < NTFF_IMG_SIZE; j++) {
@@ -947,7 +949,7 @@ void NTFF(void) {
 				}
 			}
 		}
-
+		
 		printf("\nNTFF calculation\n");
 
 		//ippsZero_32fc(FF_ecE_x, NTFF_IMG_SIZE*NTFF_IMG_SIZE);
@@ -1065,23 +1067,6 @@ void NTFF(void) {
 		ippsMulC_32fc_I((Ipp32fc) { sqrtf(0.125f / M_PI * k_vector), 0.0f }, FF_H_y, NTFF_IMG_SIZE*NTFF_IMG_SIZE);
 		ippsMulC_32fc_I((Ipp32fc) { sqrtf(0.125f / M_PI * k_vector), 0.0f }, FF_H_z, NTFF_IMG_SIZE*NTFF_IMG_SIZE);
 
-		filename[4] = '0' + (char)(freqN);
-
-		//debug
-		//filename[3] = 'a';
-		//for (int i = 0; i < NTFF_IMG_SIZE; i++)	{		for (int j = 0; j < NTFF_IMG_SIZE; j++) {
-		//	float val = FF_ecSr[j*NTFF_IMG_SIZE + i].real * 255.0f ;
-		//	
-		//		image[4 * NTFF_IMG_SIZE * j + 4 * i + 0] = val>0?(val<255?val:255):0 ;
-		//		image[4 * NTFF_IMG_SIZE * j + 4 * i + 1] = val<0?(val>-255?-val:255):0 ;
-		//		image[4 * NTFF_IMG_SIZE * j + 4 * i + 2] = 0;
-		//		image[4 * NTFF_IMG_SIZE * j + 4 * i + 3] = 255;
-		//		//printf("%1.2e\t", val);
-		//}
-		////printf("\n");
-		//}
-		//error = lodepng_encode32_file(filename, image, NTFF_IMG_SIZE, NTFF_IMG_SIZE);
-		//if (error) printf("error %u: %s\n", error, lodepng_error_text(error));
 
 		for (int j = 0; j < _SURF_DY_; j++) {
 			for (int i = 0; i < _SURF_DX_; i++) {
@@ -1089,12 +1074,11 @@ void NTFF(void) {
 					pow(NF_J[(0 * _SURF_SIZE_) + _SURF_INDEX_XYZ(_SURF_StartX_ + i, _SURF_StartY_ + j, _SURF_StartZ_)].real, 2) +
 					pow(NF_J[(1 * _SURF_SIZE_) + _SURF_INDEX_XYZ(_SURF_StartX_ + i, _SURF_StartY_ + j, _SURF_StartZ_)].real, 2) +
 					pow(NF_J[(2 * _SURF_SIZE_) + _SURF_INDEX_XYZ(_SURF_StartX_ + i, _SURF_StartY_ + j, _SURF_StartZ_)].real, 2)
-				)
-					*255.0f * 1000000.0f;
+				)	*255.0f * 1000000.0f;
 				image2[4 * _SURF_DX_ * j + 4 * i + 0] = val>0 ? (val>255 ? 255 : val) : 0;
 				image2[4 * _SURF_DX_ * j + 4 * i + 1] = val<0 ? (val<-255 ? 255 : -val) : 0;
 				image2[4 * _SURF_DX_ * j + 4 * i + 2] = 0;
-				image2[4 * _SURF_DX_ * j + 4 * i + 3] = 255;
+				image2[4 * _SURF_DX_ * j + 4 * i + 0] = 255;
 			}
 		}
 		sprintf(filenameFull, "NF_J_%d.png", freqN);
@@ -1174,8 +1158,7 @@ void NTFF(void) {
 		}
 		sprintf(filenameFull, "Hankel_imag_%d.png", freqN);
 		error = lodepng_encode32_file(filenameFull, image2, _SURF_DX_, _SURF_DY_);
-		if (error) printf("error %u: %s\n", error, lodepng_error_text(error));;
-		free(image2);
+		if (error) printf("error %u: %s\n", error, lodepng_error_text(error));
 
 
 		for (int i = 0; i < NTFF_IMG_SIZE; i++) {
@@ -1319,7 +1302,7 @@ void NTFF(void) {
 		}
 		sprintf(filenameFull, "S_r_phasor_%d.png", freqN); error = lodepng_encode32_file(filenameFull, image, NTFF_IMG_SIZE, NTFF_IMG_SIZE);
 
-		sprintf(filenameFull, "S_r_phasor_%d.png", freqN);
+		sprintf(filenameFull, "S_r_phasor_%d.txt", freqN);
 		f = fopen(filenameFull, "w");
 		for (int i = 0; i < NTFF_IMG_SIZE; i++) {
 			for (int j = 0; j < NTFF_IMG_SIZE; j++) {
@@ -1337,7 +1320,7 @@ void NTFF(void) {
 		}
 		sprintf(filenameFull, "S_r_avg_%d.png", freqN); error = lodepng_encode32_file(filenameFull, image, NTFF_IMG_SIZE, NTFF_IMG_SIZE);
 
-		sprintf(filenameFull, "S_r_avg_%d.png", freqN);
+		sprintf(filenameFull, "S_r_avg_%d.txt", freqN);
 		f = fopen(filenameFull, "w");
 		for (int i = 0; i < NTFF_IMG_SIZE; i++) {
 			for (int j = 0; j < NTFF_IMG_SIZE; j++) {
@@ -1346,9 +1329,11 @@ void NTFF(void) {
 			fprintf(f, "\n");
 		}
 		fclose(f);
+
 	}
 
 	free(image);
+	free(image2);
 	mkl_free(NF_eyePos);
 	mkl_free(Hankel_dx);
 	mkl_free(NF_ecE); mkl_free(NF_H); mkl_free(normal);

@@ -126,8 +126,8 @@ float stability_factor_inv = 1.0f / _S_factor;
 //#if RFT_WINDOW > _STEP
 //	#define RFT_WINDOW _STEP
 //#endif
-#define FREQ_N 1
-float FREQ_LIST_DESIRED[FREQ_N] = { _c0 / 500e-9 / __BACK };
+#define FREQ_N 3
+float FREQ_LIST_DESIRED[FREQ_N] = { _c0 / 800e-9 / __BACK  , _c0 / 900e-9 / __BACK , _c0 / 1000e-9 / __BACK };
 //#define FREQ_N 3
 //float FREQ_LIST_DESIRED[FREQ_N] = { _c0 / 300e-9, _c0 / 500e-9, _c0 / 800e-9 };
 float RFT_K_LIST_CALCULATED[FREQ_N];
@@ -836,6 +836,10 @@ void NTFF(void) {
 	}
 
 
+	unsigned char* image2 = malloc(_SURF_DX_ * _SURF_DY_ * 4);
+	FILE *f;
+	char filenameFull[256];
+
 	for (int freqN = 0; freqN < FREQ_N; freqN++) { //each frequency
 		k_vector = RFT_K_LIST_CALCULATED[freqN] * 2.0f * M_PI / RFT_WINDOW / _c0 / _dt_;
 		//J,M calculation
@@ -1079,9 +1083,6 @@ void NTFF(void) {
 		//error = lodepng_encode32_file(filename, image, NTFF_IMG_SIZE, NTFF_IMG_SIZE);
 		//if (error) printf("error %u: %s\n", error, lodepng_error_text(error));
 
-
-		unsigned char* image2 = malloc(_SURF_DX_ * _SURF_DY_ * 4);
-		FILE *f;
 		for (int j = 0; j < _SURF_DY_; j++) {
 			for (int i = 0; i < _SURF_DX_; i++) {
 				float val = sqrtf(
@@ -1096,7 +1097,8 @@ void NTFF(void) {
 				image2[4 * _SURF_DX_ * j + 4 * i + 3] = 255;
 			}
 		}
-		error = lodepng_encode32_file("NF_J.png", image2, _SURF_DX_, _SURF_DY_);
+		sprintf(filenameFull, "NF_J_%d.png", freqN);
+		error = lodepng_encode32_file(filenameFull, image2, _SURF_DX_, _SURF_DY_);
 		if (error) printf("error %u: %s\n", error, lodepng_error_text(error));;
 		for (int j = 0; j < _SURF_DY_; j++) {
 			for (int i = 0; i < _SURF_DX_; i++) {
@@ -1112,7 +1114,8 @@ void NTFF(void) {
 				image2[4 * _SURF_DX_ * j + 4 * i + 3] = 255;
 			}
 		}
-		error = lodepng_encode32_file("NF_M.png", image2, _SURF_DX_, _SURF_DY_);
+		sprintf(filenameFull, "NF_M_%d.png", freqN);
+		error = lodepng_encode32_file(filenameFull, image2, _SURF_DX_, _SURF_DY_);
 		if (error) printf("error %u: %s\n", error, lodepng_error_text(error));;
 		for (int j = 0; j < _SURF_DY_; j++) {
 			for (int i = 0; i < _SURF_DX_; i++) {
@@ -1128,7 +1131,8 @@ void NTFF(void) {
 				image2[4 * _SURF_DX_ * j + 4 * i + 3] = 255;
 			}
 		}
-		error = lodepng_encode32_file("NF_E.png", image2, _SURF_DX_, _SURF_DY_);
+		sprintf(filenameFull, "NF_E_%d.png", freqN);
+		error = lodepng_encode32_file(filenameFull, image2, _SURF_DX_, _SURF_DY_);
 		if (error) printf("error %u: %s\n", error, lodepng_error_text(error));;
 		for (int j = 0; j < _SURF_DY_; j++) {
 			for (int i = 0; i < _SURF_DX_; i++) {
@@ -1144,7 +1148,8 @@ void NTFF(void) {
 				image2[4 * _SURF_DX_ * j + 4 * i + 3] = 255;
 			}
 		}
-		error = lodepng_encode32_file("NF_H.png", image2, _SURF_DX_, _SURF_DY_);
+		sprintf(filenameFull, "NF_H_%d.png", freqN);
+		error = lodepng_encode32_file(filenameFull, image2, _SURF_DX_, _SURF_DY_);
 		if (error) printf("error %u: %s\n", error, lodepng_error_text(error));;
 		for (int j = 0; j < _SURF_DY_; j++) {
 			for (int i = 0; i < _SURF_DX_; i++) {
@@ -1155,7 +1160,8 @@ void NTFF(void) {
 				image2[4 * _SURF_DX_ * j + 4 * i + 3] = 255;
 			}
 		}
-		error = lodepng_encode32_file("Hankel_real.png", image2, _SURF_DX_, _SURF_DY_);
+		sprintf(filenameFull, "Hankel_real_%d.png", freqN);
+		error = lodepng_encode32_file(filenameFull, image2, _SURF_DX_, _SURF_DY_);
 		if (error) printf("error %u: %s\n", error, lodepng_error_text(error));;
 		for (int j = 0; j < _SURF_DY_; j++) {
 			for (int i = 0; i < _SURF_DX_; i++) {
@@ -1166,7 +1172,8 @@ void NTFF(void) {
 				image2[4 * _SURF_DX_ * j + 4 * i + 3] = 255;
 			}
 		}
-		error = lodepng_encode32_file("Hankel_imag.png", image2, _SURF_DX_, _SURF_DY_);
+		sprintf(filenameFull, "Hankel_imag_%d.png", freqN);
+		error = lodepng_encode32_file(filenameFull, image2, _SURF_DX_, _SURF_DY_);
 		if (error) printf("error %u: %s\n", error, lodepng_error_text(error));;
 		free(image2);
 
@@ -1176,21 +1183,24 @@ void NTFF(void) {
 				float val = sqrtf(0.125f / M_PI * k_vector)* NF_N_sum[0 * NTFF_IMG_SIZE *NTFF_IMG_SIZE + j*NTFF_IMG_SIZE + i].real * 255.0f / 1.0f;
 				image[4 * NTFF_IMG_SIZE * j + 4 * i + 0] = val > 0 ? (val < 255 ? val : 255) : 0;		image[4 * NTFF_IMG_SIZE * j + 4 * i + 1] = val < 0 ? (val > -255 ? -val : 255) : 0;		image[4 * NTFF_IMG_SIZE * j + 4 * i + 2] = 0;  image[4 * NTFF_IMG_SIZE * j + 4 * i + 3] = 255;
 			}
-		}error = lodepng_encode32_file("Nx.png", image, NTFF_IMG_SIZE, NTFF_IMG_SIZE);
+		}
+		sprintf(filenameFull, "Nx_%d.png", freqN); error = lodepng_encode32_file(filenameFull, image, NTFF_IMG_SIZE, NTFF_IMG_SIZE);
 
 		for (int i = 0; i < NTFF_IMG_SIZE; i++) {
 			for (int j = 0; j < NTFF_IMG_SIZE; j++) {
 				float val = sqrtf(0.125f / M_PI * k_vector)* NF_N_sum[1 * NTFF_IMG_SIZE *NTFF_IMG_SIZE + j*NTFF_IMG_SIZE + i].real * 255.0f / 1.0f;
 				image[4 * NTFF_IMG_SIZE * j + 4 * i + 0] = val > 0 ? (val < 255 ? val : 255) : 0;		image[4 * NTFF_IMG_SIZE * j + 4 * i + 1] = val < 0 ? (val > -255 ? -val : 255) : 0;		image[4 * NTFF_IMG_SIZE * j + 4 * i + 2] = 0;  image[4 * NTFF_IMG_SIZE * j + 4 * i + 3] = 255;
 			}
-		}error = lodepng_encode32_file("Ny.png", image, NTFF_IMG_SIZE, NTFF_IMG_SIZE);
+		}
+		sprintf(filenameFull, "Ny_%d.png", freqN); error = lodepng_encode32_file(filenameFull, image, NTFF_IMG_SIZE, NTFF_IMG_SIZE);
 
 		for (int i = 0; i < NTFF_IMG_SIZE; i++) {
 			for (int j = 0; j < NTFF_IMG_SIZE; j++) {
 				float val = sqrtf(0.125f / M_PI * k_vector)* NF_N_sum[2 * NTFF_IMG_SIZE *NTFF_IMG_SIZE + j*NTFF_IMG_SIZE + i].real * 255.0f / 1.0f;
 				image[4 * NTFF_IMG_SIZE * j + 4 * i + 0] = val > 0 ? (val < 255 ? val : 255) : 0;		image[4 * NTFF_IMG_SIZE * j + 4 * i + 1] = val < 0 ? (val > -255 ? -val : 255) : 0;		image[4 * NTFF_IMG_SIZE * j + 4 * i + 2] = 0;  image[4 * NTFF_IMG_SIZE * j + 4 * i + 3] = 255;
 			}
-		}error = lodepng_encode32_file("Nz.png", image, NTFF_IMG_SIZE, NTFF_IMG_SIZE);
+		}
+		sprintf(filenameFull, "Nz_%d.png", freqN); error = lodepng_encode32_file(filenameFull, image, NTFF_IMG_SIZE, NTFF_IMG_SIZE);
 
 		for (int i = 0; i < NTFF_IMG_SIZE; i++) {
 			for (int j = 0; j < NTFF_IMG_SIZE; j++) {
@@ -1198,7 +1208,8 @@ void NTFF(void) {
 					* 255.0f / 1.0f;
 				image[4 * NTFF_IMG_SIZE * j + 4 * i + 0] = val > 0 ? (val < 255 ? val : 255) : 0;		image[4 * NTFF_IMG_SIZE * j + 4 * i + 1] = val < 0 ? (val > -255 ? -val : 255) : 0;		image[4 * NTFF_IMG_SIZE * j + 4 * i + 2] = 0;  image[4 * NTFF_IMG_SIZE * j + 4 * i + 3] = 255;
 			}
-		}error = lodepng_encode32_file("Lx.png", image, NTFF_IMG_SIZE, NTFF_IMG_SIZE);
+		}
+		sprintf(filenameFull, "Lx_%d.png", freqN); error = lodepng_encode32_file(filenameFull, image, NTFF_IMG_SIZE, NTFF_IMG_SIZE);
 
 		for (int i = 0; i < NTFF_IMG_SIZE; i++) {
 			for (int j = 0; j < NTFF_IMG_SIZE; j++) {
@@ -1206,7 +1217,8 @@ void NTFF(void) {
 					* 255.0f / 1.0f;
 				image[4 * NTFF_IMG_SIZE * j + 4 * i + 0] = val > 0 ? (val < 255 ? val : 255) : 0;		image[4 * NTFF_IMG_SIZE * j + 4 * i + 1] = val < 0 ? (val > -255 ? -val : 255) : 0;		image[4 * NTFF_IMG_SIZE * j + 4 * i + 2] = 0;  image[4 * NTFF_IMG_SIZE * j + 4 * i + 3] = 255;
 			}
-		}error = lodepng_encode32_file("Ly.png", image, NTFF_IMG_SIZE, NTFF_IMG_SIZE);
+		}
+		sprintf(filenameFull, "Ly_%d.png", freqN); error = lodepng_encode32_file(filenameFull, image, NTFF_IMG_SIZE, NTFF_IMG_SIZE);
 
 		for (int i = 0; i < NTFF_IMG_SIZE; i++) {
 			for (int j = 0; j < NTFF_IMG_SIZE; j++) {
@@ -1214,28 +1226,32 @@ void NTFF(void) {
 					* 255.0f / 1.0f;
 				image[4 * NTFF_IMG_SIZE * j + 4 * i + 0] = val > 0 ? (val < 255 ? val : 255) : 0;		image[4 * NTFF_IMG_SIZE * j + 4 * i + 1] = val < 0 ? (val > -255 ? -val : 255) : 0;		image[4 * NTFF_IMG_SIZE * j + 4 * i + 2] = 0;  image[4 * NTFF_IMG_SIZE * j + 4 * i + 3] = 255;
 			}
-		}error = lodepng_encode32_file("Lz.png", image, NTFF_IMG_SIZE, NTFF_IMG_SIZE);
+		}
+		sprintf(filenameFull, "Lz_%d.png", freqN); error = lodepng_encode32_file(filenameFull, image, NTFF_IMG_SIZE, NTFF_IMG_SIZE);
 
 		for (int i = 0; i < NTFF_IMG_SIZE; i++) {
 			for (int j = 0; j < NTFF_IMG_SIZE; j++) {
 				float val = FF_ecE_x[j*NTFF_IMG_SIZE + i].real * 255.0f / 1.0f;
 				image[4 * NTFF_IMG_SIZE * j + 4 * i + 0] = val > 0 ? (val < 255 ? val : 255) : 0;		image[4 * NTFF_IMG_SIZE * j + 4 * i + 1] = val < 0 ? (val > -255 ? -val : 255) : 0;		image[4 * NTFF_IMG_SIZE * j + 4 * i + 2] = 0;  image[4 * NTFF_IMG_SIZE * j + 4 * i + 3] = 255;
 			}
-		}error = lodepng_encode32_file("E_x.png", image, NTFF_IMG_SIZE, NTFF_IMG_SIZE);
+		}
+		sprintf(filenameFull, "E_x_%d.png", freqN); error = lodepng_encode32_file(filenameFull, image, NTFF_IMG_SIZE, NTFF_IMG_SIZE);
 
 		for (int i = 0; i < NTFF_IMG_SIZE; i++) {
 			for (int j = 0; j < NTFF_IMG_SIZE; j++) {
 				float val = FF_ecE_y[j*NTFF_IMG_SIZE + i].real * 255.0f / 1.0f;
 				image[4 * NTFF_IMG_SIZE * j + 4 * i + 0] = val > 0 ? (val < 255 ? val : 255) : 0;		image[4 * NTFF_IMG_SIZE * j + 4 * i + 1] = val < 0 ? (val > -255 ? -val : 255) : 0;		image[4 * NTFF_IMG_SIZE * j + 4 * i + 2] = 0;  image[4 * NTFF_IMG_SIZE * j + 4 * i + 3] = 255;
 			}
-		}error = lodepng_encode32_file("E_y.png", image, NTFF_IMG_SIZE, NTFF_IMG_SIZE);
+		}
+		sprintf(filenameFull, "E_y_%d.png", freqN); error = lodepng_encode32_file(filenameFull, image, NTFF_IMG_SIZE, NTFF_IMG_SIZE);
 
 		for (int i = 0; i < NTFF_IMG_SIZE; i++) {
 			for (int j = 0; j < NTFF_IMG_SIZE; j++) {
 				float val = FF_ecE_z[j*NTFF_IMG_SIZE + i].real * 255.0f / 1.0f;
 				image[4 * NTFF_IMG_SIZE * j + 4 * i + 0] = val > 0 ? (val < 255 ? val : 255) : 0;		image[4 * NTFF_IMG_SIZE * j + 4 * i + 1] = val < 0 ? (val > -255 ? -val : 255) : 0;		image[4 * NTFF_IMG_SIZE * j + 4 * i + 2] = 0;  image[4 * NTFF_IMG_SIZE * j + 4 * i + 3] = 255;
 			}
-		}error = lodepng_encode32_file("E_z.png", image, NTFF_IMG_SIZE, NTFF_IMG_SIZE);
+		}
+		sprintf(filenameFull, "E_z_%d.png", freqN); error = lodepng_encode32_file(filenameFull, image, NTFF_IMG_SIZE, NTFF_IMG_SIZE);
 
 		for (int i = 0; i < NTFF_IMG_SIZE; i++) {
 			for (int j = 0; j < NTFF_IMG_SIZE; j++) {
@@ -1249,12 +1265,14 @@ void NTFF(void) {
 				);
 				image[4 * NTFF_IMG_SIZE * j + 4 * i + 0] = val > 0 ? (val < 255 ? val : 255) : 0;		image[4 * NTFF_IMG_SIZE * j + 4 * i + 1] = val < 0 ? (val > -255 ? -val : 255) : 0;		image[4 * NTFF_IMG_SIZE * j + 4 * i + 2] = 0;  image[4 * NTFF_IMG_SIZE * j + 4 * i + 3] = 255;
 			}
-		}error = lodepng_encode32_file("E2.png", image, NTFF_IMG_SIZE, NTFF_IMG_SIZE);
+		}
+		sprintf(filenameFull, "E2_%d.png", freqN); error = lodepng_encode32_file(filenameFull, image, NTFF_IMG_SIZE, NTFF_IMG_SIZE);
 
-		f = fopen("E2.txt", "w");
+		sprintf(filenameFull, "E2_%d.txt", freqN);
+		f = fopen(filenameFull, "w");
 		for (int i = 0; i < NTFF_IMG_SIZE; i++) {
 			for (int j = 0; j < NTFF_IMG_SIZE; j++) {
-				fprintf(f, "%+04.3e\t", qrtf(
+				fprintf(f, "%+04.3e\t", sqrtf(
 					FF_ecE_x[j*NTFF_IMG_SIZE + i].real * FF_ecE_x[j*NTFF_IMG_SIZE + i].real +
 					FF_ecE_y[j*NTFF_IMG_SIZE + i].real * FF_ecE_y[j*NTFF_IMG_SIZE + i].real +
 					FF_ecE_z[j*NTFF_IMG_SIZE + i].real * FF_ecE_z[j*NTFF_IMG_SIZE + i].real +
@@ -1272,21 +1290,24 @@ void NTFF(void) {
 				float val = 0.1*FF_H_x[j*NTFF_IMG_SIZE + i].real * 255.0f / 1.0f;
 				image[4 * NTFF_IMG_SIZE * j + 4 * i + 0] = val > 0 ? (val < 255 ? val : 255) : 0;		image[4 * NTFF_IMG_SIZE * j + 4 * i + 1] = val < 0 ? (val > -255 ? -val : 255) : 0;		image[4 * NTFF_IMG_SIZE * j + 4 * i + 2] = 0;  image[4 * NTFF_IMG_SIZE * j + 4 * i + 3] = 255;
 			}
-		}error = lodepng_encode32_file("H_x.png", image, NTFF_IMG_SIZE, NTFF_IMG_SIZE);
+		}
+		sprintf(filenameFull, "H_x_%d.png", freqN); error = lodepng_encode32_file(filenameFull, image, NTFF_IMG_SIZE, NTFF_IMG_SIZE);
 
 		for (int i = 0; i < NTFF_IMG_SIZE; i++) {
 			for (int j = 0; j < NTFF_IMG_SIZE; j++) {
 				float val = FF_H_y[j*NTFF_IMG_SIZE + i].real * 255.0f / 1.0f;
 				image[4 * NTFF_IMG_SIZE * j + 4 * i + 0] = val > 0 ? (val < 255 ? val : 255) : 0;		image[4 * NTFF_IMG_SIZE * j + 4 * i + 1] = val < 0 ? (val > -255 ? -val : 255) : 0;		image[4 * NTFF_IMG_SIZE * j + 4 * i + 2] = 0;  image[4 * NTFF_IMG_SIZE * j + 4 * i + 3] = 255;
 			}
-		}error = lodepng_encode32_file("H_y.png", image, NTFF_IMG_SIZE, NTFF_IMG_SIZE);
+		}
+		sprintf(filenameFull, "H_y_%d.png", freqN); error = lodepng_encode32_file(filenameFull, image, NTFF_IMG_SIZE, NTFF_IMG_SIZE);
 
 		for (int i = 0; i < NTFF_IMG_SIZE; i++) {
 			for (int j = 0; j < NTFF_IMG_SIZE; j++) {
 				float val = FF_H_z[j*NTFF_IMG_SIZE + i].real * 255.0f / 1.0f;
 				image[4 * NTFF_IMG_SIZE * j + 4 * i + 0] = val > 0 ? (val < 255 ? val : 255) : 0;		image[4 * NTFF_IMG_SIZE * j + 4 * i + 1] = val < 0 ? (val > -255 ? -val : 255) : 0;		image[4 * NTFF_IMG_SIZE * j + 4 * i + 2] = 0;  image[4 * NTFF_IMG_SIZE * j + 4 * i + 3] = 255;
 			}
-		}error = lodepng_encode32_file("H_z.png", image, NTFF_IMG_SIZE, NTFF_IMG_SIZE);
+		}
+		sprintf(filenameFull, "H_z_%d.png", freqN); error = lodepng_encode32_file(filenameFull, image, NTFF_IMG_SIZE, NTFF_IMG_SIZE);
 
 
 		for (int i = 0; i < NTFF_IMG_SIZE; i++) {
@@ -1295,9 +1316,11 @@ void NTFF(void) {
 					* 255.0f * 100.0f;
 				image[4 * NTFF_IMG_SIZE * j + 4 * i + 0] = val > 0 ? (val < 255 ? val : 255) : 0;		image[4 * NTFF_IMG_SIZE * j + 4 * i + 1] = val < 0 ? (val > -255 ? -val : 255) : 0;		image[4 * NTFF_IMG_SIZE * j + 4 * i + 2] = 0;  image[4 * NTFF_IMG_SIZE * j + 4 * i + 3] = 255;
 			}
-		}error = lodepng_encode32_file("S_r_phasor.png", image, NTFF_IMG_SIZE, NTFF_IMG_SIZE);
+		}
+		sprintf(filenameFull, "S_r_phasor_%d.png", freqN); error = lodepng_encode32_file(filenameFull, image, NTFF_IMG_SIZE, NTFF_IMG_SIZE);
 
-		f = fopen("S_r_phasor.txt", "w");
+		sprintf(filenameFull, "S_r_phasor_%d.png", freqN);
+		f = fopen(filenameFull, "w");
 		for (int i = 0; i < NTFF_IMG_SIZE; i++) {
 			for (int j = 0; j < NTFF_IMG_SIZE; j++) {
 				fprintf(f, "%+04.3e\t", sqrtf(FF_ecSr[j*NTFF_IMG_SIZE + i].real *  FF_ecSr[j*NTFF_IMG_SIZE + i].real + FF_ecSr[j*NTFF_IMG_SIZE + i].imag *  FF_ecSr[j*NTFF_IMG_SIZE + i].imag));
@@ -1311,9 +1334,11 @@ void NTFF(void) {
 				float val = FF_ecSr[j*NTFF_IMG_SIZE + i].real * 255.0f * 100.0f;
 				image[4 * NTFF_IMG_SIZE * j + 4 * i + 0] = val > 0 ? (val < 255 ? val : 255) : 0;		image[4 * NTFF_IMG_SIZE * j + 4 * i + 1] = val < 0 ? (val > -255 ? -val : 255) : 0;		image[4 * NTFF_IMG_SIZE * j + 4 * i + 2] = 0;  image[4 * NTFF_IMG_SIZE * j + 4 * i + 3] = 255;
 			}
-		}error = lodepng_encode32_file("S_r_avg.png", image, NTFF_IMG_SIZE, NTFF_IMG_SIZE);
-		
-		f = fopen("S_r_avg.txt", "w");
+		}
+		sprintf(filenameFull, "S_r_avg_%d.png", freqN); error = lodepng_encode32_file(filenameFull, image, NTFF_IMG_SIZE, NTFF_IMG_SIZE);
+
+		sprintf(filenameFull, "S_r_avg_%d.png", freqN);
+		f = fopen(filenameFull, "w");
 		for (int i = 0; i < NTFF_IMG_SIZE; i++) {
 			for (int j = 0; j < NTFF_IMG_SIZE; j++) {
 				fprintf(f, "%+04.3e\t", FF_ecSr[j*NTFF_IMG_SIZE + i].real);

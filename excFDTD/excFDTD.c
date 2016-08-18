@@ -1657,38 +1657,21 @@ _syncZX_(eps0_c_Pcp2x) _syncZX_(eps0_c_Pcp2y) _syncZX_(eps0_c_Pcp2z)
 
 
 #define _syncPeriodicX(FIELD) \
-FIELD[ \
-	_INDEX_THREAD( \
-		_gridDimX -1                 , ((yy))/(_blockDimY-2), ((zz))/(_blockDimZ-2), \
-		((_DimX - 1))%(_blockDimX-2)+2 , ((yy))%(_blockDimY-2)+1 , ((zz))%(_blockDimZ-2)+1 ) \
-	] = FIELD[_INDEX_XYZ(0, yy, zz)]; \
-FIELD[ \
-	_INDEX_THREAD( \
-		0 , ((yy))/(_blockDimY-2), ((zz))/(_blockDimZ-2), \
-		0 , ((yy))%(_blockDimY-2)+1 , ((zz))%(_blockDimZ-2)+1 ) \
-	] = FIELD[_INDEX_XYZ(_DimX - 1, yy, zz)]; 
-
-////should work : FIELD[_INDEX_THREAD((_DimX - 1))/(_blockDimX-2), ((yy))/(_blockDimY-2), ((zz))/(_blockDimZ-2), ((_DimX - 1))%(_blockDimX-2)+2 , ((yy))%(_blockDimY-2)+1 , ((zz))%(_blockDimZ-2)+1 ) ] 
-
+FIELD[_INDEX_THREAD(_gridDimX - 1, Y, Z,	((_DimX - 1))%(_blockDimX-2)+2, yy, zz)] = \
+FIELD[_INDEX_THREAD(0, Y, Z,				1, yy, zz)]; \
+FIELD[_INDEX_THREAD(0, Y, Z,				0, yy, zz)] = \
+FIELD[_INDEX_THREAD(_gridDimX - 1, Y, Z,    ((_DimX - 1))%(_blockDimX-2)+1, yy, zz)];
 #define _syncPeriodicY(FIELD) \
-FIELD[_INDEX_THREAD( \
-	((xx))/(_blockDimX-2)   , _gridDimY -1 ,                   ((zz))/(_blockDimZ-2), \
-	((xx))%(_blockDimX-2)+1 ,((_DimY -1 ))%(_blockDimY-2) + 2, ((zz))%(_blockDimZ-2)+1 ) ] \
-	= FIELD[_INDEX_XYZ(xx, 0, zz)];\
-FIELD[_INDEX_THREAD( \
-	((xx))/(_blockDimX-2)   , 0 , ((zz))/(_blockDimZ-2),\
-	((xx))%(_blockDimX-2)+1 , 0 , ((zz))%(_blockDimZ-2)+1 ) ] \
-	= FIELD[_INDEX_XYZ(xx, _DimY - 1, zz)]; 
-
+FIELD[_INDEX_THREAD(X, _gridDimY -1, Z,		xx, ((_DimY -1 ))%(_blockDimY-2) + 2, zz)] = \
+FIELD[_INDEX_THREAD(X, 0, Z,				xx, 1, zz)]; \
+FIELD[_INDEX_THREAD(X, 0, Z,				xx, 0, zz)] = \
+FIELD[_INDEX_THREAD(X, _gridDimY -1, Z,		xx, ((_DimY -1 ))%(_blockDimY-2) + 1, zz)];
 #define _syncPeriodicZ(FIELD) \
-FIELD[_INDEX_THREAD(\
-	((xx))/(_blockDimX-2) , ((yy))/(_blockDimY-2), _gridDimZ -1,\
-	((xx))%(_blockDimX-2)+1 , ((yy))%(_blockDimY-2)+1 , ((_DimZ - 1))%(_blockDimZ-2)+2 ) ] \
-	= FIELD[_INDEX_XYZ(xx, yy, 0)]; \
-FIELD[_INDEX_THREAD(\
-	((xx))/(_blockDimX-2) , ((yy))/(_blockDimY-2), 0,\
-	((xx))%(_blockDimX-2)+1 , ((yy))%(_blockDimY-2)+1 , 0 ) ] \
-= FIELD[_INDEX_XYZ(xx, yy, _DimZ - 1)]; 
+FIELD[_INDEX_THREAD(X, Y, _DimZ - 1,		xx, yy, ((_DimZ - 1))%(_blockDimZ-2)+2 )] = \
+FIELD[_INDEX_THREAD(X, Y, 0,				xx, yy, 1)]; \
+FIELD[_INDEX_THREAD(X, Y, 0,				xx, yy, 0)] = \
+FIELD[_INDEX_THREAD(X, Y, _DimZ - 1,		xx, yy, ((_DimZ - 1))%(_blockDimZ-2)+1 )];
+
 
 //syncing P/ Pcp field required?
 #define _syncPeriodicXall _syncPeriodicX(eps0_c_Ex) _syncPeriodicX(eps0_c_Ey) _syncPeriodicX(eps0_c_Ez) _syncPeriodicX(Hx)  _syncPeriodicX(Hy) _syncPeriodicX(Hz) 
@@ -1710,12 +1693,18 @@ FIELD[_INDEX_THREAD(\
 
 //FIXME : syncE, syncH separation
 void syncPadding(void) {
-	for (int yy = 0; yy < _DimY; yy++)
-		for (int zz = 0; zz < _DimZ; zz++) { _syncPeriodicXall }
-	for (int zz = 0; zz < _DimZ; zz++)
-		for (int xx = 0; xx < _DimX; xx++) { _syncPeriodicYall }
-	for (int xx = 0; xx < _DimX; xx++)
-		for (int yy = 0; yy < _DimY; yy++) { _syncPeriodicZall }
+	for (int Y = 0; Y < _gridDimY; Y++)
+		for (int Z = 0; Z < _gridDimZ; Z++) 
+			for (int yy = 0; yy < _blockDimY; yy++)
+				for (int zz = 0; zz < _DimZ; zz++) { _syncPeriodicXall }
+	for (int Z = 0; Z < _gridDimZ; Z++) 
+		for (int X = 0; X < _gridDimX; X++)
+			for (int zz = 0; zz < _blockDimZ; zz++)
+				for (int xx = 0; xx < _DimX; xx++) { _syncPeriodicYall }
+	for (int X = 0; X < _gridDimX; X++)
+		for (int Y = 0; Y < _gridDimY; Y++)
+			for (int xx = 0; xx < _blockDimX; xx++)
+				for (int yy = 0; yy < _DimY; yy++) { _syncPeriodicZall }
 
 	for (int X = 0; X < _gridDimX; X++)
 		for (int Y = 0; Y < _gridDimY; Y++)

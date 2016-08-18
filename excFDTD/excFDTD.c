@@ -1078,7 +1078,7 @@ void NTFF(void) {
 				image2[4 * _SURF_DX_ * j + 4 * i + 0] = val>0 ? (val>255 ? 255 : val) : 0;
 				image2[4 * _SURF_DX_ * j + 4 * i + 1] = val<0 ? (val<-255 ? 255 : -val) : 0;
 				image2[4 * _SURF_DX_ * j + 4 * i + 2] = 0;
-				image2[4 * _SURF_DX_ * j + 4 * i + 0] = 255;
+				image2[4 * _SURF_DX_ * j + 4 * i + 3] = 255;
 			}
 		}
 		sprintf(filenameFull, "NF_J_%d.png", freqN);

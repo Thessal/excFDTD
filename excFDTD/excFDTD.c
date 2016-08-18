@@ -16,7 +16,7 @@
 //consider using simple PML for NTFF calculation
 #define _PML_PX_X_ (0)
 #define _PML_PX_Y_ (0)
-#define _PML_PX_Z_ (8)
+#define _PML_PX_Z_ (16)
 #define _PML_ALPHA_TUNING_ 0.1f
 int pml_n = 3; //consider using macro
 float pml_R = 10e-4;
@@ -380,10 +380,10 @@ int main(int argc, char* argv[])
 		float addval = -sin(2 * M_PI* i * (_dt_ * _c0 / 700e-9)) * exp(-(i - 6 * 250)*(i - 6 * 250) / (2 * 250 * 250));
 		//float addval = sin(2.0f * M_PI * _c0 / 500e-9 * (float)i * _dt_) ;
 		addval /= 1.46f * 10000.0f;
-		//for (int i = 0; i < _DimX; i++) {
-		//	for (int j = 0; j < _DimY; j++) {
-		for (int i = _DimX/4; i < _DimX*0.75; i++) {
-			for (int j = _DimY/4; j < _DimY*0.75; j++) {
+		for (int i = 0; i < _DimX; i++) {
+			for (int j = 0; j < _DimY; j++) {
+		//for (int i = _DimX/4; i < _DimX*0.75; i++) {
+		//	for (int j = _DimY/4; j < _DimY*0.75; j++) {
 				eps0_c_Ey[_INDEX_XYZ(i, j, sourcePos)] += addval / 1.0f;
 				Hx[_INDEX_XYZ(i, j, sourcePos)] -= addval / 2.0f;
 				Hx[_INDEX_XYZ(i, j, sourcePos-1)] -= addval / 2.0f;
@@ -1437,7 +1437,7 @@ int init(void)
 
 													 //FIXME : check PML area
 													 //FIXME : sigma do not need to be an array
-		if ((X + 1 <= ((_PML_PX_X_)) || (_DimX)-((_PML_PX_X_)) <= X) && X<_DimX) {
+		if (( (X + 1 <= ((_PML_PX_X_))) || ((_DimX)-((_PML_PX_X_)) <= X)) && X<_DimX) {
 			//if ((X + 1 <= ((pml_px_x)) || (_DimX)-((pml_px_x)) <= X) && ((pml_px_y)) < Y+1 && Y < (_DimY)-((_PML_PX_Y_)) && ((_PML_PX_Z_)) < Z + 1 && Z < (_DimZ)-((_PML_PX_Z_)) ) {
 			mask[i] |= (1 << 1); // 1st bit : PML
 			sigmaX_dt_div_eps0[i] = pow(fmin(fabs(((_PML_PX_X_)) - X), fabs(((_PML_PX_X_)) + X - (_DimX)+1)) / ((float)(pml_px_x)), (pml_n)) / pml_sigma_x_dt_div_eps0_max_inv;
@@ -1445,7 +1445,7 @@ int init(void)
 			b_X[i] = expf(-alpha_dt_div_eps0[i] - sigmaX_dt_div_eps0[i] / kappaX[i]); //close to 0
 			C_X[i] = sigmaX_dt_div_eps0[i] / (sigmaX_dt_div_eps0[i] * kappaX[i] + alpha_dt_div_eps0[i] * kappaX[i] * kappaX[i]) * (b_X[i] - 1.0f); //close to 1
 		}
-		if ((Y + 1 <= ((_PML_PX_Y_)) || (_DimY)-((_PML_PX_Y_)) <= Y) && Y<_DimY) {
+		if (( (Y + 1 <= ((_PML_PX_Y_))) || ((_DimY)-((_PML_PX_Y_)) <= Y)) && Y<_DimY) {
 			//if ((Y + 1 <= ((_PML_PX_Y_)) || (_DimY)-((_PML_PX_Y_)) <= Y) && ((_PML_PX_Z_)) < Z + 1 && Z < (_DimY)-((_PML_PX_Z_)) && ((_PML_PX_X_)) < X + 1 && X < (_DimX)-((_PML_PX_X_)) ) {
 			mask[i] |= (1 << 1); // 1st bit : PML
 			sigmaY_dt_div_eps0[i] = pow(fmin(fabs(((_PML_PX_Y_)) - Y), fabs(((_PML_PX_Y_)) + Y - (_DimY)+1)) / ((float)(pml_px_y)), (pml_n)) / pml_sigma_y_dt_div_eps0_max_inv;
@@ -1453,7 +1453,7 @@ int init(void)
 			b_Y[i] = expf(-alpha_dt_div_eps0[i] - sigmaY_dt_div_eps0[i] / kappaY[i]);
 			C_Y[i] = sigmaY_dt_div_eps0[i] / (sigmaY_dt_div_eps0[i] * kappaY[i] + alpha_dt_div_eps0[i] * kappaY[i] * kappaY[i]) * (b_Y[i] - 1.0f);
 		}
-		if ((Z + 1 <= ((_PML_PX_Z_)) || (_DimZ)-((_PML_PX_Z_)) <= Z) && Z<_DimZ) {
+		if (( (Z + 1 <= ((_PML_PX_Z_))) || ((_DimZ)-((_PML_PX_Z_)) <= Z)) && Z<_DimZ) {
 			//if ((Z + 1 <= ((_PML_PX_Z_)) || (_DimZ)-((_PML_PX_Z_)) <= Z) && ((_PML_PX_X_)) < X + 1 && X < (_DimX)-((_PML_PX_X_)) && ((_PML_PX_Y_)) < Y + 1 && Y < (_DimY)-((_PML_PX_Y_)) ) {
 			mask[i] |= (1 << 1); // 1st bit : PML
 			sigmaZ_dt_div_eps0[i] = pow(fmin(fabs(((_PML_PX_Z_)) - Z), fabs(((_PML_PX_Z_)) + Z - (_DimZ)+1)) / ((float)(pml_px_z)), (pml_n)) / pml_sigma_z_dt_div_eps0_max_inv;
@@ -1491,7 +1491,8 @@ int init(void)
 					rr[ind] = sqrtf(((float)xx - arrX[ind])*((float)xx - arrX[ind]) + ((float)yy - arrY[ind])*((float)yy - arrY[ind]));
 				}
 				offset = _INDEX_XYZ(x, y, z);
-				STRUCTURE
+				if (1==0){
+				STRUCTURE}
 			}
 		}
 	}
@@ -1828,6 +1829,7 @@ int snapshot(char* filename)
 				+ (FT_eps0cE[surf_index][0][2][0]) * (FT_eps0cE[surf_index][0][2][0])
 				+ (FT_eps0cE[surf_index][0][2][1]) * (FT_eps0cE[surf_index][0][2][1])
 				);
+			value += 100 * (kappaZ[offset] -1) ;
 			//int value = (((mask[offset] & (0b1111 << 4)) >> 4)) *50.0f ;
 			value = value > 255 ? 255 : value;
 			value = value < -255 ? -255 : value;

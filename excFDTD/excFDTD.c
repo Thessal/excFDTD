@@ -381,7 +381,7 @@ int main(int argc, char* argv[])
 		//float addval = sin(2.0f * M_PI * _c0 / 500e-9 * (float)i * _dt_) ;
 		addval /= 1.46f * 10000.0f;
 		for (int i = 0; i < _DimX; i++) {
-			for (int j = 0; j < _DimX; j++) {
+			for (int j = 0; j < _DimY; j++) {
 				eps0_c_Ey[_INDEX_XYZ(i, j, sourcePos)] += addval / 1.0f;
 				Hx[_INDEX_XYZ(i, j, sourcePos)] -= addval / 2.0f;
 				Hx[_INDEX_XYZ(i, j, sourcePos)] -= addval / 2.0f;
@@ -1593,30 +1593,56 @@ void Dielectric_HE(void)
 	}
 }
 
+//FIXME : remove ternary ops --> use temp vars or macro
+
 #define _syncX_(FIELD) \
-FIELD[_INDEX_THREAD(X - 1, Y, Z, _blockDimX - 1, yy, zz)] = FIELD[_INDEX_THREAD(X, Y, Z, 1, yy, zz)]; \
-FIELD[_INDEX_THREAD(X, Y, Z, 0, yy, zz)] = FIELD[_INDEX_THREAD(X - 1, Y, Z, _blockDimX - 2, yy, zz)];
+FIELD[_INDEX_THREAD((X>0? X - 1:_gridDimX - 1), Y, Z, \
+	(X>0? _blockDimX - 1 : (((_DimX-1))%(_blockDimX-2)+2) ), yy, zz )] \
+= FIELD[_INDEX_THREAD(X, Y, Z, 1, yy, zz)]; \
+FIELD[_INDEX_THREAD(X, Y, Z, 0, yy, zz)] \
+= FIELD[_INDEX_THREAD((X>0? X - 1:_gridDimX - 1), Y, Z, \
+	(X>0? _blockDimX - 2 : (((_DimX-1))%(_blockDimX-2)+1) ), yy, zz )];
 #define _syncY_(FIELD) \
-FIELD[_INDEX_THREAD(X, Y - 1, Z, xx, _blockDimY - 1, zz)] = FIELD[_INDEX_THREAD(X, Y, Z, xx, 1, zz)]; \
-FIELD[_INDEX_THREAD(X, Y, Z, xx, 0, zz)] = FIELD[_INDEX_THREAD(X, Y - 1, Z, xx, _blockDimY - 2, zz)]; 
+FIELD[_INDEX_THREAD(X, (Y>0? Y - 1:_gridDimY - 1), Z, \
+	xx, (Y>0? _blockDimY - 1 : (((_DimY-1))%(_blockDimY-2)+2) ), zz )] \
+= FIELD[_INDEX_THREAD(X, Y, Z, xx, 1, zz)]; \
+FIELD[_INDEX_THREAD(X, Y, Z, xx, 0, zz)] \
+= FIELD[_INDEX_THREAD(X, (Y>0? Y - 1:_gridDimY - 1), Z, \
+	xx, (Y>0? _blockDimY - 2 : (((_DimY-1))%(_blockDimY-2)+1) ), zz )]; 
 #define _syncZ_(FIELD) \
-FIELD[_INDEX_THREAD(X, Y, Z - 1, xx, yy, _blockDimZ - 1)] = FIELD[_INDEX_THREAD(X, Y, Z, xx, yy, 1)]; \
-FIELD[_INDEX_THREAD(X, Y, Z, xx, yy, 0)] = FIELD[_INDEX_THREAD(X, Y, Z - 1, xx, yy, _blockDimZ - 2)];
+FIELD[_INDEX_THREAD(X, Y, (Z>0? Z - 1:_gridDimZ - 1), \
+	xx, yy, (Z>0? _blockDimZ - 1 : (((_DimZ-1))%(_blockDimZ-2)+2) ) )] \
+= FIELD[_INDEX_THREAD(X, Y, Z, xx, yy, 1)]; \
+FIELD[_INDEX_THREAD(X, Y, Z, xx, yy, 0)] \
+= FIELD[_INDEX_THREAD(X, Y, (Z>0? Z - 1:_gridDimZ - 1), \
+	xx, yy, (Z>0? _blockDimZ - 2 : (((_DimZ-1))%(_blockDimZ-2)+1) ) )];
 #define _syncXY_(FIELD) \
-FIELD[_INDEX_THREAD(X - 1, Y - 1, Z, _blockDimX - 1, _blockDimY - 1, zz)] = FIELD[_INDEX_THREAD(X, Y, Z, 1, 1, zz)]; \
-FIELD[_INDEX_THREAD(X, Y, Z, 0, 0, zz)] = FIELD[_INDEX_THREAD(X - 1, Y - 1, Z, _blockDimX - 2, _blockDimY - 2, zz)]; \
-FIELD[_INDEX_THREAD(X, Y - 1, Z, 0, _blockDimY - 1, zz)] = FIELD[_INDEX_THREAD(X - 1, Y, Z, _blockDimX - 2, 1, zz)]; \
-FIELD[_INDEX_THREAD(X - 1, Y, Z, _blockDimX - 1, 0, zz)] = FIELD[_INDEX_THREAD(X, Y - 1, Z, 1, _blockDimY - 2, zz)]; 
+FIELD[_INDEX_THREAD((X>0? X - 1:_gridDimX - 1), (Y>0? Y - 1:_gridDimY - 1), Z, (X>0? _blockDimX - 1 : (((_DimX-1))%(_blockDimX-2)+2) ), (Y>0? _blockDimY - 1 : (((_DimY-1))%(_blockDimY-2)+2) ), zz)] = \
+FIELD[_INDEX_THREAD(X, Y, Z, 1, 1, zz)]; \
+FIELD[_INDEX_THREAD(X, Y, Z, 0, 0, zz)] = \
+FIELD[_INDEX_THREAD((X>0? X - 1:_gridDimX - 1), (Y>0? Y - 1:_gridDimY - 1), Z, (X>0? _blockDimX - 2 : (((_DimX-1))%(_blockDimX-2)+1) ), (Y>0? _blockDimY - 2 : (((_DimY-1))%(_blockDimY-2)+1) ), zz)]; \
+FIELD[_INDEX_THREAD(X, (Y>0? Y - 1:_gridDimY - 1), Z, 0, (Y>0? _blockDimY - 1 : (((_DimY-1))%(_blockDimY-2)+2) ), zz)] = \
+FIELD[_INDEX_THREAD((X>0? X - 1:_gridDimX - 1), Y, Z, (X>0? _blockDimX - 2 : (((_DimX-1))%(_blockDimX-2)+1) ), 1, zz)]; \
+FIELD[_INDEX_THREAD((X>0? X - 1:_gridDimX - 1), Y, Z, (X>0? _blockDimX - 1 : (((_DimX-1))%(_blockDimX-2)+2) ), 0, zz)] = \
+FIELD[_INDEX_THREAD(X, (Y>0? Y - 1:_gridDimY - 1), Z, 1, (Y>0? _blockDimY - 2 : (((_DimY-1))%(_blockDimY-2)+1) ), zz)]; 
 #define _syncYZ_(FIELD) \
-FIELD[_INDEX_THREAD(X, Y - 1, Z - 1, xx, _blockDimY - 1, _blockDimZ - 1)] = FIELD[_INDEX_THREAD(X, Y, Z, xx, 1, 1)]; \
-FIELD[_INDEX_THREAD(X, Y, Z, xx, 0, 0)] = FIELD[_INDEX_THREAD(X, Y - 1, Z - 1, xx, _blockDimY - 2, _blockDimZ - 2)]; \
-FIELD[_INDEX_THREAD(X, Y, Z - 1, xx, 0, _blockDimZ - 1)] = FIELD[_INDEX_THREAD(X, Y - 1, Z, xx, _blockDimY - 2, 1)]; \
-FIELD[_INDEX_THREAD(X, Y - 1, Z, xx, _blockDimY - 1, 0)] = FIELD[_INDEX_THREAD(X, Y, Z - 1, xx, 1, _blockDimZ - 2)]; 
+FIELD[_INDEX_THREAD(X, (Y>0? Y - 1:_gridDimY - 1), (Z>0? Z - 1:_gridDimZ - 1), xx, (Y>0? _blockDimY - 1 : (((_DimY-1))%(_blockDimY-2)+2) ), (Z>0? _blockDimZ - 1 : (((_DimZ-1))%(_blockDimZ-2)+2) ))] = \
+FIELD[_INDEX_THREAD(X, Y, Z, xx, 1, 1)]; \
+FIELD[_INDEX_THREAD(X, Y, Z, xx, 0, 0)] = \
+FIELD[_INDEX_THREAD(X, (Y>0? Y - 1:_gridDimY - 1), (Z>0? Z - 1:_gridDimZ - 1), xx, (Y>0? _blockDimY - 2 : (((_DimY-1))%(_blockDimY-2)+1) ), (Z>0? _blockDimZ - 2 : (((_DimZ-1))%(_blockDimZ-2)+1) ))]; \
+FIELD[_INDEX_THREAD(X, Y, (Z>0? Z - 1:_gridDimZ - 1), xx, 0, (Z>0? _blockDimZ - 1 : (((_DimZ-1))%(_blockDimZ-2)+2) ))] = \
+FIELD[_INDEX_THREAD(X, (Y>0? Y - 1:_gridDimY - 1), Z, xx, (Y>0? _blockDimY - 2 : (((_DimY-1))%(_blockDimY-2)+1) ), 1)]; \
+FIELD[_INDEX_THREAD(X, (Y>0? Y - 1:_gridDimY - 1), Z, xx, (Y>0? _blockDimY - 1 : (((_DimY-1))%(_blockDimY-2)+2) ), 0)] = \
+FIELD[_INDEX_THREAD(X, Y, (Z>0? Z - 1:_gridDimZ - 1), xx, 1, (Z>0? _blockDimZ - 2 : (((_DimZ-1))%(_blockDimZ-2)+1) ))]; 
 #define _syncZX_(FIELD) \
-FIELD[_INDEX_THREAD(X - 1, Y, Z - 1, _blockDimX - 1, yy, _blockDimZ - 1)] = FIELD[_INDEX_THREAD(X, Y, Z, 1, yy, 1)]; \
-FIELD[_INDEX_THREAD(X, Y, Z, 0, yy, 0)] = FIELD[_INDEX_THREAD(X - 1, Y, Z - 1, _blockDimX - 2, yy, _blockDimZ - 2)]; \
-FIELD[_INDEX_THREAD(X - 1, Y, Z, _blockDimX - 1, yy, 0)] = FIELD[_INDEX_THREAD(X, Y, Z - 1, 1, yy, _blockDimZ - 2)]; \
-FIELD[_INDEX_THREAD(X, Y, Z - 1, 0, yy, _blockDimZ - 1)] = FIELD[_INDEX_THREAD(X - 1, Y, Z, _blockDimX - 2, yy, 1)];
+FIELD[_INDEX_THREAD((X>0? X - 1:_gridDimX - 1), Y, (Z>0? Z - 1:_gridDimZ - 1), (X>0? _blockDimX - 1 : (((_DimX-1))%(_blockDimX-2)+2) ), yy, (Z>0? _blockDimZ - 1 : (((_DimZ-1))%(_blockDimZ-2)+2) ))] = \
+FIELD[_INDEX_THREAD(X, Y, Z, 1, yy, 1)]; \
+FIELD[_INDEX_THREAD(X, Y, Z, 0, yy, 0)] = \
+FIELD[_INDEX_THREAD((X>0? X - 1:_gridDimX - 1), Y, (Z>0? Z - 1:_gridDimZ - 1), (X>0? _blockDimX - 2 : (((_DimX-1))%(_blockDimX-2)+1) ), yy, (Z>0? _blockDimZ - 2 : (((_DimZ-1))%(_blockDimZ-2)+1) ))]; \
+FIELD[_INDEX_THREAD((X>0? X - 1:_gridDimX - 1), Y, Z, (X>0? _blockDimX - 1 : (((_DimX-1))%(_blockDimX-2)+2) ), yy, 0)] = \
+FIELD[_INDEX_THREAD(X, Y, (Z>0? Z - 1:_gridDimZ - 1), 1, yy, (Z>0? _blockDimZ - 2 : (((_DimZ-1))%(_blockDimZ-2)+1) ))]; \
+FIELD[_INDEX_THREAD(X, Y, (Z>0? Z - 1:_gridDimZ - 1), 0, yy, (Z>0? _blockDimZ - 1 : (((_DimZ-1))%(_blockDimZ-2)+2) ))] = \
+FIELD[_INDEX_THREAD((X>0? X - 1:_gridDimX - 1), Y, Z, (X>0? _blockDimX - 2 : (((_DimX-1))%(_blockDimX-2)+1) ), yy, 1)];
 
 #define _syncXall _syncX_(eps0_c_Ex) _syncX_(eps0_c_Ey) _syncX_(eps0_c_Ez) _syncX_(Hx)  _syncX_(Hy) _syncX_(Hz) \
 _syncX_(eps0_c_Pdx) _syncX_(eps0_c_Pdy) _syncX_(eps0_c_Pdz)  \
@@ -1655,22 +1681,22 @@ _syncZX_(eps0_c_Pcp2x) _syncZX_(eps0_c_Pcp2y) _syncZX_(eps0_c_Pcp2z)
 // \
 //_syncZX_(eps0_c_Rx) _syncZX_(eps0_c_Ry) _syncZX_(eps0_c_Rz)  
 
-
-#define _syncPeriodicX(FIELD) \
-FIELD[_INDEX_THREAD(_gridDimX - 1, Y, Z,	((_DimX - 1))%(_blockDimX-2)+2, yy, zz)] = \
-FIELD[_INDEX_THREAD(0, Y, Z,				1, yy, zz)]; \
-FIELD[_INDEX_THREAD(0, Y, Z,				0, yy, zz)] = \
-FIELD[_INDEX_THREAD(_gridDimX - 1, Y, Z,    ((_DimX - 1))%(_blockDimX-2)+1, yy, zz)];
-#define _syncPeriodicY(FIELD) \
-FIELD[_INDEX_THREAD(X, _gridDimY -1, Z,		xx, ((_DimY -1 ))%(_blockDimY-2) + 2, zz)] = \
-FIELD[_INDEX_THREAD(X, 0, Z,				xx, 1, zz)]; \
-FIELD[_INDEX_THREAD(X, 0, Z,				xx, 0, zz)] = \
-FIELD[_INDEX_THREAD(X, _gridDimY -1, Z,		xx, ((_DimY -1 ))%(_blockDimY-2) + 1, zz)];
-#define _syncPeriodicZ(FIELD) \
-FIELD[_INDEX_THREAD(X, Y, _DimZ - 1,		xx, yy, ((_DimZ - 1))%(_blockDimZ-2)+2 )] = \
-FIELD[_INDEX_THREAD(X, Y, 0,				xx, yy, 1)]; \
-FIELD[_INDEX_THREAD(X, Y, 0,				xx, yy, 0)] = \
-FIELD[_INDEX_THREAD(X, Y, _DimZ - 1,		xx, yy, ((_DimZ - 1))%(_blockDimZ-2)+1 )];
+//
+//#define _syncPeriodicX(FIELD) \
+//FIELD[_INDEX_THREAD(_gridDimX - 1, Y, Z,	((_DimX - 1))%(_blockDimX-2)+2, yy, zz)] = \
+//FIELD[_INDEX_THREAD(0, Y, Z,				1, yy, zz)]; \
+//FIELD[_INDEX_THREAD(0, Y, Z,				0, yy, zz)] = \
+//FIELD[_INDEX_THREAD(_gridDimX - 1, Y, Z,    ((_DimX - 1))%(_blockDimX-2)+1, yy, zz)];
+//#define _syncPeriodicY(FIELD) \
+//FIELD[_INDEX_THREAD(X, _gridDimY -1, Z,		xx, ((_DimY -1 ))%(_blockDimY-2) + 2, zz)] = \
+//FIELD[_INDEX_THREAD(X, 0, Z,				xx, 1, zz)]; \
+//FIELD[_INDEX_THREAD(X, 0, Z,				xx, 0, zz)] = \
+//FIELD[_INDEX_THREAD(X, _gridDimY -1, Z,		xx, ((_DimY -1 ))%(_blockDimY-2) + 1, zz)];
+//#define _syncPeriodicZ(FIELD) \
+//FIELD[_INDEX_THREAD(X, Y, _DimZ - 1,		xx, yy, ((_DimZ - 1))%(_blockDimZ-2)+2 )] = \
+//FIELD[_INDEX_THREAD(X, Y, 0,				xx, yy, 1)]; \
+//FIELD[_INDEX_THREAD(X, Y, 0,				xx, yy, 0)] = \
+//FIELD[_INDEX_THREAD(X, Y, _DimZ - 1,		xx, yy, ((_DimZ - 1))%(_blockDimZ-2)+1 )];
 
 
 //syncing P/ Pcp field required?
@@ -1693,37 +1719,32 @@ FIELD[_INDEX_THREAD(X, Y, _DimZ - 1,		xx, yy, ((_DimZ - 1))%(_blockDimZ-2)+1 )];
 
 //FIXME : syncE, syncH separation
 void syncPadding(void) {
-	for (int Y = 0; Y < _gridDimY; Y++)
-		for (int Z = 0; Z < _gridDimZ; Z++) 
-			for (int yy = 0; yy < _blockDimY; yy++)
-				for (int zz = 0; zz < _DimZ; zz++) { _syncPeriodicXall }
-	for (int Z = 0; Z < _gridDimZ; Z++) 
-		for (int X = 0; X < _gridDimX; X++)
-			for (int zz = 0; zz < _blockDimZ; zz++)
-				for (int xx = 0; xx < _DimX; xx++) { _syncPeriodicYall }
-	for (int X = 0; X < _gridDimX; X++)
-		for (int Y = 0; Y < _gridDimY; Y++)
-			for (int xx = 0; xx < _blockDimX; xx++)
-				for (int yy = 0; yy < _DimY; yy++) { _syncPeriodicZall }
+
+	//for (int Y = 0; Y < _gridDimY; Y++)
+	//	for (int Z = 0; Z < _gridDimZ; Z++) 
+	//		for (int yy = 0; yy < _blockDimY; yy++)
+	//			for (int zz = 0; zz < _blockDimZ; zz++) { _syncPeriodicXall }
+	//for (int Z = 0; Z < _gridDimZ; Z++) 
+	//	for (int X = 0; X < _gridDimX; X++)
+	//		for (int zz = 0; zz < _blockDimZ; zz++)
+	//			for (int xx = 0; xx < _blockDimX; xx++) { _syncPeriodicYall }
+	//for (int X = 0; X < _gridDimX; X++)
+	//	for (int Y = 0; Y < _gridDimY; Y++)
+	//		for (int xx = 0; xx < _blockDimX; xx++)
+	//			for (int yy = 0; yy < _blockDimY; yy++) { _syncPeriodicZall }
 
 	for (int X = 0; X < _gridDimX; X++)
 		for (int Y = 0; Y < _gridDimY; Y++)
 			for (int Z = 0; Z < _gridDimZ; Z++) {
-				if (X>0)
-					for (int yy = 0; yy<_blockDimY; yy++)
-						for (int zz = 0; zz < _blockDimZ; zz++) { _syncXall }
-				if (Y>0)
-					for (int zz = 0; zz<_blockDimZ; zz++)
-						for (int xx = 0; xx < _blockDimX; xx++) { _syncYall }
-				if (Z>0)
-					for (int xx = 0; xx<_blockDimX; xx++)
-						for (int yy = 0; yy < _blockDimY; yy++) { _syncZall }
-				if (X>0 && Y>0)
-					for (int zz = 0; zz < _blockDimZ; zz++) { _syncXYall }
-				if (Y>0 && Z>0)
-					for (int xx = 0; xx < _blockDimX; xx++) { _syncYZall }
-				if (Z>0 && X>0)
-					for (int yy = 0; yy < _blockDimY; yy++) { _syncZXall }
+				for (int yy = 0; yy<_blockDimY; yy++)
+					for (int zz = 0; zz < _blockDimZ; zz++) { _syncXall }
+				for (int zz = 0; zz<_blockDimZ; zz++)
+					for (int xx = 0; xx < _blockDimX; xx++) { _syncYall }
+				for (int xx = 0; xx<_blockDimX; xx++)
+					for (int yy = 0; yy < _blockDimY; yy++) { _syncZall }
+				for (int zz = 0; zz < _blockDimZ; zz++) { _syncXYall }
+				for (int xx = 0; xx < _blockDimX; xx++) { _syncYZall }
+				for (int yy = 0; yy < _blockDimY; yy++) { _syncZXall }
 			}
 
 
@@ -1775,14 +1796,17 @@ int snapshot(char* filename)
 	}
 	fclose(f);
 
+	unsigned char* image;
+	unsigned x, y, z;
+	unsigned width, height;
+	unsigned error;
 
 	sprintf(filenameFull, "E2_Y0_%s.png", filename);
 
-	printf("snapshot : X=50\n");
-	int X = 50;
-	unsigned width = _DimY, height = _DimZ;
-	unsigned char* image = malloc(width * height * 4);
-	unsigned y, z;
+	printf("snapshot : X=%d\n", _DimX/2);
+	int X = _DimX / 2;
+	width = _DimY, height = _DimZ;
+	image = malloc(width * height * 4);
 	for (z = 0; z < height; z++)
 		for (y = 0; y < width; y++)
 		{
@@ -1816,7 +1840,53 @@ int snapshot(char* filename)
 			image[4 * width * (height - 1 - z) + 4 * y + 2] = (unsigned char)(val2>0 ? val2 : 0);
 			image[4 * width * (height - 1 - z) + 4 * y + 3] = 255;
 		}
-	unsigned error = lodepng_encode32_file(filenameFull, image, width, height);
+	error = lodepng_encode32_file(filenameFull, image, width, height);
+	if (error) printf("error %u: %s\n", error, lodepng_error_text(error));
+
+	free(image);
+
+
+
+	sprintf(filenameFull, "E2_Z0_%s.png", filename);
+
+	printf("snapshot : Z=%d\n", _DimZ / 2);
+	int Z = _DimZ / 2;
+	width = _DimX, height = _DimY;
+	image = malloc(width * height * 4);
+	for (y = 0; y < height; y++)
+		for (x = 0; x < width; x++)
+		{
+			int surf_x, surf_y, surf_z;
+			int surf_index = _SURF_INDEX_XYZ(x, y, Z);
+			_SET_SURF_XYZ_INDEX(surf_index);
+			int offset = _INDEX_XYZ(x, y, Z);
+			int value = 0;
+
+			//if (surf_index !=-1) value = (FT_eps0cE[_SURF_INDEX_XYZ(X, y, z)][1][0][0]* FT_eps0cE[_SURF_INDEX_XYZ(X, y, z)][1][0][0]+ FT_eps0cE[_SURF_INDEX_XYZ(X, y, z)][1][0][1]* FT_eps0cE[_SURF_INDEX_XYZ(X, y, z)][1][0][1]) * 255.0f * 5000.0f * 5000.0f;
+			if (surf_index != -1) value = 255.0f * 20000.0f * 20000.0f*(0
+				+ (FT_eps0cE[surf_index][0][0][0]) * (FT_eps0cE[surf_index][0][0][0])
+				+ (FT_eps0cE[surf_index][0][0][1]) * (FT_eps0cE[surf_index][0][0][1])
+				+ (FT_eps0cE[surf_index][0][1][0]) * (FT_eps0cE[surf_index][0][1][0])
+				+ (FT_eps0cE[surf_index][0][1][1]) * (FT_eps0cE[surf_index][0][1][1])
+				+ (FT_eps0cE[surf_index][0][2][0]) * (FT_eps0cE[surf_index][0][2][0])
+				+ (FT_eps0cE[surf_index][0][2][1]) * (FT_eps0cE[surf_index][0][2][1])
+				);
+			//int value = (((mask[offset] & (0b1111 << 4)) >> 4)) *50.0f ;
+			value = value > 255 ? 255 : value;
+			value = value < -255 ? -255 : value;
+			int val2 = sqrtf(
+				eps0_c_Ex[offset] * eps0_c_Ex[offset] +
+				eps0_c_Ey[offset] * eps0_c_Ey[offset] +
+				eps0_c_Ez[offset] * eps0_c_Ez[offset]
+			) * 255.0f * 10000.0f;
+			val2 = val2 > 255 ? 255 : val2;
+			val2 = val2 < -255 ? -255 : val2;
+			image[4 * width * (height - 1 - y) + 4 * x + 0] = (unsigned char)(value>0 ? value : 0);
+			image[4 * width * (height - 1 - y) + 4 * x + 1] = (unsigned char)(val2<0 ? -val2 : 0);
+			image[4 * width * (height - 1 - y) + 4 * x + 2] = (unsigned char)(val2>0 ? val2 : 0);
+			image[4 * width * (height - 1 - y) + 4 * x + 3] = 255;
+		}
+	error = lodepng_encode32_file(filenameFull, image, width, height);
 	if (error) printf("error %u: %s\n", error, lodepng_error_text(error));
 
 	free(image);

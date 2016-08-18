@@ -6,8 +6,8 @@
 //reference : Torok et al, 2006 (doi: 10.1364/JOSAA.23.000713) formulation used for NTFF
 
 
-#define _DimX (140)
-#define _DimY (140)
+#define _DimX (104)
+#define _DimY (60)
 #define _DimZ (200)
 
 #define _STEP (6*250*3+5000)
@@ -1760,10 +1760,43 @@ void snapshotStructure() {
 			image[4 * width * (height - z - 1) + 4 * x + 3] = 255;
 		}
 	}
-	unsigned error = lodepng_encode32_file("structure.png", image, width, height);
+	unsigned error = lodepng_encode32_file("structure_Y.png", image, width, height);
 	if (error) printf("error %u: %s\n", error, lodepng_error_text(error));
 
-	printf("saved\n");
 	free(image);
+
+	int Z = _DimZ / 2 + __SIN_TOP / 2;
+	width = _DimX; height = _DimY;
+	unsigned char* image2 = malloc(width * height * 4);
+	int y;//  , x;
+	for (y = 0; y < height; y++) {
+		for (x = 0; x < width; x++)
+		{
+			int surf_x, surf_y, surf_z;
+			int surf_index = _SURF_INDEX_XYZ(x, y, Z);
+			_SET_SURF_XYZ_INDEX(surf_index);
+			int offset = _INDEX_XYZ(x, y, Z);
+			int value = 0;
+			int val2 = 0;
+
+			if (((mask[offset] >> 4) & 0b1111) > 0) { value = 255; }
+			else { val2 = 255.0f / sqrtf(eps_r_inv[offset]) * 0.5f; }
+
+			value = value > 255 ? 255 : value;
+			value = value < -255 ? -255 : value;
+			val2 = val2 > 255 ? 255 : val2;
+			val2 = val2 < -255 ? -255 : val2;
+			image[4 * width * (z ) + 4 * x + 0] = (unsigned char)(val2 > 0 ? val2 : 0);
+			image[4 * width * (z ) + 4 * x + 1] = (unsigned char)(value > 0 ? value : 0);
+			image[4 * width * (z ) + 4 * x + 2] = (unsigned char)(val2 < 0 ? -val2 : 0);
+			image[4 * width * (z ) + 4 * x + 3] = 255;
+		}
+	}
+	error = lodepng_encode32_file("structure_Z.png", image, width, height);
+	if (error) printf("error %u: %s\n", error, lodepng_error_text(error));
+
+	free(image2);
+
+	printf("saved\n");
 
 }

@@ -366,7 +366,7 @@ void snapshotStructure(void);
 #include "mkl.h"
 int main(int argc, char* argv[])
 {
-	init();
+	init(); 
 	time_t start;
 	start = clock();
 	printf("\nCalculating field \n");
@@ -1081,6 +1081,7 @@ void NTFF(void) {
 
 
 		unsigned char* image2 = malloc(_SURF_DX_ * _SURF_DY_ * 4);
+		FILE *f;
 		for (int j = 0; j < _SURF_DY_; j++) {
 			for (int i = 0; i < _SURF_DX_; i++) {
 				float val = sqrtf(
@@ -1250,6 +1251,22 @@ void NTFF(void) {
 			}
 		}error = lodepng_encode32_file("E2.png", image, NTFF_IMG_SIZE, NTFF_IMG_SIZE);
 
+		f = fopen("E2.txt", "w");
+		for (int i = 0; i < NTFF_IMG_SIZE; i++) {
+			for (int j = 0; j < NTFF_IMG_SIZE; j++) {
+				fprintf(f, "%+04.3e\t", qrtf(
+					FF_ecE_x[j*NTFF_IMG_SIZE + i].real * FF_ecE_x[j*NTFF_IMG_SIZE + i].real +
+					FF_ecE_y[j*NTFF_IMG_SIZE + i].real * FF_ecE_y[j*NTFF_IMG_SIZE + i].real +
+					FF_ecE_z[j*NTFF_IMG_SIZE + i].real * FF_ecE_z[j*NTFF_IMG_SIZE + i].real +
+					FF_ecE_x[j*NTFF_IMG_SIZE + i].imag * FF_ecE_x[j*NTFF_IMG_SIZE + i].imag +
+					FF_ecE_y[j*NTFF_IMG_SIZE + i].imag * FF_ecE_y[j*NTFF_IMG_SIZE + i].imag +
+					FF_ecE_z[j*NTFF_IMG_SIZE + i].imag * FF_ecE_z[j*NTFF_IMG_SIZE + i].imag
+				));
+			}
+			fprintf(f, "\n");
+		}
+		fclose(f);
+
 		for (int i = 0; i < NTFF_IMG_SIZE; i++) {
 			for (int j = 0; j < NTFF_IMG_SIZE; j++) {
 				float val = 0.1*FF_H_x[j*NTFF_IMG_SIZE + i].real * 255.0f / 1.0f;
@@ -1280,13 +1297,30 @@ void NTFF(void) {
 			}
 		}error = lodepng_encode32_file("S_r_phasor.png", image, NTFF_IMG_SIZE, NTFF_IMG_SIZE);
 
+		f = fopen("S_r_phasor.txt", "w");
+		for (int i = 0; i < NTFF_IMG_SIZE; i++) {
+			for (int j = 0; j < NTFF_IMG_SIZE; j++) {
+				fprintf(f, "%+04.3e\t", sqrtf(FF_ecSr[j*NTFF_IMG_SIZE + i].real *  FF_ecSr[j*NTFF_IMG_SIZE + i].real + FF_ecSr[j*NTFF_IMG_SIZE + i].imag *  FF_ecSr[j*NTFF_IMG_SIZE + i].imag));
+			}
+			fprintf(f, "\n");
+		}
+		fclose(f);
+
 		for (int i = 0; i < NTFF_IMG_SIZE; i++) {
 			for (int j = 0; j < NTFF_IMG_SIZE; j++) {
 				float val = FF_ecSr[j*NTFF_IMG_SIZE + i].real * 255.0f * 100.0f;
 				image[4 * NTFF_IMG_SIZE * j + 4 * i + 0] = val > 0 ? (val < 255 ? val : 255) : 0;		image[4 * NTFF_IMG_SIZE * j + 4 * i + 1] = val < 0 ? (val > -255 ? -val : 255) : 0;		image[4 * NTFF_IMG_SIZE * j + 4 * i + 2] = 0;  image[4 * NTFF_IMG_SIZE * j + 4 * i + 3] = 255;
 			}
 		}error = lodepng_encode32_file("S_r_avg.png", image, NTFF_IMG_SIZE, NTFF_IMG_SIZE);
-
+		
+		f = fopen("S_r_avg.txt", "w");
+		for (int i = 0; i < NTFF_IMG_SIZE; i++) {
+			for (int j = 0; j < NTFF_IMG_SIZE; j++) {
+				fprintf(f, "%+04.3e\t", FF_ecSr[j*NTFF_IMG_SIZE + i].real);
+			}
+			fprintf(f, "\n");
+		}
+		fclose(f);
 	}
 
 	free(image);

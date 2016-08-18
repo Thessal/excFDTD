@@ -1708,6 +1708,7 @@ FIELD[_INDEX_THREAD(\
 #define STR(x)   #x
 #define SHOW_DEFINE(x) printf("%s=%s\n", #x, STR(x))
 
+//FIXME : syncE, syncH separation
 void syncPadding(void) {
 	for (int yy = 0; yy < _DimY; yy++)
 		for (int zz = 0; zz < _DimZ; zz++) { _syncPeriodicXall }

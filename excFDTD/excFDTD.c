@@ -379,7 +379,7 @@ int main(int argc, char* argv[])
 		//float addval = sin(2.0f * M_PI * _c0 / 500e-9 * (float)i * _dt_) * exp(-((float)i - 50.0f)*((float)i - 50.0f) / 25.0f / 25.0f);
 		float addval = -sin(2 * M_PI* i * (_dt_ * _c0 / 700e-9)) * exp(-(i - 6 * 250)*(i - 6 * 250) / (2 * 250 * 250));
 		//float addval = sin(2.0f * M_PI * _c0 / 500e-9 * (float)i * _dt_) ;
-		addval /= 1.46f * 1.46;
+		addval /= 1.46f * 1.46 * 10000.0f;
 		for (int i = 0; i < _DimX; i++) {
 			for (int j = 0; j < _DimX; j++) {
 				eps0_c_Ey[_INDEX_XYZ(i, j, sourcePos)] += addval / 1.0f;
@@ -852,9 +852,11 @@ void NTFF(void) {
 				normal[0 * _SURF_SIZE_ + k].real*normal[0 * _SURF_SIZE_ + k].real
 				+ normal[1 * _SURF_SIZE_ + k].real*normal[1 * _SURF_SIZE_ + k].real
 				+ normal[2 * _SURF_SIZE_ + k].real*normal[2 * _SURF_SIZE_ + k].real);
+			if (normal_temp > 0) {
 			normal[0 * _SURF_SIZE_ + k].real /= normal_temp;
 			normal[1 * _SURF_SIZE_ + k].real /= normal_temp;
 			normal[2 * _SURF_SIZE_ + k].real /= normal_temp;
+			}
 		}
 
 		////M, J calc
@@ -1693,8 +1695,34 @@ int snapshot(char* filename)
 		//if (X%_blockDimX == _blockDimX -1 ){ for (int Z = 0; Z < _DimZ; Z++) 	{	fprintf(f,"%+04.3f\t ", eps0_c_Ex[_INDEX_XYZ(_blockDimX, Y, Z)]);	}fprintf(f,"\n");}
 	}
 	fclose(f);
+	sprintf(filenameFull, "Ey_Y0_%s.txt", filename);
+	f = fopen(filenameFull, "w");
+	for (int Z = 0; Z < _DimZ; Z++) {
+		//if (X%_blockDimX == 0) { for (int Z = 0; Z < _DimZ + _gridDimZ - 1 ; Z++) { fprintf(f,"%+04.3e \t ", TEMP[_INDEX_XYZ(-1, Y, Z)]);  } 	fprintf(f,"\n");}
+		for (int X = 0; X < _DimX; X++) {
+			//if (Z%_blockDimZ == 0) { fprintf(f,"%04.3f \t", TEMP[_INDEX_XYZ(X, Y, -1)]);}
+			fprintf(f, "%+04.3e\t", eps0_c_Ey[_INDEX_XYZ(X, Y, Z)]);
+			//if (Z%_blockDimZ == _blockDimZ-1) { fprintf(f,"%+04.3f\t ", TEMP[_INDEX_XYZ(_blockDimX, Y, Z)]); }
+		}
+		fprintf(f, "\n");
+		//if (X%_blockDimX == _blockDimX -1 ){ for (int Z = 0; Z < _DimZ; Z++) 	{	fprintf(f,"%+04.3f\t ", eps0_c_Ex[_INDEX_XYZ(_blockDimX, Y, Z)]);	}fprintf(f,"\n");}
+	}
+	fclose(f);
+	sprintf(filenameFull, "Ez_Y0_%s.txt", filename);
+	f = fopen(filenameFull, "w");
+	for (int Z = 0; Z < _DimZ; Z++) {
+		//if (X%_blockDimX == 0) { for (int Z = 0; Z < _DimZ + _gridDimZ - 1 ; Z++) { fprintf(f,"%+04.3e \t ", TEMP[_INDEX_XYZ(-1, Y, Z)]);  } 	fprintf(f,"\n");}
+		for (int X = 0; X < _DimX; X++) {
+			//if (Z%_blockDimZ == 0) { fprintf(f,"%04.3f \t", TEMP[_INDEX_XYZ(X, Y, -1)]);}
+			fprintf(f, "%+04.3e\t", eps0_c_Ez[_INDEX_XYZ(X, Y, Z)]);
+			//if (Z%_blockDimZ == _blockDimZ-1) { fprintf(f,"%+04.3f\t ", TEMP[_INDEX_XYZ(_blockDimX, Y, Z)]); }
+		}
+		fprintf(f, "\n");
+		//if (X%_blockDimX == _blockDimX -1 ){ for (int Z = 0; Z < _DimZ; Z++) 	{	fprintf(f,"%+04.3f\t ", eps0_c_Ex[_INDEX_XYZ(_blockDimX, Y, Z)]);	}fprintf(f,"\n");}
+	}
+	fclose(f);
 
-	char filenameFull[256];
+
 	sprintf(filenameFull, "E2_Y0_%s.png", filename);
 
 	printf("snapshot : X=50\n");

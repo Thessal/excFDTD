@@ -127,7 +127,7 @@ float stability_factor_inv = 1.0f / _S_factor;
 //	#define RFT_WINDOW _STEP
 //#endif
 #define FREQ_N 1
-float FREQ_LIST_DESIRED[FREQ_N] = {_c0 / 500e-9};
+float FREQ_LIST_DESIRED[FREQ_N] = {_c0 / 500e-9 / __BACK};
 //#define FREQ_N 3
 //float FREQ_LIST_DESIRED[FREQ_N] = { _c0 / 300e-9, _c0 / 500e-9, _c0 / 800e-9 };
 float RFT_K_LIST_CALCULATED[FREQ_N];
@@ -1677,6 +1677,22 @@ void syncPadding(void) {
 
 int snapshot(char* filename)
 {
+
+	char filenameFull[256];
+	sprintf(filenameFull, "Ex_Y0_%s.txt", filename);
+	int Y = _DimY / 2;
+	FILE *f = fopen(filenameFull, "w");
+	for (int Z = 0; Z < _DimZ; Z++) {
+		//if (X%_blockDimX == 0) { for (int Z = 0; Z < _DimZ + _gridDimZ - 1 ; Z++) { fprintf(f,"%+04.3e \t ", TEMP[_INDEX_XYZ(-1, Y, Z)]);  } 	fprintf(f,"\n");}
+		for (int X = 0; X < _DimX; X++) {
+			//if (Z%_blockDimZ == 0) { fprintf(f,"%04.3f \t", TEMP[_INDEX_XYZ(X, Y, -1)]);}
+			fprintf(f, "%+04.3e\t", eps0_c_Ex[_INDEX_XYZ(X, Y, Z)]);
+			//if (Z%_blockDimZ == _blockDimZ-1) { fprintf(f,"%+04.3f\t ", TEMP[_INDEX_XYZ(_blockDimX, Y, Z)]); }
+		}
+		fprintf(f, "\n");
+		//if (X%_blockDimX == _blockDimX -1 ){ for (int Z = 0; Z < _DimZ; Z++) 	{	fprintf(f,"%+04.3f\t ", eps0_c_Ex[_INDEX_XYZ(_blockDimX, Y, Z)]);	}fprintf(f,"\n");}
+	}
+	fclose(f);
 
 	char filenameFull[256];
 	sprintf(filenameFull, "E2_Y0_%s.png", filename);

@@ -373,6 +373,7 @@ int main(int argc, char* argv[])
 
 	int sourcePos = _DimZ / 2 - __SLOT - __SIN_BOT - 10;
 	char filename[256];
+	FILE *f = fopen("plane_output.txt", "a"); double planeout;
 	for (int i = 0; i <= _STEP; i++) {
 		printf("%f%%\r", 100.0f*(float)i / _STEP);
 		//float addval = sin(2.0f * M_PI * _c0 / 500e-9 * (float)i * _dt_) * exp(-((float)i - 50.0f)*((float)i - 50.0f) / 25.0f / 25.0f);
@@ -389,6 +390,15 @@ int main(int argc, char* argv[])
 		}
 		DCP_HE_C();
 		RFT(); //FIXME : print warning message if RFT would not reach its final step
+		planeout = 0.0;
+		for (int i = 0; i < _DimX; i++) {
+			for (int j = 0; j < _DimX; j++) {
+				planeout += eps0_c_Ey[_INDEX_XYZ(i, j, (_DimZ / 2 + __SIN_TOP + __METAL_HOLE + 20))];
+			}
+		}
+		fprintf(f, "%e\t%30e\n", _dt_*(float)i, planeout	);
+//			(__BACK)*eps0_c_Ey[_INDEX_XYZ((_DimX / 2), (_DimY / 2), (_DimZ / 2 + __SIN_TOP + __METAL_HOLE + 20))]
+
 		if ((i) % 100 == 0) {
 			sprintf(filename, "%05d", i);
 			snapshot(filename);

@@ -357,7 +357,7 @@ void Dielectric_HE(void);
 void Dielectric_HE_C(void);
 void DCP_HE_C(void);
 void syncPadding(void);
-void RFT(void);
+void RFT(float background_index);
 void NTFF_onlyUpside(void);
 void NTFF(void);
 int snapshot(char*);
@@ -379,7 +379,7 @@ int main(int argc, char* argv[])
 		//float addval = sin(2.0f * M_PI * _c0 / 500e-9 * (float)i * _dt_) * exp(-((float)i - 50.0f)*((float)i - 50.0f) / 25.0f / 25.0f);
 		float addval = -sin(2 * M_PI* i * (_dt_ * _c0 / 700e-9)) * exp(-(i - 6 * 250)*(i - 6 * 250) / (2 * 250 * 250));
 		//float addval = sin(2.0f * M_PI * _c0 / 500e-9 * (float)i * _dt_) ;
-		addval /= 1.46f * 1.46 * 10000.0f;
+		addval /= 1.46f * 10000.0f;
 		for (int i = 0; i < _DimX; i++) {
 			for (int j = 0; j < _DimX; j++) {
 				eps0_c_Ey[_INDEX_XYZ(i, j, sourcePos)] += addval / 1.0f;
@@ -389,7 +389,7 @@ int main(int argc, char* argv[])
 			}
 		}
 		DCP_HE_C();
-		RFT(); //FIXME : print warning message if RFT would not reach its final step
+		RFT(__BACK); //FIXME : print warning message if RFT would not reach its final step
 		planeout = 0.0;
 		for (int i = 0; i < _DimX; i++) {
 			for (int j = 0; j < _DimX; j++) {
@@ -659,7 +659,7 @@ void DCP_HE_C(void)
 }
 
 int RFT_counter = 0;
-void RFT(void) {
+void RFT(float refractive_index) {
 	if (RFT_counter < _STEP - RFT_WINDOW) {	RFT_counter++; return; }
 	unsigned __int64 surf_x, surf_y, surf_z, offset;
 	for (int i = 0; i < _SURF_SIZE_; i++) {
@@ -706,7 +706,25 @@ void RFT(void) {
 			//FT_H[i][j][2][0] += 0.25 * (Hz[offset - _offsetZ - _offsetX - _offsetY] + Hz[offset - _offsetZ - _offsetX] + Hz[offset - _offsetZ - _offsetY] + Hz[offset - _offsetZ]) / RFT_WINDOW * cosf(2 * M_PI*RFT_K_LIST_CALCULATED[j] / RFT_WINDOW*RFT_counter);
 		} //FIXME : use ipp functions!
 	}
-	if (RFT_counter == _STEP) { printf("RFT finish!\n"); }
+	if (RFT_counter == _STEP) {
+		printf("RFT finish!\n");
+		for (int i = 0; i < _SURF_SIZE_; i++) {
+			for (int j = 0; j < FREQ_N; j++) {
+				FT_eps0cE[i][j][0][1] *= refractive_index;
+				FT_eps0cE[i][j][1][1] *= refractive_index;
+				FT_eps0cE[i][j][2][1] *= refractive_index;
+				FT_H[i][j][0][1] *= refractive_index;
+				FT_H[i][j][1][1] *= refractive_index;
+				FT_H[i][j][2][1] *= refractive_index;
+				FT_eps0cE[i][j][0][0] *= refractive_index;
+				FT_eps0cE[i][j][1][0] *= refractive_index;
+				FT_eps0cE[i][j][2][0] *= refractive_index;
+				FT_H[i][j][0][0] *= refractive_index;
+				FT_H[i][j][1][0] *= refractive_index;
+				FT_H[i][j][2][0] *= refractive_index;
+			}
+		}
+	}
 	RFT_counter++;
 }
 

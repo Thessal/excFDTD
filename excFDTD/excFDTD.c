@@ -16,7 +16,7 @@
 //consider using simple PML for NTFF calculation
 #define _PML_PX_X_ (0)
 #define _PML_PX_Y_ (0)
-#define _PML_PX_Z_ (16)
+#define _PML_PX_Z_ (8)
 #define _PML_ALPHA_TUNING_ 0.1f
 int pml_n = 3; //consider using macro
 float pml_R = 10e-4;
@@ -371,7 +371,7 @@ int main(int argc, char* argv[])
 	start = clock();
 	printf("\nCalculating field \n");
 
-	int sourcePos = _DimZ / 2 - __SLOT - __SIN_BOT - 10;
+	int sourcePos = _DimZ / 2 - __SLOT - __SIN_BOT -8 -10;
 	char filename[256];
 	FILE *f = fopen("plane_output.txt", "a"); double planeout;
 	for (int i = 0; i <= _STEP; i++) {
@@ -380,14 +380,17 @@ int main(int argc, char* argv[])
 		float addval = -sin(2 * M_PI* i * (_dt_ * _c0 / 700e-9)) * exp(-(i - 6 * 250)*(i - 6 * 250) / (2 * 250 * 250));
 		//float addval = sin(2.0f * M_PI * _c0 / 500e-9 * (float)i * _dt_) ;
 		addval /= 1.46f * 10000.0f;
-		for (int i = 0; i < _DimX; i++) {
-			for (int j = 0; j < _DimY; j++) {
+		//for (int i = 0; i < _DimX; i++) {
+		//	for (int j = 0; j < _DimY; j++) {
+		for (int i = _DimX/4; i < _DimX*0.75; i++) {
+			for (int j = _DimY/4; j < _DimY*0.75; j++) {
 				eps0_c_Ey[_INDEX_XYZ(i, j, sourcePos)] += addval / 1.0f;
 				Hx[_INDEX_XYZ(i, j, sourcePos)] -= addval / 2.0f;
-				Hx[_INDEX_XYZ(i, j, sourcePos)] -= addval / 2.0f;
+				Hx[_INDEX_XYZ(i, j, sourcePos-1)] -= addval / 2.0f;
 
 			}
 		}
+		
 		DCP_HE_C();
 		RFT(__BACK); //FIXME : print warning message if RFT would not reach its final step
 		planeout = 0.0;
@@ -997,7 +1000,7 @@ void NTFF(void) {
 					- NF_N_sum[1 * NTFF_IMG_SIZE *NTFF_IMG_SIZE + i + j*NTFF_IMG_SIZE].real * NF_eyePos[0 * NTFF_IMG_SIZE *NTFF_IMG_SIZE + i + j*NTFF_IMG_SIZE];
 				FF_ecE_x[i + j*NTFF_IMG_SIZE].imag =
 					NF_N_sum[0 * NTFF_IMG_SIZE *NTFF_IMG_SIZE + i + j*NTFF_IMG_SIZE].imag;
-				+NF_ecL_sum[1 * NTFF_IMG_SIZE *NTFF_IMG_SIZE + i + j*NTFF_IMG_SIZE].imag * NF_eyePos[2 * NTFF_IMG_SIZE *NTFF_IMG_SIZE + i + j*NTFF_IMG_SIZE]
+					+ NF_ecL_sum[1 * NTFF_IMG_SIZE *NTFF_IMG_SIZE + i + j*NTFF_IMG_SIZE].imag * NF_eyePos[2 * NTFF_IMG_SIZE *NTFF_IMG_SIZE + i + j*NTFF_IMG_SIZE]
 					- NF_ecL_sum[2 * NTFF_IMG_SIZE *NTFF_IMG_SIZE + i + j*NTFF_IMG_SIZE].imag * NF_eyePos[1 * NTFF_IMG_SIZE *NTFF_IMG_SIZE + i + j*NTFF_IMG_SIZE];
 				FF_ecE_y[i + j*NTFF_IMG_SIZE].imag =
 					NF_N_sum[1 * NTFF_IMG_SIZE *NTFF_IMG_SIZE + i + j*NTFF_IMG_SIZE].imag
@@ -1434,27 +1437,27 @@ int init(void)
 
 													 //FIXME : check PML area
 													 //FIXME : sigma do not need to be an array
-		if ((X + 1 <= ((_PML_PX_X_)) || (_DimX)-((_PML_PX_X_)) <= X) && Y<_DimX) {
+		if ((X + 1 <= ((_PML_PX_X_)) || (_DimX)-((_PML_PX_X_)) <= X) && X<_DimX) {
 			//if ((X + 1 <= ((pml_px_x)) || (_DimX)-((pml_px_x)) <= X) && ((pml_px_y)) < Y+1 && Y < (_DimY)-((_PML_PX_Y_)) && ((_PML_PX_Z_)) < Z + 1 && Z < (_DimZ)-((_PML_PX_Z_)) ) {
 			mask[i] |= (1 << 1); // 1st bit : PML
-			sigmaX_dt_div_eps0[i] = pow(fmin(fabs(((_PML_PX_X_)) - X), fabs(((_PML_PX_X_)) + X - (_DimX)+1)) / ((pml_px_x)), (pml_n)) / pml_sigma_x_dt_div_eps0_max_inv;
-			kappaX[i] = 1.0f + (pml_kappa_max - 1.0f) * pow((fmin(fabs(((_PML_PX_X_)) - X), fabs(((_PML_PX_X_)) + X - (_DimX)+1)) - 1.0f) / ((pml_px_x)), (pml_n)); //FIXME : 0.5f? -1.0f? check 
+			sigmaX_dt_div_eps0[i] = pow(fmin(fabs(((_PML_PX_X_)) - X), fabs(((_PML_PX_X_)) + X - (_DimX)+1)) / ((float)(pml_px_x)), (pml_n)) / pml_sigma_x_dt_div_eps0_max_inv;
+			kappaX[i] = 1.0f + (pml_kappa_max - 1.0f) * pow((fmin(fabs(((_PML_PX_X_)) - (float)X), fabs(((_PML_PX_X_)) + (float)X - (_DimX)+1)) - 1.0f) / ((float)(pml_px_x)), (pml_n)); //FIXME : 0.5f? -1.0f? check 
 			b_X[i] = expf(-alpha_dt_div_eps0[i] - sigmaX_dt_div_eps0[i] / kappaX[i]); //close to 0
 			C_X[i] = sigmaX_dt_div_eps0[i] / (sigmaX_dt_div_eps0[i] * kappaX[i] + alpha_dt_div_eps0[i] * kappaX[i] * kappaX[i]) * (b_X[i] - 1.0f); //close to 1
 		}
 		if ((Y + 1 <= ((_PML_PX_Y_)) || (_DimY)-((_PML_PX_Y_)) <= Y) && Y<_DimY) {
 			//if ((Y + 1 <= ((_PML_PX_Y_)) || (_DimY)-((_PML_PX_Y_)) <= Y) && ((_PML_PX_Z_)) < Z + 1 && Z < (_DimY)-((_PML_PX_Z_)) && ((_PML_PX_X_)) < X + 1 && X < (_DimX)-((_PML_PX_X_)) ) {
 			mask[i] |= (1 << 1); // 1st bit : PML
-			sigmaY_dt_div_eps0[i] = pow(fmin(fabs(((_PML_PX_Y_)) - Y), fabs(((_PML_PX_Y_)) + Y - (_DimY)+1)) / ((pml_px_y)), (pml_n)) / pml_sigma_y_dt_div_eps0_max_inv;
-			kappaY[i] = 1.0f + (pml_kappa_max - 1.0f) * pow((fmin(fabs(((_PML_PX_Y_)) - Y), fabs(((_PML_PX_Y_)) + Y - (_DimY)+1)) - 1.0f) / ((pml_px_y)), (pml_n));
+			sigmaY_dt_div_eps0[i] = pow(fmin(fabs(((_PML_PX_Y_)) - Y), fabs(((_PML_PX_Y_)) + Y - (_DimY)+1)) / ((float)(pml_px_y)), (pml_n)) / pml_sigma_y_dt_div_eps0_max_inv;
+			kappaY[i] = 1.0f + (pml_kappa_max - 1.0f) * pow((fmin(fabs(((_PML_PX_Y_)) - (float)Y), fabs(((_PML_PX_Y_)) + (float)Y - (_DimY)+1)) - 1.0f) / ((float)(pml_px_y)), (pml_n));
 			b_Y[i] = expf(-alpha_dt_div_eps0[i] - sigmaY_dt_div_eps0[i] / kappaY[i]);
 			C_Y[i] = sigmaY_dt_div_eps0[i] / (sigmaY_dt_div_eps0[i] * kappaY[i] + alpha_dt_div_eps0[i] * kappaY[i] * kappaY[i]) * (b_Y[i] - 1.0f);
 		}
-		if ((Z + 1 <= ((_PML_PX_Z_)) || (_DimZ)-((_PML_PX_Z_)) <= Z) && Y<_DimZ) {
+		if ((Z + 1 <= ((_PML_PX_Z_)) || (_DimZ)-((_PML_PX_Z_)) <= Z) && Z<_DimZ) {
 			//if ((Z + 1 <= ((_PML_PX_Z_)) || (_DimZ)-((_PML_PX_Z_)) <= Z) && ((_PML_PX_X_)) < X + 1 && X < (_DimX)-((_PML_PX_X_)) && ((_PML_PX_Y_)) < Y + 1 && Y < (_DimY)-((_PML_PX_Y_)) ) {
 			mask[i] |= (1 << 1); // 1st bit : PML
-			sigmaZ_dt_div_eps0[i] = pow(fmin(fabs(((_PML_PX_Z_)) - Z), fabs(((_PML_PX_Z_)) + Z - (_DimZ)+1)) / ((pml_px_z)), (pml_n)) / pml_sigma_z_dt_div_eps0_max_inv;
-			kappaZ[i] = 1.0f + (pml_kappa_max - 1.0f) * pow((fmin(fabs(((_PML_PX_Z_)) - Z), fabs(((_PML_PX_Z_)) + Z - (_DimZ)+1)) - 1.0f) / ((pml_px_z)), (pml_n));
+			sigmaZ_dt_div_eps0[i] = pow(fmin(fabs(((_PML_PX_Z_)) - Z), fabs(((_PML_PX_Z_)) + Z - (_DimZ)+1)) / ((float)(pml_px_z)), (pml_n)) / pml_sigma_z_dt_div_eps0_max_inv;
+			kappaZ[i] = 1.0f + (pml_kappa_max - 1.0f) * pow((fmin(fabs(((_PML_PX_Z_)) - (float)Z), fabs(((_PML_PX_Z_)) + (float)Z - (_DimZ)+1)) - 1.0f) / ((float)(pml_px_z)), (pml_n));
 			b_Z[i] = expf(-alpha_dt_div_eps0[i] - sigmaZ_dt_div_eps0[i] / kappaZ[i]);
 			C_Z[i] = sigmaZ_dt_div_eps0[i] / (sigmaZ_dt_div_eps0[i] * kappaZ[i] + alpha_dt_div_eps0[i] * kappaZ[i] * kappaZ[i]) * (b_Z[i] - 1.0f);
 		}

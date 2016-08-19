@@ -260,13 +260,16 @@ complex8 complex_div(complex8 a, complex8 b) { return (complex_make( (a.re * b.r
 __declspec(align(32)) static complex8 sx[_threadPerGrid];
 __declspec(align(32)) static complex8 sy[_threadPerGrid];
 __declspec(align(32)) static complex8 sz[_threadPerGrid];
-__declspec(align(32)) static complex8 Rx0[_threadPerGrid];
-__declspec(align(32)) static complex8 Ry0[_threadPerGrid];
-__declspec(align(32)) static complex8 Rz0[_threadPerGrid];
 
 __declspec(align(32)) static float eps0_c_Ex_imag[_threadPerGrid] = { 0.0f };
 __declspec(align(32)) static float eps0_c_Ey_imag[_threadPerGrid] = { 0.0f };
 __declspec(align(32)) static float eps0_c_Ez_imag[_threadPerGrid] = { 0.0f };
+__declspec(align(32)) static complex8 Rx[_threadPerGrid];
+__declspec(align(32)) static complex8 Ry[_threadPerGrid];
+__declspec(align(32)) static complex8 Rz[_threadPerGrid];
+__declspec(align(32)) static complex8 Rx_old[_threadPerGrid];
+__declspec(align(32)) static complex8 Ry_old[_threadPerGrid];
+__declspec(align(32)) static complex8 Rz_old[_threadPerGrid];
 __declspec(align(32)) static complex8 Sx[_threadPerGrid];
 __declspec(align(32)) static complex8 Sy[_threadPerGrid];
 __declspec(align(32)) static complex8 Sz[_threadPerGrid];
@@ -277,6 +280,12 @@ __declspec(align(32)) static float Hz_imag[_threadPerGrid] = { 0.0f };
 __declspec(align(32)) static complex8 Bx[_threadPerGrid];
 __declspec(align(32)) static complex8 By[_threadPerGrid];
 __declspec(align(32)) static complex8 Bz[_threadPerGrid];
+__declspec(align(32)) static complex8 Bx_old[_threadPerGrid];
+__declspec(align(32)) static complex8 By_old[_threadPerGrid];
+__declspec(align(32)) static complex8 Bz_old[_threadPerGrid];
+__declspec(align(32)) static complex8 Tx[_threadPerGrid];
+__declspec(align(32)) static complex8 Ty[_threadPerGrid];
+__declspec(align(32)) static complex8 Tz[_threadPerGrid];
 
 __declspec(align(32)) static float alpha_dt_div_eps0[_threadPerGrid] = { 0.0f };
 
@@ -359,275 +368,226 @@ void DCP_HE_C(void)
 	float Ex1__Ex0, Ex1__Sx0, Ex1__Sx1, Sx1__Sx0, Sx1__Rx0, Sx1__Rx1;
 	float Ey1__Ey0, Ey1__Sy0, Ey1__Sy1, Sy1__Sy0, Sy1__Ry0, Sy1__Ry1;
 	float Ez1__Ez0, Ez1__Sz0, Ez1__Sz1, Sz1__Sz0, Sz1__Rz0, Sz1__Rz1;
-	float Hx1__Hx0, Hx1__Bx0, Hx1__Bx1, Bx1__Bx0, Bx1__Rx0, Bx1__Rx1;
-	float Hy1__Hy0, Hy1__By0, Hy1__By1, By1__By0, By1__Ry0, By1__Ry1;
-	float Hz1__Hz0, Hz1__Bz0, Hz1__Bz1, Bz1__Bz0, Bz1__Rz0, Bz1__Rz1;
-	complex8 Rx, Ry, Rz;
+	float Hx1__Hx0, Hx1__Tx0, Hx1__Tx1, Tx1__Tx0, Tx1__Bx0, Tx1__Bx1;
+	float Hy1__Hy0, Hy1__Ty0, Hy1__Ty1, Ty1__Ty0, Ty1__By0, Ty1__By1;
+	float Hz1__Hz0, Hz1__Tz0, Hz1__Tz1, Tz1__Tz0, Tz1__Bz0, Tz1__Bz1;
 
 	syncPadding();
 
-
-	/* PML H recalc*/ //can be merged to updateH
-	for (unsigned __int64 offset = 0; offset < _threadPerGrid; offset += 1) {
-		if (((mask[offset] & (1 << 0)) >> 0) == 1) { continue; } // skip padding
-		if (((mask[offset] & (1 << 1)) >> 1) == 1) {//PML 
-			Rx0[offset] = complex_mul(complex_mul(sy[offset], sz[offset]), complex_div(complex_make(Hx[offset], Hx_imag[offset]), sx[offset]));
-			Ry0[offset] = complex_mul(complex_mul(sz[offset], sx[offset]), complex_div(complex_make(Hy[offset], Hy_imag[offset]), sy[offset]));
-			Rz0[offset] = complex_mul(complex_mul(sx[offset], sy[offset]), complex_div(complex_make(Hz[offset], Hz_imag[offset]), sz[offset]));
-			Hx_imag[offset] -= (eps0_c_Ey_imag[offset] - eps0_c_Ey_imag[offset + _offsetZ] + eps0_c_Ez_imag[offset + _offsetX + _offsetY] - eps0_c_Ez_imag[offset + _offsetX]) * _cdt_div_dx;
-			Hy_imag[offset] -= (eps0_c_Ez_imag[offset] - eps0_c_Ez_imag[offset + _offsetX] + eps0_c_Ex_imag[offset + _offsetZ] - eps0_c_Ex_imag[offset]) *_cdt_div_dx;
-			Hz_imag[offset] -= (eps0_c_Ex_imag[offset + _offsetZ] - eps0_c_Ex_imag[offset + _offsetY + _offsetZ] + eps0_c_Ey_imag[offset + _offsetZ] - eps0_c_Ey_imag[offset - _offsetX + _offsetZ]) * _cdt_div_dx;
-		}
-	}
-
+	
 	/*Update H*/
 	for (unsigned __int64 offset = 0; offset < _threadPerGrid; offset += 1) { 
 		if (((mask[offset] & (1 << 0)) >> 0) == 1) { continue; } // skip padding
-		Hx[offset] -= (eps0_c_Ey[offset] - eps0_c_Ey[offset + _offsetZ] + eps0_c_Ez[offset + _offsetX + _offsetY] - eps0_c_Ez[offset + _offsetX]) * _cdt_div_dx;
-		Hy[offset] -= (eps0_c_Ez[offset] - eps0_c_Ez[offset + _offsetX] + eps0_c_Ex[offset + _offsetZ] - eps0_c_Ex[offset]) *_cdt_div_dx;
-		Hz[offset] -= (eps0_c_Ex[offset + _offsetZ] - eps0_c_Ex[offset + _offsetY + _offsetZ] + eps0_c_Ey[offset + _offsetZ] - eps0_c_Ey[offset - _offsetX + _offsetZ]) * _cdt_div_dx;
-	}
-	
-	/*PML H*/ //can be merged to updateH
-	for (unsigned __int64 offset = 0; offset < _threadPerGrid; offset += 1) {
-		if (((mask[offset] & (1 << 0)) >> 0) == 1) { continue; } // skip padding
-		if (((mask[offset] & (1 << 1)) >> 1) == 1) {//PML H
+		if (((mask[offset] & (1 << 1)) >> 1) == 0) {// non PML 
+			Hx[offset] -= (eps0_c_Ey[offset] - eps0_c_Ey[offset + _offsetZ] + eps0_c_Ez[offset + _offsetX + _offsetY] - eps0_c_Ez[offset + _offsetX]) * _cdt_div_dx;
+			Hy[offset] -= (eps0_c_Ez[offset] - eps0_c_Ez[offset + _offsetX] + eps0_c_Ex[offset + _offsetZ] - eps0_c_Ex[offset]) *_cdt_div_dx;
+			Hz[offset] -= (eps0_c_Ex[offset + _offsetZ] - eps0_c_Ex[offset + _offsetY + _offsetZ] + eps0_c_Ey[offset + _offsetZ] - eps0_c_Ey[offset - _offsetX + _offsetZ]) * _cdt_div_dx;
+			//FIXME : calc boundary area only
+			//Bx[offset] = complex_mul(complex_mul(sy[offset], sz[offset]), complex_div(complex_make(eps0_c_Ex[offset], 0), sx[offset])); 
+			//By[offset] = complex_mul(complex_mul(sz[offset], sx[offset]), complex_div(complex_make(eps0_c_Ey[offset], 0), sy[offset]));
+			//Bz[offset] = complex_mul(complex_mul(sx[offset], sy[offset]), complex_div(complex_make(eps0_c_Ez[offset], 0), sz[offset]));
+			Bx[offset].re = eps0_c_Ex[offset]; 
+			By[offset].re = eps0_c_Ey[offset];
+			Bz[offset].re = eps0_c_Ez[offset];
+		}
+		if (((mask[offset] & (1 << 1)) >> 1) == 1) {//PML 
+			Bx_old[offset] = Bx[offset]; By_old[offset] = By[offset]; Bz_old[offset] = Bz[offset];
+			Bx[offset].re -= (Ry[offset].re - Ry[offset + _offsetZ].re + Rz[offset + _offsetX + _offsetY].re - Rz[offset + _offsetX].re) * _cdt_div_dx;
+			By[offset].re -= (Rz[offset].re - Rz[offset + _offsetX].re + Rx[offset + _offsetZ].re - Rx[offset].re) *_cdt_div_dx;
+			Bz[offset].re -= (Rx[offset + _offsetZ].re - Rx[offset + _offsetY + _offsetZ].re + Ry[offset + _offsetZ].re - Ry[offset - _offsetX + _offsetZ].re) * _cdt_div_dx;
+			Bx[offset].im -= (Ry[offset].im - Ry[offset + _offsetZ].im + Rz[offset + _offsetX + _offsetY].im - Rz[offset + _offsetX].im) * _cdt_div_dx;
+			By[offset].im -= (Rz[offset].im - Rz[offset + _offsetX].im + Rx[offset + _offsetZ].im - Rx[offset].im) *_cdt_div_dx;
+			Bz[offset].im -= (Rx[offset + _offsetZ].im - Rx[offset + _offsetY + _offsetZ].im + Ry[offset + _offsetZ].im - Ry[offset - _offsetX + _offsetZ].im) * _cdt_div_dx;
 
-			Hx1__Hx0 =	(2.0f * kappaZ[offset] - sigmaZ_dt_div_eps0[offset] - alpha_dt_div_eps0[offset] * kappaZ[offset])	/ (2.0f * kappaZ[offset] + sigmaZ_dt_div_eps0[offset] + alpha_dt_div_eps0[offset] * kappaZ[offset]);
-			Hx1__Bx1 = (2.0f * kappaX[offset] + sigmaX_dt_div_eps0[offset] + alpha_dt_div_eps0[offset] * kappaX[offset]) / (2.0f * kappaZ[offset] + sigmaZ_dt_div_eps0[offset] + alpha_dt_div_eps0[offset] * kappaZ[offset]);
-			Hx1__Bx0 =	-(2.0f * kappaX[offset] - sigmaX_dt_div_eps0[offset] - alpha_dt_div_eps0[offset] * kappaX[offset])	/ (2.0f * kappaZ[offset] + sigmaZ_dt_div_eps0[offset] + alpha_dt_div_eps0[offset] * kappaZ[offset]);
-			Bx1__Bx0 =	(2.0f * kappaY[offset] - sigmaY_dt_div_eps0[offset] - alpha_dt_div_eps0[offset] * kappaY[offset])	/ (2.0f * kappaY[offset] + sigmaY_dt_div_eps0[offset] + alpha_dt_div_eps0[offset] * kappaY[offset]);
-			Bx1__Rx1 =	(2.0f + alpha_dt_div_eps0[offset])	/ (2.0f * kappaY[offset] + sigmaY_dt_div_eps0[offset] + alpha_dt_div_eps0[offset] * kappaY[offset]);
-			Bx1__Rx0 =	-(2.0f - alpha_dt_div_eps0[offset])	/ (2.0f * kappaY[offset] + sigmaY_dt_div_eps0[offset] + alpha_dt_div_eps0[offset] * kappaY[offset]);
+			//(43), (41)
+			Hx1__Hx0 = (2.0f * kappaZ[offset] - sigmaZ_dt_div_eps0[offset] - alpha_dt_div_eps0[offset] * kappaZ[offset]) / (2.0f * kappaZ[offset] + sigmaZ_dt_div_eps0[offset] + alpha_dt_div_eps0[offset] * kappaZ[offset]);
+			Hx1__Tx1 = (2.0f * kappaX[offset] + sigmaX_dt_div_eps0[offset] + alpha_dt_div_eps0[offset] * kappaX[offset]) / (2.0f * kappaZ[offset] + sigmaZ_dt_div_eps0[offset] + alpha_dt_div_eps0[offset] * kappaZ[offset]);
+			Hx1__Tx0 = -(2.0f * kappaX[offset] - sigmaX_dt_div_eps0[offset] - alpha_dt_div_eps0[offset] * kappaX[offset]) / (2.0f * kappaZ[offset] + sigmaZ_dt_div_eps0[offset] + alpha_dt_div_eps0[offset] * kappaZ[offset]);
+			Tx1__Tx0 = (2.0f * kappaY[offset] - sigmaY_dt_div_eps0[offset] - alpha_dt_div_eps0[offset] * kappaY[offset]) / (2.0f * kappaY[offset] + sigmaY_dt_div_eps0[offset] + alpha_dt_div_eps0[offset] * kappaY[offset]);
+			Tx1__Bx1 = (2.0f + alpha_dt_div_eps0[offset]) / (2.0f * kappaY[offset] + sigmaY_dt_div_eps0[offset] + alpha_dt_div_eps0[offset] * kappaY[offset]);
+			Tx1__Bx0 = -(2.0f - alpha_dt_div_eps0[offset]) / (2.0f * kappaY[offset] + sigmaY_dt_div_eps0[offset] + alpha_dt_div_eps0[offset] * kappaY[offset]);
 
-			Hy1__Hy0 =	(2.0f * kappaX[offset] - sigmaX_dt_div_eps0[offset] - alpha_dt_div_eps0[offset] * kappaX[offset])	/ (2.0f * kappaX[offset] + sigmaX_dt_div_eps0[offset] + alpha_dt_div_eps0[offset] * kappaX[offset]);
-			Hy1__By1 = (2.0f * kappaY[offset] + sigmaY_dt_div_eps0[offset] + alpha_dt_div_eps0[offset] * kappaY[offset]) / (2.0f * kappaX[offset] + sigmaX_dt_div_eps0[offset] + alpha_dt_div_eps0[offset] * kappaX[offset]);
-			Hy1__By0 =	-(2.0f * kappaY[offset] - sigmaY_dt_div_eps0[offset] - alpha_dt_div_eps0[offset] * kappaY[offset])	/ (2.0f * kappaX[offset] + sigmaX_dt_div_eps0[offset] + alpha_dt_div_eps0[offset] * kappaX[offset]);
-			By1__By0 =	(2.0f * kappaZ[offset] - sigmaZ_dt_div_eps0[offset] - alpha_dt_div_eps0[offset] * kappaZ[offset])	/ (2.0f * kappaZ[offset] + sigmaZ_dt_div_eps0[offset] + alpha_dt_div_eps0[offset] * kappaZ[offset]);
-			By1__Ry1 =	(2.0f + alpha_dt_div_eps0[offset])	/ (2.0f * kappaZ[offset] + sigmaZ_dt_div_eps0[offset] + alpha_dt_div_eps0[offset] * kappaZ[offset]);
-			By1__Ry0 =	-(2.0f - alpha_dt_div_eps0[offset])	/ (2.0f * kappaZ[offset] + sigmaZ_dt_div_eps0[offset] + alpha_dt_div_eps0[offset] * kappaZ[offset]);
+			Hy1__Hy0 = (2.0f * kappaX[offset] - sigmaX_dt_div_eps0[offset] - alpha_dt_div_eps0[offset] * kappaX[offset]) / (2.0f * kappaX[offset] + sigmaX_dt_div_eps0[offset] + alpha_dt_div_eps0[offset] * kappaX[offset]);
+			Hy1__Ty1 = (2.0f * kappaY[offset] + sigmaY_dt_div_eps0[offset] + alpha_dt_div_eps0[offset] * kappaY[offset]) / (2.0f * kappaX[offset] + sigmaX_dt_div_eps0[offset] + alpha_dt_div_eps0[offset] * kappaX[offset]);
+			Hy1__Ty0 = -(2.0f * kappaY[offset] - sigmaY_dt_div_eps0[offset] - alpha_dt_div_eps0[offset] * kappaY[offset]) / (2.0f * kappaX[offset] + sigmaX_dt_div_eps0[offset] + alpha_dt_div_eps0[offset] * kappaX[offset]);
+			Ty1__Ty0 = (2.0f * kappaZ[offset] - sigmaZ_dt_div_eps0[offset] - alpha_dt_div_eps0[offset] * kappaZ[offset]) / (2.0f * kappaZ[offset] + sigmaZ_dt_div_eps0[offset] + alpha_dt_div_eps0[offset] * kappaZ[offset]);
+			Ty1__By1 = (2.0f + alpha_dt_div_eps0[offset]) / (2.0f * kappaZ[offset] + sigmaZ_dt_div_eps0[offset] + alpha_dt_div_eps0[offset] * kappaZ[offset]);
+			Ty1__By0 = -(2.0f - alpha_dt_div_eps0[offset]) / (2.0f * kappaZ[offset] + sigmaZ_dt_div_eps0[offset] + alpha_dt_div_eps0[offset] * kappaZ[offset]);
 
-			Hz1__Hz0 =	(2.0f * kappaY[offset] - sigmaY_dt_div_eps0[offset] - alpha_dt_div_eps0[offset] * kappaY[offset])	/ (2.0f * kappaY[offset] + sigmaY_dt_div_eps0[offset] + alpha_dt_div_eps0[offset] * kappaY[offset]);
-			Hz1__Bz1 = (2.0f * kappaZ[offset] + sigmaZ_dt_div_eps0[offset] + alpha_dt_div_eps0[offset] * kappaZ[offset]) / (2.0f * kappaY[offset] + sigmaY_dt_div_eps0[offset] + alpha_dt_div_eps0[offset] * kappaY[offset]);
-			Hz1__Bz0 =	-(2.0f * kappaZ[offset] - sigmaZ_dt_div_eps0[offset] - alpha_dt_div_eps0[offset] * kappaZ[offset])	/ (2.0f * kappaY[offset] + sigmaY_dt_div_eps0[offset] + alpha_dt_div_eps0[offset] * kappaY[offset]);
-			Bz1__Bz0 =	(2.0f * kappaX[offset] - sigmaX_dt_div_eps0[offset] - alpha_dt_div_eps0[offset] * kappaX[offset])	/ (2.0f * kappaX[offset] + sigmaX_dt_div_eps0[offset] + alpha_dt_div_eps0[offset] * kappaX[offset]);
-			Bz1__Rz1 =	(2.0f + alpha_dt_div_eps0[offset])	/ (2.0f * kappaX[offset] + sigmaX_dt_div_eps0[offset] + alpha_dt_div_eps0[offset] * kappaX[offset]);
-			Bz1__Rz0 =	-(2.0f - alpha_dt_div_eps0[offset])	/ (2.0f * kappaX[offset] + sigmaX_dt_div_eps0[offset] + alpha_dt_div_eps0[offset] * kappaX[offset]);
+			Hz1__Hz0 = (2.0f * kappaY[offset] - sigmaY_dt_div_eps0[offset] - alpha_dt_div_eps0[offset] * kappaY[offset]) / (2.0f * kappaY[offset] + sigmaY_dt_div_eps0[offset] + alpha_dt_div_eps0[offset] * kappaY[offset]);
+			Hz1__Tz1 = (2.0f * kappaZ[offset] + sigmaZ_dt_div_eps0[offset] + alpha_dt_div_eps0[offset] * kappaZ[offset]) / (2.0f * kappaY[offset] + sigmaY_dt_div_eps0[offset] + alpha_dt_div_eps0[offset] * kappaY[offset]);
+			Hz1__Tz0 = -(2.0f * kappaZ[offset] - sigmaZ_dt_div_eps0[offset] - alpha_dt_div_eps0[offset] * kappaZ[offset]) / (2.0f * kappaY[offset] + sigmaY_dt_div_eps0[offset] + alpha_dt_div_eps0[offset] * kappaY[offset]);
+			Tz1__Tz0 = (2.0f * kappaX[offset] - sigmaX_dt_div_eps0[offset] - alpha_dt_div_eps0[offset] * kappaX[offset]) / (2.0f * kappaX[offset] + sigmaX_dt_div_eps0[offset] + alpha_dt_div_eps0[offset] * kappaX[offset]);
+			Tz1__Bz1 = (2.0f + alpha_dt_div_eps0[offset]) / (2.0f * kappaX[offset] + sigmaX_dt_div_eps0[offset] + alpha_dt_div_eps0[offset] * kappaX[offset]);
+			Tz1__Bz0 = -(2.0f - alpha_dt_div_eps0[offset]) / (2.0f * kappaX[offset] + sigmaX_dt_div_eps0[offset] + alpha_dt_div_eps0[offset] * kappaX[offset]);
 
-			//R update
-			Rx = complex_mul(complex_mul(sy[offset], sz[offset]), complex_div(complex_make(Hx[offset], Hx_imag[offset]), sx[offset]));
-			Ry = complex_mul(complex_mul(sz[offset], sx[offset]), complex_div(complex_make(Hy[offset], Hy_imag[offset]), sy[offset]));
-			Rz = complex_mul(complex_mul(sx[offset], sy[offset]), complex_div(complex_make(Hz[offset], Hz_imag[offset]), sz[offset]));
-			
 			//H overwrite (0)
-			Hx[offset] = Hx1__Hx0*Hx[offset] + Hx1__Bx0 * Bx[offset].re;
-			Hy[offset] = Hy1__Hy0*Hy[offset] + Hy1__By0 * By[offset].re;
-			Hz[offset] = Hz1__Hz0*Hz[offset] + Hz1__Bz0 * Bz[offset].re;
-			Hx_imag[offset] = Hx1__Hx0*Hx_imag[offset] + Hx1__Bx0 * Bx[offset].im;
-			Hy_imag[offset] = Hy1__Hy0*Hy_imag[offset] + Hy1__By0 * By[offset].im;
-			Hz_imag[offset] = Hz1__Hz0*Hz_imag[offset] + Hz1__Bz0 * Bz[offset].im;
-			/*
-			//B overwrite
-			Bx[offset].re = Bx1__Bx0 * Bx[offset].re + Bx1__Rx0 * Rx0[offset].re + Bx1__Rx1 * Rx.re;
-			By[offset].re = By1__By0 * By[offset].re + By1__Ry0 * Ry0[offset].re + By1__Ry1 * Ry.re;
-			Bz[offset].re = Bz1__Bz0 * Bz[offset].re + Bz1__Rz0 * Rz0[offset].re + Bz1__Rz1 * Rz.re;
-			Bx[offset].im = Bx1__Bx0 * Bx[offset].im + Bx1__Rx0 * Rx0[offset].im + Bx1__Rx1 * Rx.im;
-			By[offset].im = By1__By0 * By[offset].im + By1__Ry0 * Ry0[offset].im + By1__Ry1 * Ry.im;
-			Bz[offset].im = Bz1__Bz0 * Bz[offset].im + Bz1__Rz0 * Rz0[offset].im + Bz1__Rz1 * Rz.im;
+			Hx[offset] = Hx1__Hx0*Hx[offset] + Hx1__Tx0 * Tx[offset].re;
+			Hy[offset] = Hy1__Hy0*Hy[offset] + Hy1__Ty0 * Ty[offset].re;
+			Hz[offset] = Hz1__Hz0*Hz[offset] + Hz1__Tz0 * Tz[offset].re;
+			Hx_imag[offset] = Hx1__Hx0*Hx_imag[offset] + Hx1__Tx0 * Tx[offset].im;
+			Hy_imag[offset] = Hy1__Hy0*Hy_imag[offset] + Hy1__Ty0 * Ty[offset].im;
+			Hz_imag[offset] = Hz1__Hz0*Hz_imag[offset] + Hz1__Tz0 * Tz[offset].im;
+
+			//T overwrite
+			Tx[offset].re = Tx1__Tx0 * Tx[offset].re + Tx1__Bx0 * Bx_old[offset].re + Tx1__Bx1 * Bx[offset].re;
+			Ty[offset].re = Ty1__Ty0 * Ty[offset].re + Ty1__By0 * By_old[offset].re + Ty1__By1 * By[offset].re;
+			Tz[offset].re = Tz1__Tz0 * Tz[offset].re + Tz1__Bz0 * Bz_old[offset].re + Tz1__Bz1 * Bz[offset].re;
+			Tx[offset].im = Tx1__Tx0 * Tx[offset].im + Tx1__Bx0 * Bx_old[offset].im + Tx1__Bx1 * Bx[offset].im;
+			Ty[offset].im = Ty1__Ty0 * Ty[offset].im + Ty1__By0 * By_old[offset].im + Ty1__By1 * By[offset].im;
+			Tz[offset].im = Tz1__Tz0 * Tz[offset].im + Tz1__Bz0 * Bz_old[offset].im + Tz1__Bz1 * Bz[offset].im;
 
 			//H overwrite (1)
-			Hx[offset] += Hx1__Bx1 * Bx[offset].re;
-			Hy[offset] += Hy1__By1 * By[offset].re;
-			Hz[offset] += Hz1__Bz1 * Bz[offset].re;
-			Hx_imag[offset] += Hx1__Bx1 * Bx[offset].im;
-			Hy_imag[offset] += Hy1__By1 * By[offset].im;
-			Hz_imag[offset] += Hz1__Bz1 * Bz[offset].im;*/
+			Hx[offset] += Hx1__Tx1 * Tx[offset].re;
+			Hy[offset] += Hy1__Ty1 * Ty[offset].re;
+			Hz[offset] += Hz1__Tz1 * Tz[offset].re;
+			Hx_imag[offset] += Hx1__Tx1 * Tx[offset].im;
+			Hy_imag[offset] += Hy1__Ty1 * Ty[offset].im;
+			Hz_imag[offset] += Hz1__Tz1 * Tz[offset].im;
 		}
 	}
 	
+	
 	syncPadding();
-
-	/* PML E recalc*/
-	for (unsigned __int64 offset = 0; offset < _threadPerGrid; offset += 1) {
-		if (((mask[offset] & (1 << 0)) >> 0) == 1) { continue; } // skip padding
-		if (((mask[offset] & (1 << 1)) >> 1) == 1) {//PML 
-			Rx0[offset] = complex_mul(complex_mul(sy[offset], sz[offset]), complex_div(complex_make(eps0_c_Ex[offset], eps0_c_Ex_imag[offset]), sx[offset]));
-			Ry0[offset] = complex_mul(complex_mul(sz[offset], sx[offset]), complex_div(complex_make(eps0_c_Ey[offset], eps0_c_Ey_imag[offset]), sy[offset]));
-			Rz0[offset] = complex_mul(complex_mul(sx[offset], sy[offset]), complex_div(complex_make(eps0_c_Ez[offset], eps0_c_Ez_imag[offset]), sz[offset]));
-			//FIXME : Warning : ignoring dispersive imaginary part
-			eps0_c_Ex_imag[offset] += (Hy_imag[offset - _offsetZ] - Hy_imag[offset] + Hz_imag[offset - _offsetZ] - Hz_imag[offset - _offsetY - _offsetZ]) * eps_r_inv[offset] * _cdt_div_dx;
-			eps0_c_Ey_imag[offset] += (Hz_imag[offset - _offsetZ] - Hz_imag[offset + _offsetX - _offsetZ] + Hx_imag[offset] - Hx_imag[offset - _offsetZ]) * eps_r_inv[offset] * _cdt_div_dx;
-			eps0_c_Ez_imag[offset] += (Hx_imag[offset - _offsetX - _offsetY] - Hx_imag[offset - _offsetX] + Hy_imag[offset] - Hy_imag[offset - _offsetX]) * eps_r_inv[offset] * _cdt_div_dx;
-		}
-	}
 
 	/*Update E*/
 	for (unsigned __int64 offset = 0; offset < _threadPerGrid; offset += 1) {
 		if (((mask[offset] & (1 << 0)) >> 0) == 1) { continue; } // skip padding
-		if (dielectric_flag== 0 && ((mask[offset] & (0b1111 << 4)) >> 4) > 0) {// metal
-			tempx[offset] = (Hy[offset - _offsetZ] - Hy[offset] + Hz[offset - _offsetZ] - Hz[offset - _offsetY - _offsetZ]) * eps_r_inv[offset] * _cdt_div_dx; //eq30term1
-			tempy[offset] = (Hz[offset - _offsetZ] - Hz[offset + _offsetX - _offsetZ] + Hx[offset] - Hx[offset - _offsetZ]) * eps_r_inv[offset] * _cdt_div_dx;
-			tempz[offset] = (Hx[offset - _offsetX - _offsetY] - Hx[offset - _offsetX] + Hy[offset] - Hy[offset - _offsetX]) * eps_r_inv[offset] * _cdt_div_dx;
-			tempx[offset] += eps0_c_Ex[offset] * (_eps0_ * _eps_inf - 0.5f * _sigma_ * _dt_ + _d2 - _C4p) / _eps0_; //eq30term2
-			tempy[offset] += eps0_c_Ey[offset] * (_eps0_ * _eps_inf - 0.5f * _sigma_ * _dt_ + _d2 - _C4p) / _eps0_; //FIXME : div_eps0 coeffs cleanup
-			tempz[offset] += eps0_c_Ez[offset] * (_eps0_ * _eps_inf - 0.5f * _sigma_ * _dt_ + _d2 - _C4p) / _eps0_;
-			tempx[offset] -= eps0_c_Ex_old[offset] * _C5p / _eps0_; //eq30term3
-			tempy[offset] -= eps0_c_Ey_old[offset] * _C5p / _eps0_;
-			tempz[offset] -= eps0_c_Ez_old[offset] * _C5p / _eps0_;
-			tempx[offset] -= eps0_c_Pdx[offset] * (_d1 - 1.0f) / _eps0_; //eq30term4
-			tempy[offset] -= eps0_c_Pdy[offset] * (_d1 - 1.0f) / _eps0_;
-			tempz[offset] -= eps0_c_Pdz[offset] * (_d1 - 1.0f) / _eps0_;
-			tempx[offset] -= eps0_c_Pcp1x[offset] * (_C11 - 1.0f) / _eps0_; //eq30term5
-			tempy[offset] -= eps0_c_Pcp1y[offset] * (_C11 - 1.0f) / _eps0_;
-			tempz[offset] -= eps0_c_Pcp1z[offset] * (_C11 - 1.0f) / _eps0_;
-			tempx[offset] -= eps0_c_Pcp2x[offset] * (_C12 - 1.0f) / _eps0_;
-			tempy[offset] -= eps0_c_Pcp2y[offset] * (_C12 - 1.0f) / _eps0_;
-			tempz[offset] -= eps0_c_Pcp2z[offset] * (_C12 - 1.0f) / _eps0_;
-			tempx[offset] -= eps0_c_Pcp1x_old[offset] * _C21 / _eps0_; //eq30term6
-			tempy[offset] -= eps0_c_Pcp1y_old[offset] * _C21 / _eps0_;
-			tempz[offset] -= eps0_c_Pcp1z_old[offset] * _C21 / _eps0_;
-			tempx[offset] -= eps0_c_Pcp2x_old[offset] * _C22 / _eps0_;
-			tempy[offset] -= eps0_c_Pcp2y_old[offset] * _C22 / _eps0_;
-			tempz[offset] -= eps0_c_Pcp2z_old[offset] * _C22 / _eps0_;
-			tempx[offset] /= (_eps0_ * _eps_inf + 0.5f * _sigma_ * _dt_ - _d2 + _C3p) / _eps0_; //eq30term0
-			tempy[offset] /= (_eps0_ * _eps_inf + 0.5f * _sigma_ * _dt_ - _d2 + _C3p) / _eps0_;
-			tempz[offset] /= (_eps0_ * _eps_inf + 0.5f * _sigma_ * _dt_ - _d2 + _C3p) / _eps0_;
+		if (((mask[offset] & (1 << 1)) >> 1) == 0) {// non PML 
+			if (dielectric_flag== 0 && ((mask[offset] & (0b1111 << 4)) >> 4) > 0) {// metal
+				tempx[offset] = (Hy[offset - _offsetZ] - Hy[offset] + Hz[offset - _offsetZ] - Hz[offset - _offsetY - _offsetZ]) * eps_r_inv[offset] * _cdt_div_dx; //eq30term1
+				tempy[offset] = (Hz[offset - _offsetZ] - Hz[offset + _offsetX - _offsetZ] + Hx[offset] - Hx[offset - _offsetZ]) * eps_r_inv[offset] * _cdt_div_dx;
+				tempz[offset] = (Hx[offset - _offsetX - _offsetY] - Hx[offset - _offsetX] + Hy[offset] - Hy[offset - _offsetX]) * eps_r_inv[offset] * _cdt_div_dx;
+				tempx[offset] += eps0_c_Ex[offset] * (_eps0_ * _eps_inf - 0.5f * _sigma_ * _dt_ + _d2 - _C4p) / _eps0_; //eq30term2
+				tempy[offset] += eps0_c_Ey[offset] * (_eps0_ * _eps_inf - 0.5f * _sigma_ * _dt_ + _d2 - _C4p) / _eps0_; //FIXME : div_eps0 coeffs cleanup
+				tempz[offset] += eps0_c_Ez[offset] * (_eps0_ * _eps_inf - 0.5f * _sigma_ * _dt_ + _d2 - _C4p) / _eps0_;
+				tempx[offset] -= eps0_c_Ex_old[offset] * _C5p / _eps0_; //eq30term3
+				tempy[offset] -= eps0_c_Ey_old[offset] * _C5p / _eps0_;
+				tempz[offset] -= eps0_c_Ez_old[offset] * _C5p / _eps0_;
+				tempx[offset] -= eps0_c_Pdx[offset] * (_d1 - 1.0f) / _eps0_; //eq30term4
+				tempy[offset] -= eps0_c_Pdy[offset] * (_d1 - 1.0f) / _eps0_;
+				tempz[offset] -= eps0_c_Pdz[offset] * (_d1 - 1.0f) / _eps0_;
+				tempx[offset] -= eps0_c_Pcp1x[offset] * (_C11 - 1.0f) / _eps0_; //eq30term5
+				tempy[offset] -= eps0_c_Pcp1y[offset] * (_C11 - 1.0f) / _eps0_;
+				tempz[offset] -= eps0_c_Pcp1z[offset] * (_C11 - 1.0f) / _eps0_;
+				tempx[offset] -= eps0_c_Pcp2x[offset] * (_C12 - 1.0f) / _eps0_;
+				tempy[offset] -= eps0_c_Pcp2y[offset] * (_C12 - 1.0f) / _eps0_;
+				tempz[offset] -= eps0_c_Pcp2z[offset] * (_C12 - 1.0f) / _eps0_;
+				tempx[offset] -= eps0_c_Pcp1x_old[offset] * _C21 / _eps0_; //eq30term6
+				tempy[offset] -= eps0_c_Pcp1y_old[offset] * _C21 / _eps0_;
+				tempz[offset] -= eps0_c_Pcp1z_old[offset] * _C21 / _eps0_;
+				tempx[offset] -= eps0_c_Pcp2x_old[offset] * _C22 / _eps0_;
+				tempy[offset] -= eps0_c_Pcp2y_old[offset] * _C22 / _eps0_;
+				tempz[offset] -= eps0_c_Pcp2z_old[offset] * _C22 / _eps0_;
+				tempx[offset] /= (_eps0_ * _eps_inf + 0.5f * _sigma_ * _dt_ - _d2 + _C3p) / _eps0_; //eq30term0
+				tempy[offset] /= (_eps0_ * _eps_inf + 0.5f * _sigma_ * _dt_ - _d2 + _C3p) / _eps0_;
+				tempz[offset] /= (_eps0_ * _eps_inf + 0.5f * _sigma_ * _dt_ - _d2 + _C3p) / _eps0_;
 
-			//PCP
-			eps0_c_Pcp1x_old[offset] *= _C21; //eq14term2
-			eps0_c_Pcp1y_old[offset] *= _C21;
-			eps0_c_Pcp1z_old[offset] *= _C21;
-			eps0_c_Pcp2x_old[offset] *= _C22;
-			eps0_c_Pcp2y_old[offset] *= _C22;
-			eps0_c_Pcp2z_old[offset] *= _C22;
-			eps0_c_Pcp1x_old[offset] += eps0_c_Pcp1x[offset] * _C11; //eq14term1
-			eps0_c_Pcp1y_old[offset] += eps0_c_Pcp1y[offset] * _C11;
-			eps0_c_Pcp1z_old[offset] += eps0_c_Pcp1z[offset] * _C11;
-			eps0_c_Pcp2x_old[offset] += eps0_c_Pcp2x[offset] * _C12;
-			eps0_c_Pcp2y_old[offset] += eps0_c_Pcp2y[offset] * _C12;
-			eps0_c_Pcp2z_old[offset] += eps0_c_Pcp2z[offset] * _C12;
-			eps0_c_Pcp1x_old[offset] += tempx[offset] * _C31; //eq14term3
-			eps0_c_Pcp1y_old[offset] += tempy[offset] * _C31;
-			eps0_c_Pcp1z_old[offset] += tempz[offset] * _C31;
-			eps0_c_Pcp2x_old[offset] += tempx[offset] * _C32;
-			eps0_c_Pcp2y_old[offset] += tempy[offset] * _C32;
-			eps0_c_Pcp2z_old[offset] += tempz[offset] * _C32;
-			eps0_c_Pcp1x_old[offset] += eps0_c_Ex[offset] * _C41; //eq14term4
-			eps0_c_Pcp1y_old[offset] += eps0_c_Ey[offset] * _C41;
-			eps0_c_Pcp1z_old[offset] += eps0_c_Ez[offset] * _C41;
-			eps0_c_Pcp2x_old[offset] += eps0_c_Ex[offset] * _C42;
-			eps0_c_Pcp2y_old[offset] += eps0_c_Ey[offset] * _C42;
-			eps0_c_Pcp2z_old[offset] += eps0_c_Ez[offset] * _C42;
-			eps0_c_Pcp1x_old[offset] += eps0_c_Ex_old[offset] * _C51; //eq14term5
-			eps0_c_Pcp1y_old[offset] += eps0_c_Ey_old[offset] * _C51;
-			eps0_c_Pcp1z_old[offset] += eps0_c_Ez_old[offset] * _C51;
-			eps0_c_Pcp2x_old[offset] += eps0_c_Ex_old[offset] * _C52;
-			eps0_c_Pcp2y_old[offset] += eps0_c_Ey_old[offset] * _C52;
-			eps0_c_Pcp2z_old[offset] += eps0_c_Ez_old[offset] * _C52;
-			//eps0_c_Ex_old can be used as temp var here now
+				//PCP
+				eps0_c_Pcp1x_old[offset] *= _C21; //eq14term2
+				eps0_c_Pcp1y_old[offset] *= _C21;
+				eps0_c_Pcp1z_old[offset] *= _C21;
+				eps0_c_Pcp2x_old[offset] *= _C22;
+				eps0_c_Pcp2y_old[offset] *= _C22;
+				eps0_c_Pcp2z_old[offset] *= _C22;
+				eps0_c_Pcp1x_old[offset] += eps0_c_Pcp1x[offset] * _C11; //eq14term1
+				eps0_c_Pcp1y_old[offset] += eps0_c_Pcp1y[offset] * _C11;
+				eps0_c_Pcp1z_old[offset] += eps0_c_Pcp1z[offset] * _C11;
+				eps0_c_Pcp2x_old[offset] += eps0_c_Pcp2x[offset] * _C12;
+				eps0_c_Pcp2y_old[offset] += eps0_c_Pcp2y[offset] * _C12;
+				eps0_c_Pcp2z_old[offset] += eps0_c_Pcp2z[offset] * _C12;
+				eps0_c_Pcp1x_old[offset] += tempx[offset] * _C31; //eq14term3
+				eps0_c_Pcp1y_old[offset] += tempy[offset] * _C31;
+				eps0_c_Pcp1z_old[offset] += tempz[offset] * _C31;
+				eps0_c_Pcp2x_old[offset] += tempx[offset] * _C32;
+				eps0_c_Pcp2y_old[offset] += tempy[offset] * _C32;
+				eps0_c_Pcp2z_old[offset] += tempz[offset] * _C32;
+				eps0_c_Pcp1x_old[offset] += eps0_c_Ex[offset] * _C41; //eq14term4
+				eps0_c_Pcp1y_old[offset] += eps0_c_Ey[offset] * _C41;
+				eps0_c_Pcp1z_old[offset] += eps0_c_Ez[offset] * _C41;
+				eps0_c_Pcp2x_old[offset] += eps0_c_Ex[offset] * _C42;
+				eps0_c_Pcp2y_old[offset] += eps0_c_Ey[offset] * _C42;
+				eps0_c_Pcp2z_old[offset] += eps0_c_Ez[offset] * _C42;
+				eps0_c_Pcp1x_old[offset] += eps0_c_Ex_old[offset] * _C51; //eq14term5
+				eps0_c_Pcp1y_old[offset] += eps0_c_Ey_old[offset] * _C51;
+				eps0_c_Pcp1z_old[offset] += eps0_c_Ez_old[offset] * _C51;
+				eps0_c_Pcp2x_old[offset] += eps0_c_Ex_old[offset] * _C52;
+				eps0_c_Pcp2y_old[offset] += eps0_c_Ey_old[offset] * _C52;
+				eps0_c_Pcp2z_old[offset] += eps0_c_Ez_old[offset] * _C52;
+				//eps0_c_Ex_old can be used as temp var here now
 
-			//PD
-			eps0_c_Pdx[offset] *= _d1; //eq27term1
-			eps0_c_Pdy[offset] *= _d1;
-			eps0_c_Pdz[offset] *= _d1;
-			eps0_c_Pdx[offset] -= tempx[offset] * _d2; //eq27term2
-			eps0_c_Pdy[offset] -= tempy[offset] * _d2;
-			eps0_c_Pdz[offset] -= tempz[offset] * _d2;
-			eps0_c_Pdx[offset] -= eps0_c_Ex[offset] * _d2; //eq27term3
-			eps0_c_Pdy[offset] -= eps0_c_Ey[offset] * _d2;
-			eps0_c_Pdz[offset] -= eps0_c_Ez[offset] * _d2;
+				//PD
+				eps0_c_Pdx[offset] *= _d1; //eq27term1
+				eps0_c_Pdy[offset] *= _d1;
+				eps0_c_Pdz[offset] *= _d1;
+				eps0_c_Pdx[offset] -= tempx[offset] * _d2; //eq27term2
+				eps0_c_Pdy[offset] -= tempy[offset] * _d2;
+				eps0_c_Pdz[offset] -= tempz[offset] * _d2;
+				eps0_c_Pdx[offset] -= eps0_c_Ex[offset] * _d2; //eq27term3
+				eps0_c_Pdy[offset] -= eps0_c_Ey[offset] * _d2;
+				eps0_c_Pdz[offset] -= eps0_c_Ez[offset] * _d2;
 
-			//FIXME : can be simpler than this?
-			eps0_c_Ex_old[offset] = eps0_c_Ex[offset];
-			eps0_c_Ey_old[offset] = eps0_c_Ey[offset];
-			eps0_c_Ez_old[offset] = eps0_c_Ez[offset];
+				//FIXME : can be simpler than this?
+				eps0_c_Ex_old[offset] = eps0_c_Ex[offset];
+				eps0_c_Ey_old[offset] = eps0_c_Ey[offset];
+				eps0_c_Ez_old[offset] = eps0_c_Ez[offset];
 
-			eps0_c_Ex[offset] = tempx[offset]; //FIXME : tempx size can be reduced: conider CUDA
-			eps0_c_Ey[offset] = tempy[offset];
-			eps0_c_Ez[offset] = tempz[offset];
+				eps0_c_Ex[offset] = tempx[offset]; //FIXME : tempx size can be reduced: conider CUDA
+				eps0_c_Ey[offset] = tempy[offset];
+				eps0_c_Ez[offset] = tempz[offset];
 
-			eps0_c_Pcp1x_old[offset] = eps0_c_Pcp1x[offset];
-			eps0_c_Pcp1y_old[offset] = eps0_c_Pcp1y[offset];
-			eps0_c_Pcp1z_old[offset] = eps0_c_Pcp1z[offset];
+				eps0_c_Pcp1x_old[offset] = eps0_c_Pcp1x[offset];
+				eps0_c_Pcp1y_old[offset] = eps0_c_Pcp1y[offset];
+				eps0_c_Pcp1z_old[offset] = eps0_c_Pcp1z[offset];
 
-			eps0_c_Pcp2x_old[offset] = eps0_c_Pcp2x[offset];
-			eps0_c_Pcp2y_old[offset] = eps0_c_Pcp2y[offset];
-			eps0_c_Pcp2z_old[offset] = eps0_c_Pcp2z[offset];
+				eps0_c_Pcp2x_old[offset] = eps0_c_Pcp2x[offset];
+				eps0_c_Pcp2y_old[offset] = eps0_c_Pcp2y[offset];
+				eps0_c_Pcp2z_old[offset] = eps0_c_Pcp2z[offset];
+			}
+			else {	// non metal
+				eps0_c_Ex[offset] += (Hy[offset - _offsetZ] - Hy[offset] + Hz[offset - _offsetZ] - Hz[offset - _offsetY - _offsetZ]) * eps_r_inv[offset] * _cdt_div_dx;
+				eps0_c_Ey[offset] += (Hz[offset - _offsetZ] - Hz[offset + _offsetX - _offsetZ] + Hx[offset] - Hx[offset - _offsetZ]) * eps_r_inv[offset] * _cdt_div_dx;
+				eps0_c_Ez[offset] += (Hx[offset - _offsetX - _offsetY] - Hx[offset - _offsetX] + Hy[offset] - Hy[offset - _offsetX]) * eps_r_inv[offset] * _cdt_div_dx;
+			}
+			//FIXME : copy boundary area only
+			Rx[offset].re = eps0_c_Ex[offset];
+			Ry[offset].re = eps0_c_Ey[offset];
+			Rz[offset].re = eps0_c_Ez[offset];
 		}
-		else {	// non metal
-			eps0_c_Ex[offset] += (Hy[offset - _offsetZ] - Hy[offset] + Hz[offset - _offsetZ] - Hz[offset - _offsetY - _offsetZ]) * eps_r_inv[offset] * _cdt_div_dx;
-			eps0_c_Ey[offset] += (Hz[offset - _offsetZ] - Hz[offset + _offsetX - _offsetZ] + Hx[offset] - Hx[offset - _offsetZ]) * eps_r_inv[offset] * _cdt_div_dx;
-			eps0_c_Ez[offset] += (Hx[offset - _offsetX - _offsetY] - Hx[offset - _offsetX] + Hy[offset] - Hy[offset - _offsetX]) * eps_r_inv[offset] * _cdt_div_dx;
-		}
-	}
-
-	/*PML E*/
-	for (unsigned __int64 offset = 0; offset < _threadPerGrid; offset += 1) {
-		if (((mask[offset] & (1 << 0)) >> 0) == 1) { continue; } // skip padding
 		if (((mask[offset] & (1 << 1)) >> 1) == 1) {//PML 
-
+			if (dielectric_flag == 0 && ((mask[offset] & (0b1111 << 4)) >> 4) > 0) {// metal
+				printf("exception\n");
+			}
+			else {	// non metal
+				Rx_old[offset] = Rx[offset]; Ry_old[offset] = Ry[offset]; Rz_old[offset] = Rz[offset];
+				Rx[offset].re += (By[offset - _offsetZ].re - By[offset].re + Bz[offset - _offsetZ].re - Bz[offset - _offsetY - _offsetZ].re) * eps_r_inv[offset] * _cdt_div_dx;
+				Ry[offset].re += (Bz[offset - _offsetZ].re - Bz[offset + _offsetX - _offsetZ].re + Bx[offset].re - Bx[offset - _offsetZ].re) * eps_r_inv[offset] * _cdt_div_dx;
+				Rz[offset].re += (Bx[offset - _offsetX - _offsetY].re - Bx[offset - _offsetX].re + By[offset].re - By[offset - _offsetX].re) * eps_r_inv[offset] * _cdt_div_dx;
+				Rx[offset].im += (By[offset - _offsetZ].im - By[offset].im + Bz[offset - _offsetZ].im - Bz[offset - _offsetY - _offsetZ].im) * eps_r_inv[offset] * _cdt_div_dx;
+				Ry[offset].im += (Bz[offset - _offsetZ].im - Bz[offset + _offsetX - _offsetZ].im + Bx[offset].im - Bx[offset - _offsetZ].im) * eps_r_inv[offset] * _cdt_div_dx;
+				Rz[offset].im += (Bx[offset - _offsetX - _offsetY].im - Bx[offset - _offsetX].im + By[offset].im - By[offset - _offsetX].im) * eps_r_inv[offset] * _cdt_div_dx;
+			}
 			//(43), (41)
-			Ex1__Ex0 =
-				(2.0f * kappaZ[offset] - sigmaZ_dt_div_eps0[offset] - alpha_dt_div_eps0[offset] * kappaZ[offset])
-				/ (2.0f * kappaZ[offset] + sigmaZ_dt_div_eps0[offset] + alpha_dt_div_eps0[offset] * kappaZ[offset]);
-			Ex1__Sx1 =
-				(2.0f * kappaX[offset] + sigmaX_dt_div_eps0[offset] + alpha_dt_div_eps0[offset] * kappaX[offset])
-				/ (2.0f * kappaZ[offset] + sigmaZ_dt_div_eps0[offset] + alpha_dt_div_eps0[offset] * kappaZ[offset]);
-			Ex1__Sx0 =
-				-(2.0f * kappaX[offset] - sigmaX_dt_div_eps0[offset] - alpha_dt_div_eps0[offset] * kappaX[offset])
-				/ (2.0f * kappaZ[offset] + sigmaZ_dt_div_eps0[offset] + alpha_dt_div_eps0[offset] * kappaZ[offset]);
-			Sx1__Sx0 =
-				(2.0f * kappaY[offset] - sigmaY_dt_div_eps0[offset] - alpha_dt_div_eps0[offset] * kappaY[offset])
-				/ (2.0f * kappaY[offset] + sigmaY_dt_div_eps0[offset] + alpha_dt_div_eps0[offset] * kappaY[offset]);
-			Sx1__Rx1 =
-				(2.0f + alpha_dt_div_eps0[offset])
-				/ (2.0f * kappaY[offset] + sigmaY_dt_div_eps0[offset] + alpha_dt_div_eps0[offset] * kappaY[offset]);
-			Sx1__Rx0 =
-				-(2.0f - alpha_dt_div_eps0[offset])
-				/ (2.0f * kappaY[offset] + sigmaY_dt_div_eps0[offset] + alpha_dt_div_eps0[offset] * kappaY[offset]);
+			Ex1__Ex0 = (2.0f * kappaZ[offset] - sigmaZ_dt_div_eps0[offset] - alpha_dt_div_eps0[offset] * kappaZ[offset]) / (2.0f * kappaZ[offset] + sigmaZ_dt_div_eps0[offset] + alpha_dt_div_eps0[offset] * kappaZ[offset]);
+			Ex1__Sx1 = (2.0f * kappaX[offset] + sigmaX_dt_div_eps0[offset] + alpha_dt_div_eps0[offset] * kappaX[offset]) / (2.0f * kappaZ[offset] + sigmaZ_dt_div_eps0[offset] + alpha_dt_div_eps0[offset] * kappaZ[offset]);
+			Ex1__Sx0 = -(2.0f * kappaX[offset] - sigmaX_dt_div_eps0[offset] - alpha_dt_div_eps0[offset] * kappaX[offset]) / (2.0f * kappaZ[offset] + sigmaZ_dt_div_eps0[offset] + alpha_dt_div_eps0[offset] * kappaZ[offset]);
+			Sx1__Sx0 = (2.0f * kappaY[offset] - sigmaY_dt_div_eps0[offset] - alpha_dt_div_eps0[offset] * kappaY[offset]) / (2.0f * kappaY[offset] + sigmaY_dt_div_eps0[offset] + alpha_dt_div_eps0[offset] * kappaY[offset]);
+			Sx1__Rx1 = (2.0f + alpha_dt_div_eps0[offset]) / (2.0f * kappaY[offset] + sigmaY_dt_div_eps0[offset] + alpha_dt_div_eps0[offset] * kappaY[offset]);
+			Sx1__Rx0 = -(2.0f - alpha_dt_div_eps0[offset]) / (2.0f * kappaY[offset] + sigmaY_dt_div_eps0[offset] + alpha_dt_div_eps0[offset] * kappaY[offset]);
 
-			Ey1__Ey0 =
-				(2.0f * kappaX[offset] - sigmaX_dt_div_eps0[offset] - alpha_dt_div_eps0[offset] * kappaX[offset])
-				/ (2.0f * kappaX[offset] + sigmaX_dt_div_eps0[offset] + alpha_dt_div_eps0[offset] * kappaX[offset]);
-			Ey1__Sy1 =
-				(2.0f * kappaY[offset] + sigmaY_dt_div_eps0[offset] + alpha_dt_div_eps0[offset] * kappaY[offset])
-				/ (2.0f * kappaX[offset] + sigmaX_dt_div_eps0[offset] + alpha_dt_div_eps0[offset] * kappaX[offset]);
-			Ey1__Sy0 =
-				-(2.0f * kappaY[offset] - sigmaY_dt_div_eps0[offset] - alpha_dt_div_eps0[offset] * kappaY[offset])
-				/ (2.0f * kappaX[offset] + sigmaX_dt_div_eps0[offset] + alpha_dt_div_eps0[offset] * kappaX[offset]);
-			Sy1__Sy0 =
-				(2.0f * kappaZ[offset] - sigmaZ_dt_div_eps0[offset] - alpha_dt_div_eps0[offset] * kappaZ[offset])
-				/ (2.0f * kappaZ[offset] + sigmaZ_dt_div_eps0[offset] + alpha_dt_div_eps0[offset] * kappaZ[offset]);
-			Sy1__Ry1 =
-				(2.0f + alpha_dt_div_eps0[offset])
-				/ (2.0f * kappaZ[offset] + sigmaZ_dt_div_eps0[offset] + alpha_dt_div_eps0[offset] * kappaZ[offset]);
-			Sy1__Ry0 =
-				-(2.0f - alpha_dt_div_eps0[offset])
-				/ (2.0f * kappaZ[offset] + sigmaZ_dt_div_eps0[offset] + alpha_dt_div_eps0[offset] * kappaZ[offset]);
+			Ey1__Ey0 = (2.0f * kappaX[offset] - sigmaX_dt_div_eps0[offset] - alpha_dt_div_eps0[offset] * kappaX[offset]) / (2.0f * kappaX[offset] + sigmaX_dt_div_eps0[offset] + alpha_dt_div_eps0[offset] * kappaX[offset]);
+			Ey1__Sy1 = (2.0f * kappaY[offset] + sigmaY_dt_div_eps0[offset] + alpha_dt_div_eps0[offset] * kappaY[offset]) / (2.0f * kappaX[offset] + sigmaX_dt_div_eps0[offset] + alpha_dt_div_eps0[offset] * kappaX[offset]);
+			Ey1__Sy0 = -(2.0f * kappaY[offset] - sigmaY_dt_div_eps0[offset] - alpha_dt_div_eps0[offset] * kappaY[offset]) / (2.0f * kappaX[offset] + sigmaX_dt_div_eps0[offset] + alpha_dt_div_eps0[offset] * kappaX[offset]);
+			Sy1__Sy0 = (2.0f * kappaZ[offset] - sigmaZ_dt_div_eps0[offset] - alpha_dt_div_eps0[offset] * kappaZ[offset]) / (2.0f * kappaZ[offset] + sigmaZ_dt_div_eps0[offset] + alpha_dt_div_eps0[offset] * kappaZ[offset]);
+			Sy1__Ry1 = (2.0f + alpha_dt_div_eps0[offset]) / (2.0f * kappaZ[offset] + sigmaZ_dt_div_eps0[offset] + alpha_dt_div_eps0[offset] * kappaZ[offset]);
+			Sy1__Ry0 = -(2.0f - alpha_dt_div_eps0[offset]) / (2.0f * kappaZ[offset] + sigmaZ_dt_div_eps0[offset] + alpha_dt_div_eps0[offset] * kappaZ[offset]);
 
-			Ez1__Ez0 =
-				(2.0f * kappaY[offset] - sigmaY_dt_div_eps0[offset] - alpha_dt_div_eps0[offset] * kappaY[offset])
-				/ (2.0f * kappaY[offset] + sigmaY_dt_div_eps0[offset] + alpha_dt_div_eps0[offset] * kappaY[offset]);
-			Ez1__Sz1 =
-				(2.0f * kappaZ[offset] + sigmaZ_dt_div_eps0[offset] + alpha_dt_div_eps0[offset] * kappaZ[offset])
-				/ (2.0f * kappaY[offset] + sigmaY_dt_div_eps0[offset] + alpha_dt_div_eps0[offset] * kappaY[offset]);
-			Ez1__Sz0 =
-				-(2.0f * kappaZ[offset] - sigmaZ_dt_div_eps0[offset] - alpha_dt_div_eps0[offset] * kappaZ[offset])
-				/ (2.0f * kappaY[offset] + sigmaY_dt_div_eps0[offset] + alpha_dt_div_eps0[offset] * kappaY[offset]);
-			Sz1__Sz0 =
-				(2.0f * kappaX[offset] - sigmaX_dt_div_eps0[offset] - alpha_dt_div_eps0[offset] * kappaX[offset])
-				/ (2.0f * kappaX[offset] + sigmaX_dt_div_eps0[offset] + alpha_dt_div_eps0[offset] * kappaX[offset]);
-			Sz1__Rz1 =
-				(2.0f + alpha_dt_div_eps0[offset])
-				/ (2.0f * kappaX[offset] + sigmaX_dt_div_eps0[offset] + alpha_dt_div_eps0[offset] * kappaX[offset]);
-			Sz1__Rz0 =
-				-(2.0f - alpha_dt_div_eps0[offset])
-				/ (2.0f * kappaX[offset] + sigmaX_dt_div_eps0[offset] + alpha_dt_div_eps0[offset] * kappaX[offset]);
-			
-			//R update
-			Rx = complex_mul(complex_mul(sy[offset], sz[offset]), complex_div(complex_make(eps0_c_Ex[offset], eps0_c_Ex_imag[offset]), sx[offset]));
-			Ry = complex_mul(complex_mul(sz[offset], sx[offset]), complex_div(complex_make(eps0_c_Ey[offset], eps0_c_Ey_imag[offset]), sy[offset]));
-			Rz = complex_mul(complex_mul(sx[offset], sy[offset]), complex_div(complex_make(eps0_c_Ez[offset], eps0_c_Ez_imag[offset]), sz[offset]));
+			Ez1__Ez0 = (2.0f * kappaY[offset] - sigmaY_dt_div_eps0[offset] - alpha_dt_div_eps0[offset] * kappaY[offset]) / (2.0f * kappaY[offset] + sigmaY_dt_div_eps0[offset] + alpha_dt_div_eps0[offset] * kappaY[offset]);
+			Ez1__Sz1 = (2.0f * kappaZ[offset] + sigmaZ_dt_div_eps0[offset] + alpha_dt_div_eps0[offset] * kappaZ[offset]) / (2.0f * kappaY[offset] + sigmaY_dt_div_eps0[offset] + alpha_dt_div_eps0[offset] * kappaY[offset]);
+			Ez1__Sz0 = -(2.0f * kappaZ[offset] - sigmaZ_dt_div_eps0[offset] - alpha_dt_div_eps0[offset] * kappaZ[offset]) / (2.0f * kappaY[offset] + sigmaY_dt_div_eps0[offset] + alpha_dt_div_eps0[offset] * kappaY[offset]);
+			Sz1__Sz0 = (2.0f * kappaX[offset] - sigmaX_dt_div_eps0[offset] - alpha_dt_div_eps0[offset] * kappaX[offset]) / (2.0f * kappaX[offset] + sigmaX_dt_div_eps0[offset] + alpha_dt_div_eps0[offset] * kappaX[offset]);
+			Sz1__Rz1 = (2.0f + alpha_dt_div_eps0[offset]) / (2.0f * kappaX[offset] + sigmaX_dt_div_eps0[offset] + alpha_dt_div_eps0[offset] * kappaX[offset]);
+			Sz1__Rz0 = -(2.0f - alpha_dt_div_eps0[offset]) / (2.0f * kappaX[offset] + sigmaX_dt_div_eps0[offset] + alpha_dt_div_eps0[offset] * kappaX[offset]);
 			
 			//E overwrite (0)
 			eps0_c_Ex[offset] = Ex1__Ex0*eps0_c_Ex[offset] + Ex1__Sx0 * Sx[offset].re;
@@ -637,14 +597,13 @@ void DCP_HE_C(void)
 			eps0_c_Ey_imag[offset] = Ey1__Ey0*eps0_c_Ey_imag[offset] + Ey1__Sy0 * Sy[offset].im;
 			eps0_c_Ez_imag[offset] = Ez1__Ez0*eps0_c_Ez_imag[offset] + Ez1__Sz0 * Sz[offset].im;
 
-			/*
 			//S overwrite
-			Sx[offset].re = Sx1__Sx0 * Sx[offset].re + Sx1__Rx0 * Rx0[offset].re + Sx1__Rx1 * Rx.re;
-			Sy[offset].re = Sy1__Sy0 * Sy[offset].re + Sy1__Ry0 * Ry0[offset].re + Sy1__Ry1 * Ry.re;
-			Sz[offset].re = Sz1__Sz0 * Sz[offset].re + Sz1__Rz0 * Rz0[offset].re + Sz1__Rz1 * Rz.re;
-			Sx[offset].im = Sx1__Sx0 * Sx[offset].im + Sx1__Rx0 * Rx0[offset].im + Sx1__Rx1 * Rx.im;
-			Sy[offset].im = Sy1__Sy0 * Sy[offset].im + Sy1__Ry0 * Ry0[offset].im + Sy1__Ry1 * Ry.im;
-			Sz[offset].im = Sz1__Sz0 * Sz[offset].im + Sz1__Rz0 * Rz0[offset].im + Sz1__Rz1 * Rz.im;
+			Sx[offset].re = Sx1__Sx0 * Sx[offset].re + Sx1__Rx0 * Rx_old[offset].re + Sx1__Rx1 * Rx[offset].re;
+			Sy[offset].re = Sy1__Sy0 * Sy[offset].re + Sy1__Ry0 * Ry_old[offset].re + Sy1__Ry1 * Ry[offset].re;
+			Sz[offset].re = Sz1__Sz0 * Sz[offset].re + Sz1__Rz0 * Rz_old[offset].re + Sz1__Rz1 * Rz[offset].re;
+			Sx[offset].im = Sx1__Sx0 * Sx[offset].im + Sx1__Rx0 * Rx_old[offset].im + Sx1__Rx1 * Rx[offset].im;
+			Sy[offset].im = Sy1__Sy0 * Sy[offset].im + Sy1__Ry0 * Ry_old[offset].im + Sy1__Ry1 * Ry[offset].im;
+			Sz[offset].im = Sz1__Sz0 * Sz[offset].im + Sz1__Rz0 * Rz_old[offset].im + Sz1__Rz1 * Rz[offset].im;
 
 			//E overwrite (1)
 			eps0_c_Ex[offset] += Ex1__Sx1 * Sx[offset].re;
@@ -652,8 +611,10 @@ void DCP_HE_C(void)
 			eps0_c_Ez[offset] += Ez1__Sz1 * Sz[offset].re;
 			eps0_c_Ex_imag[offset] += Ex1__Sx1 * Sx[offset].im;
 			eps0_c_Ey_imag[offset] += Ey1__Sy1 * Sy[offset].im;
-			eps0_c_Ez_imag[offset] += Ez1__Sz1 * Sz[offset].im;*/
-		}
+			eps0_c_Ez_imag[offset] += Ez1__Sz1 * Sz[offset].im;
+
+			}
+		
 	}
 }
 

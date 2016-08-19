@@ -6,24 +6,26 @@
 //reference : Torok et al, 2006 (doi: 10.1364/JOSAA.23.000713) formulation used for NTFF
 
 
-#define _DimX (100)
-#define _DimY (100)
-#define _DimZ (100)
+#define _DimX (50)
+#define _DimY (50)
+#define _DimZ (50)
 
-#define _STEP (50)
+#define _STEP (501)
 
 //eq35
 //consider using simple PML for NTFF calculation
-#define _PML_PX_X_ (0)
-#define _PML_PX_Y_ (0)
-#define _PML_PX_Z_ (16)
+#define _PML_PX_X_ (8)
+#define _PML_PX_Y_ (8)
+#define _PML_PX_Z_ (8)
 #define _PML_ALPHA_TUNING_ 0.1f
 int pml_n = 3; //consider using macro
 float pml_R = 10e-4;
 float pml_kappa_max = 8.0f;
-#define _NTFF_Margin_X_ (0)
-#define _NTFF_Margin_Y_ (0)
-#define _NTFF_Margin_Z_ (16)
+#define _NTFF_Margin_X_ (5)
+#define _NTFF_Margin_Y_ (5)
+#define _NTFF_Margin_Z_ (5)
+
+#define STRUCTURE
 
 #define _S_factor (2.0f)
 #define _dx (50e-9)
@@ -56,7 +58,7 @@ float stability_factor_inv = 1.0f / _S_factor;
 //	#define RFT_WINDOW _STEP
 //#endif
 #define FREQ_N 3
-float FREQ_LIST_DESIRED[FREQ_N] = { _c0 / 800e-9 / __BACK  , _c0 / 900e-9 / __BACK , _c0 / 1000e-9 / __BACK };
+float FREQ_LIST_DESIRED[FREQ_N] = { _c0 / 800e-9 / 1.0  , _c0 / 900e-9 / 1.0 , _c0 / 1000e-9 / 1.0 };
 //#define FREQ_N 3
 //float FREQ_LIST_DESIRED[FREQ_N] = { _c0 / 300e-9, _c0 / 500e-9, _c0 / 800e-9 };
 float RFT_K_LIST_CALCULATED[FREQ_N];
@@ -304,29 +306,11 @@ int main(int argc, char* argv[])
 	for (int i = 0; i <= _STEP; i++) {
 		printf("%f%%\r", 100.0f*(float)i / _STEP);
 		float addval = sin(2.0f * M_PI * _c0 / 500e-9 * (float)i * _dt_) * exp(-((float)i - 50.0f)*((float)i - 50.0f) / 25.0f / 25.0f);
-		//float addval = sin(2.0f * M_PI * _c0 / 500e-9 * (float)i * _dt_) ;
-		addval /= 1.46f * 10000.0f;
-		//for (int i = 0; i < _DimX; i++) {
-		//	for (int j = 0; j < _DimY; j++) {
-		for (int i = _DimX/4; i < _DimX*0.75; i++) {
-			for (int j = _DimY/4; j < _DimY*0.75; j++) {
-				eps0_c_Ey[_INDEX_XYZ(i, j, sourcePos)] += addval / 1.0f;
-				Hx[_INDEX_XYZ(i, j, sourcePos)] -= addval / 2.0f;
-				Hx[_INDEX_XYZ(i, j, sourcePos-1)] -= addval / 2.0f;
-
-			}
-		}
+		addval *= 100;
+		eps0_c_Ey[_INDEX_XYZ(_DimX/2, _DimY/2, _DimZ/2)] += addval / 1.0f;
 		
 		DCP_HE_C();
-		RFT(__BACK); //FIXME : print warning message if RFT would not reach its final step
-		planeout = 0.0;
-		for (int i = 0; i < _DimX; i++) {
-			for (int j = 0; j < _DimX; j++) {
-				eps0_c_Ey[_INDEX_XYZ(i, j, 50)] += addval / 1.0f;
-				Hx[_INDEX_XYZ(i, j, 50)] -= addval / 2.0f;
-				Hx[_INDEX_XYZ(i, j, 49)] -= addval / 2.0f;
-			}
-		}
+		RFT(1.0); //FIXME : print warning message if RFT would not reach its final step
 
 		if ((i) % 100 == 0) {
 			sprintf(filename, "%05d", i);
@@ -1540,7 +1524,7 @@ void syncPadding(void) {
 }
 
 
-int snapshot(void)
+int snapshot(char* filename)
 {
 
 	char filenameFull[256];
@@ -1629,6 +1613,7 @@ int snapshot(void)
 			image[4 * width * (height - 1 - z) + 4 * y + 2] = (unsigned char)(val2>0 ? val2 : 0);
 			image[4 * width * (height - 1 - z) + 4 * y + 3] = 255;
 		}
+	sprintf(filenameFull, "E2_X0_%s.png", filename);
 	error = lodepng_encode32_file(filenameFull, image, width, height);
 	if (error) printf("error %u: %s\n", error, lodepng_error_text(error));
 
@@ -1636,7 +1621,6 @@ int snapshot(void)
 
 
 
-	sprintf(filenameFull, "E2_Z0_%s.png", filename);
 
 	printf("snapshot : Z=%d\n", _DimZ / 2);
 	int Z = _DimZ / 2;
@@ -1675,6 +1659,7 @@ int snapshot(void)
 			image[4 * width * (height - 1 - y) + 4 * x + 2] = (unsigned char)(val2>0 ? val2 : 0);
 			image[4 * width * (height - 1 - y) + 4 * x + 3] = 255;
 		}
+	sprintf(filenameFull, "E2_Z0_%s.png", filename);
 	error = lodepng_encode32_file(filenameFull, image, width, height);
 	if (error) printf("error %u: %s\n", error, lodepng_error_text(error));
 
@@ -1721,7 +1706,7 @@ void snapshotStructure() {
 
 	free(image);
 
-	int Z = _DimZ / 2 + __SIN_TOP / 2;
+	int Z = _DimZ / 2;
 	width = _DimX; height = _DimY;
 	unsigned char* image2 = malloc(width * height * 4);
 	int y;//  , x;

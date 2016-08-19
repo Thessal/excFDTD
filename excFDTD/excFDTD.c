@@ -17,8 +17,8 @@
 #define _PML_PX_X_ (8)
 #define _PML_PX_Y_ (8)
 #define _PML_PX_Z_ (8)
-#define _PML_ALPHA_TUNING_ (1.0f/(float)(_PML_PX_Z_))
-#define _PML_OMEGA_DT_TUNING_ (2.0f*M_PI*50e-0/700e-9)
+#define _PML_ALPHA_TUNING_ (0.1f)
+#define _PML_OMEGA_DT_TUNING_ (2.0f*M_PI*50e-9/700e-9)
 //#define _PML_OMEGA_DT_TUNING_ (2.0f*M_PI)
 int pml_n = 3; //consider using macro
 float pml_R = 10e-4;
@@ -374,6 +374,9 @@ void DCP_HE_C(void)
 			Rx0[offset] = complex_mul(complex_mul(sy[offset], sz[offset]), complex_div(complex_make(Hx[offset], Hx_imag[offset]), sx[offset]));
 			Ry0[offset] = complex_mul(complex_mul(sz[offset], sx[offset]), complex_div(complex_make(Hy[offset], Hy_imag[offset]), sy[offset]));
 			Rz0[offset] = complex_mul(complex_mul(sx[offset], sy[offset]), complex_div(complex_make(Hz[offset], Hz_imag[offset]), sz[offset]));
+			Hx_imag[offset] -= (eps0_c_Ey_imag[offset] - eps0_c_Ey_imag[offset + _offsetZ] + eps0_c_Ez_imag[offset + _offsetX + _offsetY] - eps0_c_Ez_imag[offset + _offsetX]) * _cdt_div_dx;
+			Hy_imag[offset] -= (eps0_c_Ez_imag[offset] - eps0_c_Ez_imag[offset + _offsetX] + eps0_c_Ex_imag[offset + _offsetZ] - eps0_c_Ex_imag[offset]) *_cdt_div_dx;
+			Hz_imag[offset] -= (eps0_c_Ex_imag[offset + _offsetZ] - eps0_c_Ex_imag[offset + _offsetY + _offsetZ] + eps0_c_Ey_imag[offset + _offsetZ] - eps0_c_Ey_imag[offset - _offsetX + _offsetZ]) * _cdt_div_dx;
 		}
 	}
 
@@ -384,38 +387,38 @@ void DCP_HE_C(void)
 		Hy[offset] -= (eps0_c_Ez[offset] - eps0_c_Ez[offset + _offsetX] + eps0_c_Ex[offset + _offsetZ] - eps0_c_Ex[offset]) *_cdt_div_dx;
 		Hz[offset] -= (eps0_c_Ex[offset + _offsetZ] - eps0_c_Ex[offset + _offsetY + _offsetZ] + eps0_c_Ey[offset + _offsetZ] - eps0_c_Ey[offset - _offsetX + _offsetZ]) * _cdt_div_dx;
 	}
-
+	
 	/*PML H*/ //can be merged to updateH
 	for (unsigned __int64 offset = 0; offset < _threadPerGrid; offset += 1) {
 		if (((mask[offset] & (1 << 0)) >> 0) == 1) { continue; } // skip padding
 		if (((mask[offset] & (1 << 1)) >> 1) == 1) {//PML H
 
 			Hx1__Hx0 =	(2.0f * kappaZ[offset] - sigmaZ_dt_div_eps0[offset] - alpha_dt_div_eps0[offset] * kappaZ[offset])	/ (2.0f * kappaZ[offset] + sigmaZ_dt_div_eps0[offset] + alpha_dt_div_eps0[offset] * kappaZ[offset]);
+			Hx1__Bx1 = (2.0f * kappaX[offset] + sigmaX_dt_div_eps0[offset] + alpha_dt_div_eps0[offset] * kappaX[offset]) / (2.0f * kappaZ[offset] + sigmaZ_dt_div_eps0[offset] + alpha_dt_div_eps0[offset] * kappaZ[offset]);
 			Hx1__Bx0 =	-(2.0f * kappaX[offset] - sigmaX_dt_div_eps0[offset] - alpha_dt_div_eps0[offset] * kappaX[offset])	/ (2.0f * kappaZ[offset] + sigmaZ_dt_div_eps0[offset] + alpha_dt_div_eps0[offset] * kappaZ[offset]);
-			Hx1__Bx1 =	(2.0f * kappaX[offset] + sigmaX_dt_div_eps0[offset] + alpha_dt_div_eps0[offset] * kappaX[offset])	/ (2.0f * kappaZ[offset] + sigmaZ_dt_div_eps0[offset] + alpha_dt_div_eps0[offset] * kappaZ[offset]);
 			Bx1__Bx0 =	(2.0f * kappaY[offset] - sigmaY_dt_div_eps0[offset] - alpha_dt_div_eps0[offset] * kappaY[offset])	/ (2.0f * kappaY[offset] + sigmaY_dt_div_eps0[offset] + alpha_dt_div_eps0[offset] * kappaY[offset]);
-			Bx1__Rx0 =	(2.0f + alpha_dt_div_eps0[offset])	/ (2.0f * kappaY[offset] + sigmaY_dt_div_eps0[offset] + alpha_dt_div_eps0[offset] * kappaY[offset]);
-			Bx1__Rx1 =	-(2.0f - alpha_dt_div_eps0[offset])	/ (2.0f * kappaY[offset] + sigmaY_dt_div_eps0[offset] + alpha_dt_div_eps0[offset] * kappaY[offset]);
+			Bx1__Rx1 =	(2.0f + alpha_dt_div_eps0[offset])	/ (2.0f * kappaY[offset] + sigmaY_dt_div_eps0[offset] + alpha_dt_div_eps0[offset] * kappaY[offset]);
+			Bx1__Rx0 =	-(2.0f - alpha_dt_div_eps0[offset])	/ (2.0f * kappaY[offset] + sigmaY_dt_div_eps0[offset] + alpha_dt_div_eps0[offset] * kappaY[offset]);
 
 			Hy1__Hy0 =	(2.0f * kappaX[offset] - sigmaX_dt_div_eps0[offset] - alpha_dt_div_eps0[offset] * kappaX[offset])	/ (2.0f * kappaX[offset] + sigmaX_dt_div_eps0[offset] + alpha_dt_div_eps0[offset] * kappaX[offset]);
+			Hy1__By1 = (2.0f * kappaY[offset] + sigmaY_dt_div_eps0[offset] + alpha_dt_div_eps0[offset] * kappaY[offset]) / (2.0f * kappaX[offset] + sigmaX_dt_div_eps0[offset] + alpha_dt_div_eps0[offset] * kappaX[offset]);
 			Hy1__By0 =	-(2.0f * kappaY[offset] - sigmaY_dt_div_eps0[offset] - alpha_dt_div_eps0[offset] * kappaY[offset])	/ (2.0f * kappaX[offset] + sigmaX_dt_div_eps0[offset] + alpha_dt_div_eps0[offset] * kappaX[offset]);
-			Hy1__By1 =	(2.0f * kappaY[offset] + sigmaY_dt_div_eps0[offset] + alpha_dt_div_eps0[offset] * kappaY[offset])	/ (2.0f * kappaX[offset] + sigmaX_dt_div_eps0[offset] + alpha_dt_div_eps0[offset] * kappaX[offset]);
 			By1__By0 =	(2.0f * kappaZ[offset] - sigmaZ_dt_div_eps0[offset] - alpha_dt_div_eps0[offset] * kappaZ[offset])	/ (2.0f * kappaZ[offset] + sigmaZ_dt_div_eps0[offset] + alpha_dt_div_eps0[offset] * kappaZ[offset]);
-			By1__Ry0 =	(2.0f + alpha_dt_div_eps0[offset])	/ (2.0f * kappaZ[offset] + sigmaZ_dt_div_eps0[offset] + alpha_dt_div_eps0[offset] * kappaZ[offset]);
-			By1__Ry1 =	-(2.0f - alpha_dt_div_eps0[offset])	/ (2.0f * kappaZ[offset] + sigmaZ_dt_div_eps0[offset] + alpha_dt_div_eps0[offset] * kappaZ[offset]);
+			By1__Ry1 =	(2.0f + alpha_dt_div_eps0[offset])	/ (2.0f * kappaZ[offset] + sigmaZ_dt_div_eps0[offset] + alpha_dt_div_eps0[offset] * kappaZ[offset]);
+			By1__Ry0 =	-(2.0f - alpha_dt_div_eps0[offset])	/ (2.0f * kappaZ[offset] + sigmaZ_dt_div_eps0[offset] + alpha_dt_div_eps0[offset] * kappaZ[offset]);
 
 			Hz1__Hz0 =	(2.0f * kappaY[offset] - sigmaY_dt_div_eps0[offset] - alpha_dt_div_eps0[offset] * kappaY[offset])	/ (2.0f * kappaY[offset] + sigmaY_dt_div_eps0[offset] + alpha_dt_div_eps0[offset] * kappaY[offset]);
+			Hz1__Bz1 = (2.0f * kappaZ[offset] + sigmaZ_dt_div_eps0[offset] + alpha_dt_div_eps0[offset] * kappaZ[offset]) / (2.0f * kappaY[offset] + sigmaY_dt_div_eps0[offset] + alpha_dt_div_eps0[offset] * kappaY[offset]);
 			Hz1__Bz0 =	-(2.0f * kappaZ[offset] - sigmaZ_dt_div_eps0[offset] - alpha_dt_div_eps0[offset] * kappaZ[offset])	/ (2.0f * kappaY[offset] + sigmaY_dt_div_eps0[offset] + alpha_dt_div_eps0[offset] * kappaY[offset]);
-			Hz1__Bz1 =	(2.0f * kappaZ[offset] + sigmaZ_dt_div_eps0[offset] + alpha_dt_div_eps0[offset] * kappaZ[offset])	/ (2.0f * kappaY[offset] + sigmaY_dt_div_eps0[offset] + alpha_dt_div_eps0[offset] * kappaY[offset]);
 			Bz1__Bz0 =	(2.0f * kappaX[offset] - sigmaX_dt_div_eps0[offset] - alpha_dt_div_eps0[offset] * kappaX[offset])	/ (2.0f * kappaX[offset] + sigmaX_dt_div_eps0[offset] + alpha_dt_div_eps0[offset] * kappaX[offset]);
-			Bz1__Rz0 =	(2.0f + alpha_dt_div_eps0[offset])	/ (2.0f * kappaX[offset] + sigmaX_dt_div_eps0[offset] + alpha_dt_div_eps0[offset] * kappaX[offset]);
-			Bz1__Rz1 =	-(2.0f - alpha_dt_div_eps0[offset])	/ (2.0f * kappaX[offset] + sigmaX_dt_div_eps0[offset] + alpha_dt_div_eps0[offset] * kappaX[offset]);
+			Bz1__Rz1 =	(2.0f + alpha_dt_div_eps0[offset])	/ (2.0f * kappaX[offset] + sigmaX_dt_div_eps0[offset] + alpha_dt_div_eps0[offset] * kappaX[offset]);
+			Bz1__Rz0 =	-(2.0f - alpha_dt_div_eps0[offset])	/ (2.0f * kappaX[offset] + sigmaX_dt_div_eps0[offset] + alpha_dt_div_eps0[offset] * kappaX[offset]);
 
 			//R update
 			Rx = complex_mul(complex_mul(sy[offset], sz[offset]), complex_div(complex_make(Hx[offset], Hx_imag[offset]), sx[offset]));
 			Ry = complex_mul(complex_mul(sz[offset], sx[offset]), complex_div(complex_make(Hy[offset], Hy_imag[offset]), sy[offset]));
 			Rz = complex_mul(complex_mul(sx[offset], sy[offset]), complex_div(complex_make(Hz[offset], Hz_imag[offset]), sz[offset]));
-
+			
 			//H overwrite (0)
 			Hx[offset] = Hx1__Hx0*Hx[offset] + Hx1__Bx0 * Bx[offset].re;
 			Hy[offset] = Hy1__Hy0*Hy[offset] + Hy1__By0 * By[offset].re;
@@ -423,7 +426,7 @@ void DCP_HE_C(void)
 			Hx_imag[offset] = Hx1__Hx0*Hx_imag[offset] + Hx1__Bx0 * Bx[offset].im;
 			Hy_imag[offset] = Hy1__Hy0*Hy_imag[offset] + Hy1__By0 * By[offset].im;
 			Hz_imag[offset] = Hz1__Hz0*Hz_imag[offset] + Hz1__Bz0 * Bz[offset].im;
-
+			/*
 			//B overwrite
 			Bx[offset].re = Bx1__Bx0 * Bx[offset].re + Bx1__Rx0 * Rx0[offset].re + Bx1__Rx1 * Rx.re;
 			By[offset].re = By1__By0 * By[offset].re + By1__Ry0 * Ry0[offset].re + By1__Ry1 * Ry.re;
@@ -438,7 +441,7 @@ void DCP_HE_C(void)
 			Hz[offset] += Hz1__Bz1 * Bz[offset].re;
 			Hx_imag[offset] += Hx1__Bx1 * Bx[offset].im;
 			Hy_imag[offset] += Hy1__By1 * By[offset].im;
-			Hz_imag[offset] += Hz1__Bz1 * Bz[offset].im;
+			Hz_imag[offset] += Hz1__Bz1 * Bz[offset].im;*/
 		}
 	}
 	
@@ -451,6 +454,10 @@ void DCP_HE_C(void)
 			Rx0[offset] = complex_mul(complex_mul(sy[offset], sz[offset]), complex_div(complex_make(eps0_c_Ex[offset], eps0_c_Ex_imag[offset]), sx[offset]));
 			Ry0[offset] = complex_mul(complex_mul(sz[offset], sx[offset]), complex_div(complex_make(eps0_c_Ey[offset], eps0_c_Ey_imag[offset]), sy[offset]));
 			Rz0[offset] = complex_mul(complex_mul(sx[offset], sy[offset]), complex_div(complex_make(eps0_c_Ez[offset], eps0_c_Ez_imag[offset]), sz[offset]));
+			//FIXME : Warning : ignoring dispersive imaginary part
+			eps0_c_Ex_imag[offset] += (Hy_imag[offset - _offsetZ] - Hy_imag[offset] + Hz_imag[offset - _offsetZ] - Hz_imag[offset - _offsetY - _offsetZ]) * eps_r_inv[offset] * _cdt_div_dx;
+			eps0_c_Ey_imag[offset] += (Hz_imag[offset - _offsetZ] - Hz_imag[offset + _offsetX - _offsetZ] + Hx_imag[offset] - Hx_imag[offset - _offsetZ]) * eps_r_inv[offset] * _cdt_div_dx;
+			eps0_c_Ez_imag[offset] += (Hx_imag[offset - _offsetX - _offsetY] - Hx_imag[offset - _offsetX] + Hy_imag[offset] - Hy_imag[offset - _offsetX]) * eps_r_inv[offset] * _cdt_div_dx;
 		}
 	}
 
@@ -554,66 +561,66 @@ void DCP_HE_C(void)
 		}
 	}
 
-
 	/*PML E*/
 	for (unsigned __int64 offset = 0; offset < _threadPerGrid; offset += 1) {
 		if (((mask[offset] & (1 << 0)) >> 0) == 1) { continue; } // skip padding
 		if (((mask[offset] & (1 << 1)) >> 1) == 1) {//PML 
 
+			//(43), (41)
 			Ex1__Ex0 =
 				(2.0f * kappaZ[offset] - sigmaZ_dt_div_eps0[offset] - alpha_dt_div_eps0[offset] * kappaZ[offset])
-				/ (2.0f * kappaZ[offset] + sigmaZ_dt_div_eps0[offset] + alpha_dt_div_eps0[offset] * kappaZ[offset]);
-			Ex1__Sx0 =
-				-(2.0f * kappaX[offset] - sigmaX_dt_div_eps0[offset] - alpha_dt_div_eps0[offset] * kappaX[offset])
 				/ (2.0f * kappaZ[offset] + sigmaZ_dt_div_eps0[offset] + alpha_dt_div_eps0[offset] * kappaZ[offset]);
 			Ex1__Sx1 =
 				(2.0f * kappaX[offset] + sigmaX_dt_div_eps0[offset] + alpha_dt_div_eps0[offset] * kappaX[offset])
 				/ (2.0f * kappaZ[offset] + sigmaZ_dt_div_eps0[offset] + alpha_dt_div_eps0[offset] * kappaZ[offset]);
+			Ex1__Sx0 =
+				-(2.0f * kappaX[offset] - sigmaX_dt_div_eps0[offset] - alpha_dt_div_eps0[offset] * kappaX[offset])
+				/ (2.0f * kappaZ[offset] + sigmaZ_dt_div_eps0[offset] + alpha_dt_div_eps0[offset] * kappaZ[offset]);
 			Sx1__Sx0 =
 				(2.0f * kappaY[offset] - sigmaY_dt_div_eps0[offset] - alpha_dt_div_eps0[offset] * kappaY[offset])
 				/ (2.0f * kappaY[offset] + sigmaY_dt_div_eps0[offset] + alpha_dt_div_eps0[offset] * kappaY[offset]);
-			Sx1__Rx0 =
+			Sx1__Rx1 =
 				(2.0f + alpha_dt_div_eps0[offset])
 				/ (2.0f * kappaY[offset] + sigmaY_dt_div_eps0[offset] + alpha_dt_div_eps0[offset] * kappaY[offset]);
-			Sx1__Rx1 =
+			Sx1__Rx0 =
 				-(2.0f - alpha_dt_div_eps0[offset])
 				/ (2.0f * kappaY[offset] + sigmaY_dt_div_eps0[offset] + alpha_dt_div_eps0[offset] * kappaY[offset]);
 
 			Ey1__Ey0 =
 				(2.0f * kappaX[offset] - sigmaX_dt_div_eps0[offset] - alpha_dt_div_eps0[offset] * kappaX[offset])
 				/ (2.0f * kappaX[offset] + sigmaX_dt_div_eps0[offset] + alpha_dt_div_eps0[offset] * kappaX[offset]);
-			Ey1__Sy0 =
-				-(2.0f * kappaY[offset] - sigmaY_dt_div_eps0[offset] - alpha_dt_div_eps0[offset] * kappaY[offset])
-				/ (2.0f * kappaX[offset] + sigmaX_dt_div_eps0[offset] + alpha_dt_div_eps0[offset] * kappaX[offset]);
 			Ey1__Sy1 =
 				(2.0f * kappaY[offset] + sigmaY_dt_div_eps0[offset] + alpha_dt_div_eps0[offset] * kappaY[offset])
+				/ (2.0f * kappaX[offset] + sigmaX_dt_div_eps0[offset] + alpha_dt_div_eps0[offset] * kappaX[offset]);
+			Ey1__Sy0 =
+				-(2.0f * kappaY[offset] - sigmaY_dt_div_eps0[offset] - alpha_dt_div_eps0[offset] * kappaY[offset])
 				/ (2.0f * kappaX[offset] + sigmaX_dt_div_eps0[offset] + alpha_dt_div_eps0[offset] * kappaX[offset]);
 			Sy1__Sy0 =
 				(2.0f * kappaZ[offset] - sigmaZ_dt_div_eps0[offset] - alpha_dt_div_eps0[offset] * kappaZ[offset])
 				/ (2.0f * kappaZ[offset] + sigmaZ_dt_div_eps0[offset] + alpha_dt_div_eps0[offset] * kappaZ[offset]);
-			Sy1__Ry0 =
+			Sy1__Ry1 =
 				(2.0f + alpha_dt_div_eps0[offset])
 				/ (2.0f * kappaZ[offset] + sigmaZ_dt_div_eps0[offset] + alpha_dt_div_eps0[offset] * kappaZ[offset]);
-			Sy1__Ry1 =
+			Sy1__Ry0 =
 				-(2.0f - alpha_dt_div_eps0[offset])
 				/ (2.0f * kappaZ[offset] + sigmaZ_dt_div_eps0[offset] + alpha_dt_div_eps0[offset] * kappaZ[offset]);
 
 			Ez1__Ez0 =
 				(2.0f * kappaY[offset] - sigmaY_dt_div_eps0[offset] - alpha_dt_div_eps0[offset] * kappaY[offset])
 				/ (2.0f * kappaY[offset] + sigmaY_dt_div_eps0[offset] + alpha_dt_div_eps0[offset] * kappaY[offset]);
-			Ez1__Sz0 =
-				-(2.0f * kappaZ[offset] - sigmaZ_dt_div_eps0[offset] - alpha_dt_div_eps0[offset] * kappaZ[offset])
-				/ (2.0f * kappaY[offset] + sigmaY_dt_div_eps0[offset] + alpha_dt_div_eps0[offset] * kappaY[offset]);
 			Ez1__Sz1 =
 				(2.0f * kappaZ[offset] + sigmaZ_dt_div_eps0[offset] + alpha_dt_div_eps0[offset] * kappaZ[offset])
+				/ (2.0f * kappaY[offset] + sigmaY_dt_div_eps0[offset] + alpha_dt_div_eps0[offset] * kappaY[offset]);
+			Ez1__Sz0 =
+				-(2.0f * kappaZ[offset] - sigmaZ_dt_div_eps0[offset] - alpha_dt_div_eps0[offset] * kappaZ[offset])
 				/ (2.0f * kappaY[offset] + sigmaY_dt_div_eps0[offset] + alpha_dt_div_eps0[offset] * kappaY[offset]);
 			Sz1__Sz0 =
 				(2.0f * kappaX[offset] - sigmaX_dt_div_eps0[offset] - alpha_dt_div_eps0[offset] * kappaX[offset])
 				/ (2.0f * kappaX[offset] + sigmaX_dt_div_eps0[offset] + alpha_dt_div_eps0[offset] * kappaX[offset]);
-			Sz1__Rz0 =
+			Sz1__Rz1 =
 				(2.0f + alpha_dt_div_eps0[offset])
 				/ (2.0f * kappaX[offset] + sigmaX_dt_div_eps0[offset] + alpha_dt_div_eps0[offset] * kappaX[offset]);
-			Sz1__Rz1 =
+			Sz1__Rz0 =
 				-(2.0f - alpha_dt_div_eps0[offset])
 				/ (2.0f * kappaX[offset] + sigmaX_dt_div_eps0[offset] + alpha_dt_div_eps0[offset] * kappaX[offset]);
 			
@@ -630,6 +637,7 @@ void DCP_HE_C(void)
 			eps0_c_Ey_imag[offset] = Ey1__Ey0*eps0_c_Ey_imag[offset] + Ey1__Sy0 * Sy[offset].im;
 			eps0_c_Ez_imag[offset] = Ez1__Ez0*eps0_c_Ez_imag[offset] + Ez1__Sz0 * Sz[offset].im;
 
+			/*
 			//S overwrite
 			Sx[offset].re = Sx1__Sx0 * Sx[offset].re + Sx1__Rx0 * Rx0[offset].re + Sx1__Rx1 * Rx.re;
 			Sy[offset].re = Sy1__Sy0 * Sy[offset].re + Sy1__Ry0 * Ry0[offset].re + Sy1__Ry1 * Ry.re;
@@ -637,14 +645,14 @@ void DCP_HE_C(void)
 			Sx[offset].im = Sx1__Sx0 * Sx[offset].im + Sx1__Rx0 * Rx0[offset].im + Sx1__Rx1 * Rx.im;
 			Sy[offset].im = Sy1__Sy0 * Sy[offset].im + Sy1__Ry0 * Ry0[offset].im + Sy1__Ry1 * Ry.im;
 			Sz[offset].im = Sz1__Sz0 * Sz[offset].im + Sz1__Rz0 * Rz0[offset].im + Sz1__Rz1 * Rz.im;
-			
+
 			//E overwrite (1)
 			eps0_c_Ex[offset] += Ex1__Sx1 * Sx[offset].re;
 			eps0_c_Ey[offset] += Ey1__Sy1 * Sy[offset].re;
 			eps0_c_Ez[offset] += Ez1__Sz1 * Sz[offset].re;
 			eps0_c_Ex_imag[offset] += Ex1__Sx1 * Sx[offset].im;
 			eps0_c_Ey_imag[offset] += Ey1__Sy1 * Sy[offset].im;
-			eps0_c_Ez_imag[offset] += Ez1__Sz1 * Sz[offset].im;
+			eps0_c_Ez_imag[offset] += Ez1__Sz1 * Sz[offset].im;*/
 		}
 	}
 }

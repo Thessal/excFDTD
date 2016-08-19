@@ -261,9 +261,9 @@ __declspec(align(32)) static complex8 sx[_threadPerGrid];
 __declspec(align(32)) static complex8 sy[_threadPerGrid];
 __declspec(align(32)) static complex8 sz[_threadPerGrid];
 
-__declspec(align(32)) static float eps0_c_Ex_imag[_threadPerGrid] = { 0.0f };
-__declspec(align(32)) static float eps0_c_Ey_imag[_threadPerGrid] = { 0.0f };
-__declspec(align(32)) static float eps0_c_Ez_imag[_threadPerGrid] = { 0.0f };
+//__declspec(align(32)) static float eps0_c_Ex_imag[_threadPerGrid] = { 0.0f };
+//__declspec(align(32)) static float eps0_c_Ey_imag[_threadPerGrid] = { 0.0f };
+//__declspec(align(32)) static float eps0_c_Ez_imag[_threadPerGrid] = { 0.0f };
 __declspec(align(32)) static complex8 Rx[_threadPerGrid];
 __declspec(align(32)) static complex8 Ry[_threadPerGrid];
 __declspec(align(32)) static complex8 Rz[_threadPerGrid];
@@ -274,9 +274,9 @@ __declspec(align(32)) static complex8 Sx[_threadPerGrid];
 __declspec(align(32)) static complex8 Sy[_threadPerGrid];
 __declspec(align(32)) static complex8 Sz[_threadPerGrid];
 
-__declspec(align(32)) static float Hx_imag[_threadPerGrid] = { 0.0f };
-__declspec(align(32)) static float Hy_imag[_threadPerGrid] = { 0.0f };
-__declspec(align(32)) static float Hz_imag[_threadPerGrid] = { 0.0f };
+//__declspec(align(32)) static float Hx_imag[_threadPerGrid] = { 0.0f };
+//__declspec(align(32)) static float Hy_imag[_threadPerGrid] = { 0.0f };
+//__declspec(align(32)) static float Hz_imag[_threadPerGrid] = { 0.0f };
 __declspec(align(32)) static complex8 Bx[_threadPerGrid];
 __declspec(align(32)) static complex8 By[_threadPerGrid];
 __declspec(align(32)) static complex8 Bz[_threadPerGrid];
@@ -423,9 +423,9 @@ void DCP_HE_C(void)
 			Hx[offset] = Hx1__Hx0*Hx[offset] + Hx1__Tx0 * Tx[offset].re;
 			Hy[offset] = Hy1__Hy0*Hy[offset] + Hy1__Ty0 * Ty[offset].re;
 			Hz[offset] = Hz1__Hz0*Hz[offset] + Hz1__Tz0 * Tz[offset].re;
-			Hx_imag[offset] = Hx1__Hx0*Hx_imag[offset] + Hx1__Tx0 * Tx[offset].im;
-			Hy_imag[offset] = Hy1__Hy0*Hy_imag[offset] + Hy1__Ty0 * Ty[offset].im;
-			Hz_imag[offset] = Hz1__Hz0*Hz_imag[offset] + Hz1__Tz0 * Tz[offset].im;
+			//Hx_imag[offset] = Hx1__Hx0*Hx_imag[offset] + Hx1__Tx0 * Tx[offset].im;
+			//Hy_imag[offset] = Hy1__Hy0*Hy_imag[offset] + Hy1__Ty0 * Ty[offset].im;
+			//Hz_imag[offset] = Hz1__Hz0*Hz_imag[offset] + Hz1__Tz0 * Tz[offset].im;
 
 			//T overwrite
 			Tx[offset].re = Tx1__Tx0 * Tx[offset].re + Tx1__Bx0 * Bx_old[offset].re + Tx1__Bx1 * Bx[offset].re;
@@ -439,9 +439,9 @@ void DCP_HE_C(void)
 			Hx[offset] += Hx1__Tx1 * Tx[offset].re;
 			Hy[offset] += Hy1__Ty1 * Ty[offset].re;
 			Hz[offset] += Hz1__Tz1 * Tz[offset].re;
-			Hx_imag[offset] += Hx1__Tx1 * Tx[offset].im;
-			Hy_imag[offset] += Hy1__Ty1 * Ty[offset].im;
-			Hz_imag[offset] += Hz1__Tz1 * Tz[offset].im;
+			//Hx_imag[offset] += Hx1__Tx1 * Tx[offset].im;
+			//Hy_imag[offset] += Hy1__Ty1 * Ty[offset].im;
+			//Hz_imag[offset] += Hz1__Tz1 * Tz[offset].im;
 		}
 	}
 	
@@ -591,10 +591,10 @@ void DCP_HE_C(void)
 			eps0_c_Ex[offset] = Ex1__Ex0*eps0_c_Ex[offset] + Ex1__Sx0 * Sx[offset].re;
 			eps0_c_Ey[offset] = Ey1__Ey0*eps0_c_Ey[offset] + Ey1__Sy0 * Sy[offset].re;
 			eps0_c_Ez[offset] = Ez1__Ez0*eps0_c_Ez[offset] + Ez1__Sz0 * Sz[offset].re;
-			eps0_c_Ex_imag[offset] = Ex1__Ex0*eps0_c_Ex_imag[offset] + Ex1__Sx0 * Sx[offset].im;
-			eps0_c_Ey_imag[offset] = Ey1__Ey0*eps0_c_Ey_imag[offset] + Ey1__Sy0 * Sy[offset].im;
-			eps0_c_Ez_imag[offset] = Ez1__Ez0*eps0_c_Ez_imag[offset] + Ez1__Sz0 * Sz[offset].im;
-			/*
+			//eps0_c_Ex_imag[offset] = Ex1__Ex0*eps0_c_Ex_imag[offset] + Ex1__Sx0 * Sx[offset].im;
+			//eps0_c_Ey_imag[offset] = Ey1__Ey0*eps0_c_Ey_imag[offset] + Ey1__Sy0 * Sy[offset].im;
+			//eps0_c_Ez_imag[offset] = Ez1__Ez0*eps0_c_Ez_imag[offset] + Ez1__Sz0 * Sz[offset].im;
+			
 			//S overwrite
 			Sx[offset].re = Sx1__Sx0 * Sx[offset].re + Sx1__Rx0 * Rx_old[offset].re + Sx1__Rx1 * Rx[offset].re;
 			Sy[offset].re = Sy1__Sy0 * Sy[offset].re + Sy1__Ry0 * Ry_old[offset].re + Sy1__Ry1 * Ry[offset].re;
@@ -606,7 +606,7 @@ void DCP_HE_C(void)
 			//E overwrite (1)
 			eps0_c_Ex[offset] += Ex1__Sx1 * Sx[offset].re;
 			eps0_c_Ey[offset] += Ey1__Sy1 * Sy[offset].re;
-			eps0_c_Ez[offset] += Ez1__Sz1 * Sz[offset].re;
+			eps0_c_Ez[offset] += Ez1__Sz1 * Sz[offset].re;/*
 			eps0_c_Ex_imag[offset] += Ex1__Sx1 * Sx[offset].im;
 			eps0_c_Ey_imag[offset] += Ey1__Sy1 * Sy[offset].im;
 			eps0_c_Ez_imag[offset] += Ez1__Sz1 * Sz[offset].im;*/

@@ -423,7 +423,7 @@ void DCP_HE_C(void)
 			Tz1__Bz1 = (2.0f + alpha_dt_div_eps0[offset]) / (2.0f * kappaX[offset] + sigmaX_dt_div_eps0[offset] + alpha_dt_div_eps0[offset] * kappaX[offset]);
 			Tz1__Bz0 = -(2.0f - alpha_dt_div_eps0[offset]) / (2.0f * kappaX[offset] + sigmaX_dt_div_eps0[offset] + alpha_dt_div_eps0[offset] * kappaX[offset]);
 
-			//H overwrite (0)
+			//H write (0)
 			Hx[offset] = Hx1__Hx0*Hx[offset] + Hx1__Tx0 * Tx[offset].re;
 			Hy[offset] = Hy1__Hy0*Hy[offset] + Hy1__Ty0 * Ty[offset].re;
 			Hz[offset] = Hz1__Hz0*Hz[offset] + Hz1__Tz0 * Tz[offset].re;
@@ -431,15 +431,19 @@ void DCP_HE_C(void)
 			//Hy_imag[offset] = Hy1__Hy0*Hy_imag[offset] + Hy1__Ty0 * Ty[offset].im;
 			//Hz_imag[offset] = Hz1__Hz0*Hz_imag[offset] + Hz1__Tz0 * Tz[offset].im;
 
-			//T overwrite
+			//T update
 			Tx[offset].re = Tx1__Tx0 * Tx[offset].re + Tx1__Bx0 * Bx_old[offset].re + Tx1__Bx1 * Bx[offset].re;
 			Ty[offset].re = Ty1__Ty0 * Ty[offset].re + Ty1__By0 * By_old[offset].re + Ty1__By1 * By[offset].re;
 			Tz[offset].re = Tz1__Tz0 * Tz[offset].re + Tz1__Bz0 * Bz_old[offset].re + Tz1__Bz1 * Bz[offset].re;
 			Tx[offset].im = Tx1__Tx0 * Tx[offset].im + Tx1__Bx0 * Bx_old[offset].im + Tx1__Bx1 * Bx[offset].im;
 			Ty[offset].im = Ty1__Ty0 * Ty[offset].im + Ty1__By0 * By_old[offset].im + Ty1__By1 * By[offset].im;
 			Tz[offset].im = Tz1__Tz0 * Tz[offset].im + Tz1__Bz0 * Bz_old[offset].im + Tz1__Bz1 * Bz[offset].im;
+			////B store 
+			//Bx[offset] = complex_mul(sy[offset], Tx[offset]);
+			//By[offset] = complex_mul(sz[offset], Ty[offset]);
+			//Bz[offset] = complex_mul(sx[offset], Tz[offset]);
 
-			//H overwrite (1)
+			//H write (1)
 			Hx[offset] += Hx1__Tx1 * Tx[offset].re;
 			Hy[offset] += Hy1__Ty1 * Ty[offset].re;
 			Hz[offset] += Hz1__Tz1 * Tz[offset].re;
@@ -594,7 +598,7 @@ void DCP_HE_C(void)
 			Sz1__Rz1 = (2.0f + alpha_dt_div_eps0[offset]) / (2.0f * kappaX[offset] + sigmaX_dt_div_eps0[offset] + alpha_dt_div_eps0[offset] * kappaX[offset]);
 			Sz1__Rz0 = -(2.0f - alpha_dt_div_eps0[offset]) / (2.0f * kappaX[offset] + sigmaX_dt_div_eps0[offset] + alpha_dt_div_eps0[offset] * kappaX[offset]);
 			
-			//E overwrite (0)
+			//E write (0)
 			eps0_c_Ex[offset] = Ex1__Ex0*eps0_c_Ex[offset] + Ex1__Sx0 * Sx[offset].re;
 			eps0_c_Ey[offset] = Ey1__Ey0*eps0_c_Ey[offset] + Ey1__Sy0 * Sy[offset].re;
 			eps0_c_Ez[offset] = Ez1__Ez0*eps0_c_Ez[offset] + Ez1__Sz0 * Sz[offset].re;
@@ -602,21 +606,25 @@ void DCP_HE_C(void)
 			//eps0_c_Ey_imag[offset] = Ey1__Ey0*eps0_c_Ey_imag[offset] + Ey1__Sy0 * Sy[offset].im;
 			//eps0_c_Ez_imag[offset] = Ez1__Ez0*eps0_c_Ez_imag[offset] + Ez1__Sz0 * Sz[offset].im;
 			
-			//S overwrite
+			//S update
 			Sx[offset].re = Sx1__Sx0 * Sx[offset].re + Sx1__Rx0 * Rx_old[offset].re + Sx1__Rx1 * Rx[offset].re;
 			Sy[offset].re = Sy1__Sy0 * Sy[offset].re + Sy1__Ry0 * Ry_old[offset].re + Sy1__Ry1 * Ry[offset].re;
 			Sz[offset].re = Sz1__Sz0 * Sz[offset].re + Sz1__Rz0 * Rz_old[offset].re + Sz1__Rz1 * Rz[offset].re;
 			Sx[offset].im = Sx1__Sx0 * Sx[offset].im + Sx1__Rx0 * Rx_old[offset].im + Sx1__Rx1 * Rx[offset].im;
 			Sy[offset].im = Sy1__Sy0 * Sy[offset].im + Sy1__Ry0 * Ry_old[offset].im + Sy1__Ry1 * Ry[offset].im;
 			Sz[offset].im = Sz1__Sz0 * Sz[offset].im + Sz1__Rz0 * Rz_old[offset].im + Sz1__Rz1 * Rz[offset].im;
+			////R store
+			//Rx[offset] = complex_mul(sy[offset], Sx[offset]);
+			//Ry[offset] = complex_mul(sz[offset], Sy[offset]);
+			//Rz[offset] = complex_mul(sx[offset], Sz[offset]);
 
-			//E overwrite (1)
+			//E write (1)
 			eps0_c_Ex[offset] += Ex1__Sx1 * Sx[offset].re;
 			eps0_c_Ey[offset] += Ey1__Sy1 * Sy[offset].re;
-			eps0_c_Ez[offset] += Ez1__Sz1 * Sz[offset].re;/*
-			eps0_c_Ex_imag[offset] += Ex1__Sx1 * Sx[offset].im;
-			eps0_c_Ey_imag[offset] += Ey1__Sy1 * Sy[offset].im;
-			eps0_c_Ez_imag[offset] += Ez1__Sz1 * Sz[offset].im;*/
+			eps0_c_Ez[offset] += Ez1__Sz1 * Sz[offset].re;
+			//eps0_c_Ex_imag[offset] += Ex1__Sx1 * Sx[offset].im;
+			//eps0_c_Ey_imag[offset] += Ey1__Sy1 * Sy[offset].im;
+			//eps0_c_Ez_imag[offset] += Ez1__Sz1 * Sz[offset].im;
 
 			}
 		

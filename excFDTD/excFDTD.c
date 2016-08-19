@@ -17,7 +17,7 @@
 #define _PML_PX_X_ (8)
 #define _PML_PX_Y_ (8)
 #define _PML_PX_Z_ (8)
-#define _PML_ALPHA_TUNING_ (0.1f)
+#define _PML_ALPHA_TUNING_ (0.5f)
 #define _PML_OMEGA_DT_TUNING_ (2.0f*M_PI*50e-9/700e-9)
 //#define _PML_OMEGA_DT_TUNING_ (2.0f*M_PI)
 int pml_n = 3; //consider using macro
@@ -336,7 +336,7 @@ int main(int argc, char* argv[])
 	for (int i = 0; i <= _STEP; i++) {
 		printf("%f%%\r", 100.0f*(float)i / _STEP);
 		float addval = sin(2.0f * M_PI * _c0 / 500e-9 * (float)i * _dt_) * exp(-((float)i - 50.0f)*((float)i - 50.0f) / 25.0f / 25.0f);
-		addval *= 1;
+		addval *= 0.1;
 		eps0_c_Ey[_INDEX_XYZ(_DimX/2, _DimY/3, _DimZ/3)] += addval / 1.0f;
 		
 		DCP_HE_C();
@@ -383,9 +383,13 @@ void DCP_HE_C(void)
 			Hy[offset] -= (eps0_c_Ez[offset] - eps0_c_Ez[offset + _offsetX] + eps0_c_Ex[offset + _offsetZ] - eps0_c_Ex[offset]) *_cdt_div_dx;
 			Hz[offset] -= (eps0_c_Ex[offset + _offsetZ] - eps0_c_Ex[offset + _offsetY + _offsetZ] + eps0_c_Ey[offset + _offsetZ] - eps0_c_Ey[offset - _offsetX + _offsetZ]) * _cdt_div_dx;
 			//FIXME : copy boundary area only
-			Bx[offset].re = Hx[offset]; 
-			By[offset].re = Hy[offset];
-			Bz[offset].re = Hz[offset];
+			//Bx[offset].re = Hx[offset]; 
+			//By[offset].re = Hy[offset];
+			//Bz[offset].re = Hz[offset];
+			Bx[offset] = complex_mul(complex_mul(sy[offset], sz[offset]), complex_div(complex_make(Hx[offset], 0), sx[offset]));
+			By[offset] = complex_mul(complex_mul(sz[offset], sx[offset]), complex_div(complex_make(Hy[offset], 0), sy[offset]));
+			Bz[offset] = complex_mul(complex_mul(sx[offset], sy[offset]), complex_div(complex_make(Hz[offset], 0), sz[offset]));
+
 		}
 		if (((mask[offset] & (1 << 1)) >> 1) == 1) {//PML 
 			Bx_old[offset] = Bx[offset]; By_old[offset] = By[offset]; Bz_old[offset] = Bz[offset];
@@ -548,9 +552,12 @@ void DCP_HE_C(void)
 				eps0_c_Ez[offset] += (Hx[offset - _offsetX - _offsetY] - Hx[offset - _offsetX] + Hy[offset] - Hy[offset - _offsetX]) * eps_r_inv[offset] * _cdt_div_dx;
 			}
 			//FIXME : copy boundary area only
-			Rx[offset].re = eps0_c_Ex[offset];
-			Ry[offset].re = eps0_c_Ey[offset];
-			Rz[offset].re = eps0_c_Ez[offset];
+			//Rx[offset].re = eps0_c_Ex[offset];
+			//Ry[offset].re = eps0_c_Ey[offset];
+			//Rz[offset].re = eps0_c_Ez[offset];
+			Rx[offset] = complex_mul(complex_mul(sy[offset], sz[offset]), complex_div(complex_make(eps0_c_Ex[offset], 0), sx[offset]));
+			Ry[offset] = complex_mul(complex_mul(sz[offset], sx[offset]), complex_div(complex_make(eps0_c_Ey[offset], 0), sy[offset]));
+			Rz[offset] = complex_mul(complex_mul(sx[offset], sy[offset]), complex_div(complex_make(eps0_c_Ez[offset], 0), sz[offset]));
 		}
 		if (((mask[offset] & (1 << 1)) >> 1) == 1) {//PML 
 			if (dielectric_flag == 0 && ((mask[offset] & (0b1111 << 4)) >> 4) > 0) {// metal

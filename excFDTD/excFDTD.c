@@ -306,7 +306,7 @@ int main(int argc, char* argv[])
 	for (int i = 0; i <= _STEP; i++) {
 		printf("%f%%\r", 100.0f*(float)i / _STEP);
 		float addval = sin(2.0f * M_PI * _c0 / 500e-9 * (float)i * _dt_) * exp(-((float)i - 50.0f)*((float)i - 50.0f) / 25.0f / 25.0f);
-		addval *= 100;
+		addval *= 1;
 		eps0_c_Ey[_INDEX_XYZ(_DimX/2, _DimY/2, _DimZ/2)] += addval / 1.0f;
 		
 		DCP_HE_C();

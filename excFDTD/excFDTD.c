@@ -17,9 +17,9 @@
 #define _PML_PX_X_ (8)
 #define _PML_PX_Y_ (8)
 #define _PML_PX_Z_ (8)
-//#define _PML_ALPHA_TUNING_ (0.0f)
-//alpha = 0 or 1 
-#define _PML_OMEGA_DT_TUNING_ (2.0f*M_PI*50e-9/700e-9/2.0f)
+#define _PML_ALPHA_TUNING_ (0.0f)
+// 0 or 1 (CFS-PML)
+#define _PML_OMEGA_DT_TUNING_ (2.0f*M_PI*50e-9/700e-9)
 //#define _PML_OMEGA_DT_TUNING_ (2.0f*M_PI)
 int pml_n = 3; //consider using macro
 float pml_R = 10e-4;
@@ -169,7 +169,7 @@ static double FT_eps0cE[_SURF_SIZE_][FREQ_N][3][2]; //XYZ,Re,Im
 static double FT_H[_SURF_SIZE_][FREQ_N][3][2]; //XYZ,Re,Im
 
 
-// === DCP coefficients
+											   // === DCP coefficients
 
 #define _a01_div_eps0 (2.0f * _Delta_eps1_L * _Omega1_L * (_Omega1_L * cos(_phi1_L) - _Gamma1_L * sin(_phi1_L)))
 #define _a02_div_eps0 (2.0f * _Delta_eps2_L * _Omega2_L * (_Omega2_L * cos(_phi2_L) - _Gamma2_L * sin(_phi2_L)))
@@ -203,7 +203,7 @@ static double FT_H[_SURF_SIZE_][FREQ_N][3][2]; //XYZ,Re,Im
 #define _C5p ( _C51 + _C52 )
 
 #define _gamma__ (_gamma_D)
-//FIXME : gamma = gamma_D ?  check
+											   //FIXME : gamma = gamma_D ?  check
 #define _d1 ( ( 2.0f - _gamma__ * _dt_ ) / ( 2 + _gamma__ * _dt_) )
 #define _d2 (_eps0_ * _omega_D * _omega_D  * _dt_ / (2 + _gamma__ * _dt_) / _gamma__ )
 #define _sigma_ (_eps0_ * _omega_D * _omega_D / _gamma__ )
@@ -211,7 +211,7 @@ static double FT_H[_SURF_SIZE_][FREQ_N][3][2]; //XYZ,Re,Im
 
 
 
-// == Maxwell memory ==
+											   // == Maxwell memory ==
 __declspec(align(32)) static float eps0_c_Ex[_threadPerGrid] = { 0.0f };
 __declspec(align(32)) static float eps0_c_Ey[_threadPerGrid] = { 0.0f };
 __declspec(align(32)) static float eps0_c_Ez[_threadPerGrid] = { 0.0f };
@@ -250,17 +250,23 @@ __declspec(align(32)) static float kappaY[_threadPerGrid] = { 1.0f };
 __declspec(align(32)) static float kappaZ[_threadPerGrid] = { 1.0f };
 typedef struct { double re; double im; } complex16;
 typedef struct { float re; float im; } complex8;
-complex8 complex_make(float a, float b) { complex8 result = {a,b};  return result; }
-complex8 complex_add(complex8 a, complex8 b) { return (complex_make( a.re + b.re, a.im + b.im )); }
-complex8 complex_sub(complex8 a, complex8 b) { return (complex_make( a.re - b.re, a.im - b.im )); }
-complex8 complex_mul(complex8 a, complex8 b) { return (complex_make( a.re * b.re - a.im * b.im , a.re * b.im + a.im * b.re)); }
-complex8 complex_div(complex8 a, complex8 b) { return (complex_make( (a.re * b.re + a.im * b.im) / (b.re * b.re + b.im * b.im)
-																	, ( - a.re * b.im + a.im * b.re) / (b.re * b.re + b.im * b.im) )); }
-complex8 sx[_threadPerGrid];
-complex8 sy[_threadPerGrid];
-complex8 sz[_threadPerGrid];
+complex8 complex_make(float a, float b) { complex8 result = { a,b };  return result; }
+complex8 complex_add(complex8 a, complex8 b) { return (complex_make(a.re + b.re, a.im + b.im)); }
+complex8 complex_sub(complex8 a, complex8 b) { return (complex_make(a.re - b.re, a.im - b.im)); }
+complex8 complex_mul(complex8 a, complex8 b) { return (complex_make(a.re * b.re - a.im * b.im, a.re * b.im + a.im * b.re)); }
+complex8 complex_div(complex8 a, complex8 b) {
+	return (complex_make((a.re * b.re + a.im * b.im) / (b.re * b.re + b.im * b.im)
+		, (-a.re * b.im + a.im * b.re) / (b.re * b.re + b.im * b.im)));
+}
 //FIXME : wasting a lot of memory 
 //used only inside PML area
+__declspec(align(32)) static complex8 sx[_threadPerGrid];
+__declspec(align(32)) static complex8 sy[_threadPerGrid];
+__declspec(align(32)) static complex8 sz[_threadPerGrid];
+
+__declspec(align(32)) static float eps0_c_Ex_swp[_threadPerGrid];
+__declspec(align(32)) static float eps0_c_Ey_swp[_threadPerGrid];
+__declspec(align(32)) static float eps0_c_Ez_swp[_threadPerGrid];
 __declspec(align(32)) static float Rx[_threadPerGrid];
 __declspec(align(32)) static float Ry[_threadPerGrid];
 __declspec(align(32)) static float Rz[_threadPerGrid];
@@ -271,6 +277,9 @@ __declspec(align(32)) static float Sx[_threadPerGrid];
 __declspec(align(32)) static float Sy[_threadPerGrid];
 __declspec(align(32)) static float Sz[_threadPerGrid];
 
+__declspec(align(32)) static float Hx_swp[_threadPerGrid];
+__declspec(align(32)) static float Hy_swp[_threadPerGrid];
+__declspec(align(32)) static float Hz_swp[_threadPerGrid];
 __declspec(align(32)) static float Bx[_threadPerGrid];
 __declspec(align(32)) static float By[_threadPerGrid];
 __declspec(align(32)) static float Bz[_threadPerGrid];
@@ -281,7 +290,7 @@ __declspec(align(32)) static float Tx[_threadPerGrid];
 __declspec(align(32)) static float Ty[_threadPerGrid];
 __declspec(align(32)) static float Tz[_threadPerGrid];
 
-//__declspec(align(32)) static float alpha_dt_div_eps0[_threadPerGrid] = { 0.0f };
+__declspec(align(32)) static float alpha_dt_div_eps0[_threadPerGrid] = { 0.0f };
 
 __declspec(align(32)) static unsigned __int32 mask[_threadPerGrid] = { 0 };
 
@@ -331,12 +340,12 @@ int main(int argc, char* argv[])
 		printf("%f%%\r", 100.0f*(float)i / _STEP);
 		float addval = sin(2.0f * M_PI * _c0 / 500e-9 * (float)i * _dt_) * exp(-((float)i - 50.0f)*((float)i - 50.0f) / 25.0f / 25.0f);
 		addval *= 0.1;
-		eps0_c_Ey[_INDEX_XYZ(_DimX/2, _DimY/3, _DimZ/3)] += addval / 1.0f;
-		
+		eps0_c_Ey[_INDEX_XYZ(_DimX / 2, _DimY / 3, _DimZ / 3)] += addval / 1.0f;
+
 		DCP_HE_C();
 		RFT(1.0); //FIXME : print warning message if RFT would not reach its final step
 
-		if ((i) % 100 == 0) {
+		if ((i) % 10 == 0) {
 			sprintf(filename, "%05d", i);
 			snapshot(filename);
 		}
@@ -359,274 +368,240 @@ void Dielectric_HE_C(void)
 void DCP_HE_C(void)
 {
 	//temporary variables
-	float Ex1__Ex0, Ex1__Sx0, Ex1__Sx1, Sx1__Sx0; //, Sx1__Rx0, Sx1__Rx1;
-	float Ey1__Ey0, Ey1__Sy0, Ey1__Sy1, Sy1__Sy0; //, Sy1__Ry0, Sy1__Ry1;
-	float Ez1__Ez0, Ez1__Sz0, Ez1__Sz1, Sz1__Sz0; //, Sz1__Rz0, Sz1__Rz1;
-	float Hx1__Hx0, Hx1__Tx0, Hx1__Tx1, Tx1__Tx0; //, Tx1__Bx0, Tx1__Bx1;
-	float Hy1__Hy0, Hy1__Ty0, Hy1__Ty1, Ty1__Ty0; //, Ty1__By0, Ty1__By1;
-	float Hz1__Hz0, Hz1__Tz0, Hz1__Tz1, Tz1__Tz0; //, Tz1__Bz0, Tz1__Bz1;
-
-	float Sx1__Rx, Sy1__Ry, Sz1__Rz, Tx1__Bx, Ty1__By, Tz1__Bz;
+	float Ex1__Ex0, Ex1__Sx0, Ex1__Sx1, Sx1__Sx0, Sx1__Rx0, Sx1__Rx1;
+	float Ey1__Ey0, Ey1__Sy0, Ey1__Sy1, Sy1__Sy0, Sy1__Ry0, Sy1__Ry1;
+	float Ez1__Ez0, Ez1__Sz0, Ez1__Sz1, Sz1__Sz0, Sz1__Rz0, Sz1__Rz1;
+	float Hx1__Hx0, Hx1__Tx0, Hx1__Tx1, Tx1__Tx0, Tx1__Bx0, Tx1__Bx1;
+	float Hy1__Hy0, Hy1__Ty0, Hy1__Ty1, Ty1__Ty0, Ty1__By0, Ty1__By1;
+	float Hz1__Hz0, Hz1__Tz0, Hz1__Tz1, Tz1__Tz0, Tz1__Bz0, Tz1__Bz1;
 
 	syncPadding();
 
-	
+
 	/*Update H*/
-	for (unsigned __int64 offset = 0; offset < _threadPerGrid; offset += 1) { 
+	for (unsigned __int64 offset = 0; offset < _threadPerGrid; offset += 1) {
 		if (((mask[offset] & (1 << 0)) >> 0) == 1) { continue; } // skip padding
-		if (((mask[offset] & (1 << 1)) >> 1) == 0) {//non PML 
-			Hx[offset] -= (eps0_c_Ey[offset] - eps0_c_Ey[offset + _offsetZ] + eps0_c_Ez[offset + _offsetX + _offsetY] - eps0_c_Ez[offset + _offsetX]) * _cdt_div_dx;
-			Hy[offset] -= (eps0_c_Ez[offset] - eps0_c_Ez[offset + _offsetX] + eps0_c_Ex[offset + _offsetZ] - eps0_c_Ex[offset]) *_cdt_div_dx;
-			Hz[offset] -= (eps0_c_Ex[offset + _offsetZ] - eps0_c_Ex[offset + _offsetY + _offsetZ] + eps0_c_Ey[offset + _offsetZ] - eps0_c_Ey[offset - _offsetX + _offsetZ]) * _cdt_div_dx;
-
-			Bx[offset] = Hx[offset];
-			By[offset] = Hy[offset];
-			Bz[offset] = Hz[offset];
+		/* PML swap*/
+		if (((mask[offset] & (1 << 1)) >> 1) == 1) {
+			//swap
+			Hx_swp[offset] = Hx[offset];
+			Hy_swp[offset] = Hy[offset];
+			Hz_swp[offset] = Hz[offset];
+			Hx[offset] = complex_mul(complex_mul(sy[offset], sz[offset]), complex_div(complex_make(Hx[offset], 0), sx[offset])).re;
+			Hy[offset] = complex_mul(complex_mul(sz[offset], sx[offset]), complex_div(complex_make(Hy[offset], 0), sy[offset])).re;
+			Hz[offset] = complex_mul(complex_mul(sx[offset], sy[offset]), complex_div(complex_make(Hz[offset], 0), sz[offset])).re;
+			Bx_old[offset] = Hx[offset];
+			By_old[offset] = Hy[offset];
+			Bz_old[offset] = Hz[offset];
 		}
-		if (((mask[offset] & (1 << 1)) >> 1) == 1) {//PML 
+		/* update */
+		Hx[offset] -= (eps0_c_Ey[offset] - eps0_c_Ey[offset + _offsetZ] + eps0_c_Ez[offset + _offsetX + _offsetY] - eps0_c_Ez[offset + _offsetX]) * _cdt_div_dx;
+		Hy[offset] -= (eps0_c_Ez[offset] - eps0_c_Ez[offset + _offsetX] + eps0_c_Ex[offset + _offsetZ] - eps0_c_Ex[offset]) *_cdt_div_dx;
+		Hz[offset] -= (eps0_c_Ex[offset + _offsetZ] - eps0_c_Ex[offset + _offsetY + _offsetZ] + eps0_c_Ey[offset + _offsetZ] - eps0_c_Ey[offset - _offsetX + _offsetZ]) * _cdt_div_dx;
 
-			Bx_old[offset] = Bx[offset]; By_old[offset] = By[offset]; Bz_old[offset] = Bz[offset];
+		/* PML update*/
+		if (((mask[offset] & (1 << 1)) >> 1) == 1) {
+			//recover
+			Bx[offset] = Hx[offset]; By[offset] = Hy[offset]; Bz[offset] = Hz[offset];
+			Hx[offset] = Hx_swp[offset]; Hy[offset] = Hy_swp[offset]; Hz[offset] = Hz_swp[offset];
 
-			Bx[offset] -= (Ry[offset] - Ry[offset + _offsetZ] + Rz[offset + _offsetX + _offsetY] - Rz[offset + _offsetX]) * _cdt_div_dx;
-			By[offset] -= (Rz[offset] - Rz[offset + _offsetX] + Rx[offset + _offsetZ] - Rx[offset]) *_cdt_div_dx;
-			Bz[offset] -= (Rx[offset + _offsetZ] - Rx[offset + _offsetY + _offsetZ] + Ry[offset + _offsetZ] - Ry[offset - _offsetX + _offsetZ]) * _cdt_div_dx;
+			//(43), (41)
+			Hx1__Hx0 = (2.0f * kappaZ[offset] - sigmaZ_dt_div_eps0[offset] - alpha_dt_div_eps0[offset] * kappaZ[offset]) / (2.0f * kappaZ[offset] + sigmaZ_dt_div_eps0[offset] + alpha_dt_div_eps0[offset] * kappaZ[offset]);
+			Hx1__Tx1 = (2.0f * kappaX[offset] + sigmaX_dt_div_eps0[offset] + alpha_dt_div_eps0[offset] * kappaX[offset]) / (2.0f * kappaZ[offset] + sigmaZ_dt_div_eps0[offset] + alpha_dt_div_eps0[offset] * kappaZ[offset]);
+			Hx1__Tx0 = -(2.0f * kappaX[offset] - sigmaX_dt_div_eps0[offset] - alpha_dt_div_eps0[offset] * kappaX[offset]) / (2.0f * kappaZ[offset] + sigmaZ_dt_div_eps0[offset] + alpha_dt_div_eps0[offset] * kappaZ[offset]);
+			Tx1__Tx0 = (2.0f * kappaY[offset] - sigmaY_dt_div_eps0[offset] - alpha_dt_div_eps0[offset] * kappaY[offset]) / (2.0f * kappaY[offset] + sigmaY_dt_div_eps0[offset] + alpha_dt_div_eps0[offset] * kappaY[offset]);
+			Tx1__Bx1 = (2.0f + alpha_dt_div_eps0[offset]) / (2.0f * kappaY[offset] + sigmaY_dt_div_eps0[offset] + alpha_dt_div_eps0[offset] * kappaY[offset]);
+			Tx1__Bx0 = -(2.0f - alpha_dt_div_eps0[offset]) / (2.0f * kappaY[offset] + sigmaY_dt_div_eps0[offset] + alpha_dt_div_eps0[offset] * kappaY[offset]);
 
-			////(43), (41)
-			Hx1__Hx0 =  (2.0f * kappaZ[offset] - sigmaZ_dt_div_eps0[offset]) / (2.0f * kappaZ[offset] + sigmaZ_dt_div_eps0[offset]);
-			Hx1__Tx1 =  (2.0f * kappaX[offset] + sigmaX_dt_div_eps0[offset]) / (2.0f * kappaZ[offset] + sigmaZ_dt_div_eps0[offset]);
-			Hx1__Tx0 = -(2.0f * kappaX[offset] - sigmaX_dt_div_eps0[offset]) / (2.0f * kappaZ[offset] + sigmaZ_dt_div_eps0[offset]);
-			Tx1__Tx0 =  (2.0f * kappaY[offset] - sigmaY_dt_div_eps0[offset]) / (2.0f * kappaY[offset] + sigmaY_dt_div_eps0[offset]);
-			Tx1__Bx = (2.0f) / (2.0f * kappaY[offset] + sigmaY_dt_div_eps0[offset]);
-			//Tx1__Bx1 =  (2.0f )												 / (2.0f * kappaY[offset] + sigmaY_dt_div_eps0[offset]);
-			//Tx1__Bx0 = -(2.0f )												 / (2.0f * kappaY[offset] + sigmaY_dt_div_eps0[offset]);
+			Hy1__Hy0 = (2.0f * kappaX[offset] - sigmaX_dt_div_eps0[offset] - alpha_dt_div_eps0[offset] * kappaX[offset]) / (2.0f * kappaX[offset] + sigmaX_dt_div_eps0[offset] + alpha_dt_div_eps0[offset] * kappaX[offset]);
+			Hy1__Ty1 = (2.0f * kappaY[offset] + sigmaY_dt_div_eps0[offset] + alpha_dt_div_eps0[offset] * kappaY[offset]) / (2.0f * kappaX[offset] + sigmaX_dt_div_eps0[offset] + alpha_dt_div_eps0[offset] * kappaX[offset]);
+			Hy1__Ty0 = -(2.0f * kappaY[offset] - sigmaY_dt_div_eps0[offset] - alpha_dt_div_eps0[offset] * kappaY[offset]) / (2.0f * kappaX[offset] + sigmaX_dt_div_eps0[offset] + alpha_dt_div_eps0[offset] * kappaX[offset]);
+			Ty1__Ty0 = (2.0f * kappaZ[offset] - sigmaZ_dt_div_eps0[offset] - alpha_dt_div_eps0[offset] * kappaZ[offset]) / (2.0f * kappaZ[offset] + sigmaZ_dt_div_eps0[offset] + alpha_dt_div_eps0[offset] * kappaZ[offset]);
+			Ty1__By1 = (2.0f + alpha_dt_div_eps0[offset]) / (2.0f * kappaZ[offset] + sigmaZ_dt_div_eps0[offset] + alpha_dt_div_eps0[offset] * kappaZ[offset]);
+			Ty1__By0 = -(2.0f - alpha_dt_div_eps0[offset]) / (2.0f * kappaZ[offset] + sigmaZ_dt_div_eps0[offset] + alpha_dt_div_eps0[offset] * kappaZ[offset]);
 
-			Hy1__Hy0 =  (2.0f * kappaX[offset] - sigmaX_dt_div_eps0[offset]) / (2.0f * kappaX[offset] + sigmaX_dt_div_eps0[offset]);
-			Hy1__Ty1 =  (2.0f * kappaY[offset] + sigmaY_dt_div_eps0[offset]) / (2.0f * kappaX[offset] + sigmaX_dt_div_eps0[offset]);
-			Hy1__Ty0 = -(2.0f * kappaY[offset] - sigmaY_dt_div_eps0[offset]) / (2.0f * kappaX[offset] + sigmaX_dt_div_eps0[offset]);
-			Ty1__Ty0 =  (2.0f * kappaZ[offset] - sigmaZ_dt_div_eps0[offset]) / (2.0f * kappaZ[offset] + sigmaZ_dt_div_eps0[offset]);
-			Ty1__By = (2.0f) / (2.0f * kappaZ[offset] + sigmaZ_dt_div_eps0[offset]);
-			//Ty1__By1 =  (2.0f )												 / (2.0f * kappaZ[offset] + sigmaZ_dt_div_eps0[offset]);
-			//Ty1__By0 = -(2.0f )												 / (2.0f * kappaZ[offset] + sigmaZ_dt_div_eps0[offset]);
+			Hz1__Hz0 = (2.0f * kappaY[offset] - sigmaY_dt_div_eps0[offset] - alpha_dt_div_eps0[offset] * kappaY[offset]) / (2.0f * kappaY[offset] + sigmaY_dt_div_eps0[offset] + alpha_dt_div_eps0[offset] * kappaY[offset]);
+			Hz1__Tz1 = (2.0f * kappaZ[offset] + sigmaZ_dt_div_eps0[offset] + alpha_dt_div_eps0[offset] * kappaZ[offset]) / (2.0f * kappaY[offset] + sigmaY_dt_div_eps0[offset] + alpha_dt_div_eps0[offset] * kappaY[offset]);
+			Hz1__Tz0 = -(2.0f * kappaZ[offset] - sigmaZ_dt_div_eps0[offset] - alpha_dt_div_eps0[offset] * kappaZ[offset]) / (2.0f * kappaY[offset] + sigmaY_dt_div_eps0[offset] + alpha_dt_div_eps0[offset] * kappaY[offset]);
+			Tz1__Tz0 = (2.0f * kappaX[offset] - sigmaX_dt_div_eps0[offset] - alpha_dt_div_eps0[offset] * kappaX[offset]) / (2.0f * kappaX[offset] + sigmaX_dt_div_eps0[offset] + alpha_dt_div_eps0[offset] * kappaX[offset]);
+			Tz1__Bz1 = (2.0f + alpha_dt_div_eps0[offset]) / (2.0f * kappaX[offset] + sigmaX_dt_div_eps0[offset] + alpha_dt_div_eps0[offset] * kappaX[offset]);
+			Tz1__Bz0 = -(2.0f - alpha_dt_div_eps0[offset]) / (2.0f * kappaX[offset] + sigmaX_dt_div_eps0[offset] + alpha_dt_div_eps0[offset] * kappaX[offset]);
 
-			Hz1__Hz0 =  (2.0f * kappaY[offset] - sigmaY_dt_div_eps0[offset]) / (2.0f * kappaY[offset] + sigmaY_dt_div_eps0[offset]);
-			Hz1__Tz1 =  (2.0f * kappaZ[offset] + sigmaZ_dt_div_eps0[offset]) / (2.0f * kappaY[offset] + sigmaY_dt_div_eps0[offset]);
-			Hz1__Tz0 = -(2.0f * kappaZ[offset] - sigmaZ_dt_div_eps0[offset]) / (2.0f * kappaY[offset] + sigmaY_dt_div_eps0[offset]);
-			Tz1__Tz0 =  (2.0f * kappaX[offset] - sigmaX_dt_div_eps0[offset]) / (2.0f * kappaX[offset] + sigmaX_dt_div_eps0[offset]);
-			Tz1__Bz = (2.0f) / (2.0f * kappaX[offset] + sigmaX_dt_div_eps0[offset]);
-			//Tz1__Bz1 =  (2.0f)												 / (2.0f * kappaX[offset] + sigmaX_dt_div_eps0[offset]);
-			//Tz1__Bz0 = -(2.0f)												 / (2.0f * kappaX[offset] + sigmaX_dt_div_eps0[offset]);
-
-			//Hx1__Hx0 = (2.0f * kappaY[offset] - sigmaY_dt_div_eps0[offset]) / (2.0f * kappaY[offset] + sigmaY_dt_div_eps0[offset]);
-			//Hx1__Tx1 = (2.0f * kappaX[offset] + sigmaX_dt_div_eps0[offset]) / (2.0f * kappaY[offset] + sigmaY_dt_div_eps0[offset]);
-			//Hx1__Tx0 = -(2.0f * kappaX[offset] - sigmaX_dt_div_eps0[offset]) / (2.0f * kappaY[offset] + sigmaY_dt_div_eps0[offset]);
-			//Tx1__Tx0 = (2.0f * kappaZ[offset] - sigmaZ_dt_div_eps0[offset]) / (2.0f * kappaZ[offset] + sigmaZ_dt_div_eps0[offset]);
-			//Tx1__Bx = (2.0f) / (2.0f * kappaZ[offset] + sigmaZ_dt_div_eps0[offset]);
-
-			//Hy1__Hy0 = (2.0f * kappaZ[offset] - sigmaZ_dt_div_eps0[offset]) / (2.0f * kappaZ[offset] + sigmaZ_dt_div_eps0[offset]);
-			//Hy1__Ty1 = (2.0f * kappaY[offset] + sigmaY_dt_div_eps0[offset]) / (2.0f * kappaZ[offset] + sigmaZ_dt_div_eps0[offset]);
-			//Hy1__Ty0 = -(2.0f * kappaY[offset] - sigmaY_dt_div_eps0[offset]) / (2.0f * kappaZ[offset] + sigmaZ_dt_div_eps0[offset]);
-			//Ty1__Ty0 = (2.0f * kappaX[offset] - sigmaX_dt_div_eps0[offset]) / (2.0f * kappaX[offset] + sigmaX_dt_div_eps0[offset]);
-			//Ty1__By = (2.0f) / (2.0f * kappaX[offset] + sigmaX_dt_div_eps0[offset]);
-
-			//Hz1__Hz0 = (2.0f * kappaX[offset] - sigmaX_dt_div_eps0[offset]) / (2.0f * kappaX[offset] + sigmaX_dt_div_eps0[offset]);
-			//Hz1__Tz1 = (2.0f * kappaZ[offset] + sigmaZ_dt_div_eps0[offset]) / (2.0f * kappaX[offset] + sigmaX_dt_div_eps0[offset]);
-			//Hz1__Tz0 = -(2.0f * kappaZ[offset] - sigmaZ_dt_div_eps0[offset]) / (2.0f * kappaX[offset] + sigmaX_dt_div_eps0[offset]);
-			//Tz1__Tz0 = (2.0f * kappaY[offset] - sigmaY_dt_div_eps0[offset]) / (2.0f * kappaY[offset] + sigmaY_dt_div_eps0[offset]);
-			//Tz1__Bz = (2.0f) / (2.0f * kappaY[offset] + sigmaY_dt_div_eps0[offset]);
-
-			
 			//H write (0)
 			Hx[offset] = Hx1__Hx0*Hx[offset] + Hx1__Tx0 * Tx[offset];
 			Hy[offset] = Hy1__Hy0*Hy[offset] + Hy1__Ty0 * Ty[offset];
 			Hz[offset] = Hz1__Hz0*Hz[offset] + Hz1__Tz0 * Tz[offset];
-
 			//T update
-			Tx[offset] = Tx1__Tx0 * Tx[offset] + Tx1__Bx * 0;//(Bx[offset] - Bx_old[offset]);
-			Ty[offset] = Ty1__Ty0 * Ty[offset] + Ty1__By * 0;//(By[offset] - By_old[offset]);
-			Tz[offset] = Tz1__Tz0 * Tz[offset] + Tz1__Bz * 0;//(Bz[offset] - Bz_old[offset]);
-
+			Tx[offset] = Tx1__Tx0 * Tx[offset] + Tx1__Bx0 * Bx_old[offset] + Tx1__Bx1 * Bx[offset];
+			Ty[offset] = Ty1__Ty0 * Ty[offset] + Ty1__By0 * By_old[offset] + Ty1__By1 * By[offset];
+			Tz[offset] = Tz1__Tz0 * Tz[offset] + Tz1__Bz0 * Bz_old[offset] + Tz1__Bz1 * Bz[offset];
 			//H write (1)
 			Hx[offset] += Hx1__Tx1 * Tx[offset];
 			Hy[offset] += Hy1__Ty1 * Ty[offset];
 			Hz[offset] += Hz1__Tz1 * Tz[offset];
 		}
 	}
-	
-	
+
+
 	syncPadding();
 
 	/*Update E*/
 	for (unsigned __int64 offset = 0; offset < _threadPerGrid; offset += 1) {
 		if (((mask[offset] & (1 << 0)) >> 0) == 1) { continue; } // skip padding
-		if (((mask[offset] & (1 << 1)) >> 1) == 0) {// non PML 
-			if (dielectric_flag== 0 && ((mask[offset] & (0b1111 << 4)) >> 4) > 0) {// metal
-				tempx[offset] = (Hy[offset - _offsetZ] - Hy[offset] + Hz[offset - _offsetZ] - Hz[offset - _offsetY - _offsetZ]) * eps_r_inv[offset] * _cdt_div_dx; //eq30term1
-				tempy[offset] = (Hz[offset - _offsetZ] - Hz[offset + _offsetX - _offsetZ] + Hx[offset] - Hx[offset - _offsetZ]) * eps_r_inv[offset] * _cdt_div_dx;
-				tempz[offset] = (Hx[offset - _offsetX - _offsetY] - Hx[offset - _offsetX] + Hy[offset] - Hy[offset - _offsetX]) * eps_r_inv[offset] * _cdt_div_dx;
-				tempx[offset] += eps0_c_Ex[offset] * (_eps0_ * _eps_inf - 0.5f * _sigma_ * _dt_ + _d2 - _C4p) / _eps0_; //eq30term2
-				tempy[offset] += eps0_c_Ey[offset] * (_eps0_ * _eps_inf - 0.5f * _sigma_ * _dt_ + _d2 - _C4p) / _eps0_; //FIXME : div_eps0 coeffs cleanup
-				tempz[offset] += eps0_c_Ez[offset] * (_eps0_ * _eps_inf - 0.5f * _sigma_ * _dt_ + _d2 - _C4p) / _eps0_;
-				tempx[offset] -= eps0_c_Ex_old[offset] * _C5p / _eps0_; //eq30term3
-				tempy[offset] -= eps0_c_Ey_old[offset] * _C5p / _eps0_;
-				tempz[offset] -= eps0_c_Ez_old[offset] * _C5p / _eps0_;
-				tempx[offset] -= eps0_c_Pdx[offset] * (_d1 - 1.0f) / _eps0_; //eq30term4
-				tempy[offset] -= eps0_c_Pdy[offset] * (_d1 - 1.0f) / _eps0_;
-				tempz[offset] -= eps0_c_Pdz[offset] * (_d1 - 1.0f) / _eps0_;
-				tempx[offset] -= eps0_c_Pcp1x[offset] * (_C11 - 1.0f) / _eps0_; //eq30term5
-				tempy[offset] -= eps0_c_Pcp1y[offset] * (_C11 - 1.0f) / _eps0_;
-				tempz[offset] -= eps0_c_Pcp1z[offset] * (_C11 - 1.0f) / _eps0_;
-				tempx[offset] -= eps0_c_Pcp2x[offset] * (_C12 - 1.0f) / _eps0_;
-				tempy[offset] -= eps0_c_Pcp2y[offset] * (_C12 - 1.0f) / _eps0_;
-				tempz[offset] -= eps0_c_Pcp2z[offset] * (_C12 - 1.0f) / _eps0_;
-				tempx[offset] -= eps0_c_Pcp1x_old[offset] * _C21 / _eps0_; //eq30term6
-				tempy[offset] -= eps0_c_Pcp1y_old[offset] * _C21 / _eps0_;
-				tempz[offset] -= eps0_c_Pcp1z_old[offset] * _C21 / _eps0_;
-				tempx[offset] -= eps0_c_Pcp2x_old[offset] * _C22 / _eps0_;
-				tempy[offset] -= eps0_c_Pcp2y_old[offset] * _C22 / _eps0_;
-				tempz[offset] -= eps0_c_Pcp2z_old[offset] * _C22 / _eps0_;
-				tempx[offset] /= (_eps0_ * _eps_inf + 0.5f * _sigma_ * _dt_ - _d2 + _C3p) / _eps0_; //eq30term0
-				tempy[offset] /= (_eps0_ * _eps_inf + 0.5f * _sigma_ * _dt_ - _d2 + _C3p) / _eps0_;
-				tempz[offset] /= (_eps0_ * _eps_inf + 0.5f * _sigma_ * _dt_ - _d2 + _C3p) / _eps0_;
-
-				//PCP
-				eps0_c_Pcp1x_old[offset] *= _C21; //eq14term2
-				eps0_c_Pcp1y_old[offset] *= _C21;
-				eps0_c_Pcp1z_old[offset] *= _C21;
-				eps0_c_Pcp2x_old[offset] *= _C22;
-				eps0_c_Pcp2y_old[offset] *= _C22;
-				eps0_c_Pcp2z_old[offset] *= _C22;
-				eps0_c_Pcp1x_old[offset] += eps0_c_Pcp1x[offset] * _C11; //eq14term1
-				eps0_c_Pcp1y_old[offset] += eps0_c_Pcp1y[offset] * _C11;
-				eps0_c_Pcp1z_old[offset] += eps0_c_Pcp1z[offset] * _C11;
-				eps0_c_Pcp2x_old[offset] += eps0_c_Pcp2x[offset] * _C12;
-				eps0_c_Pcp2y_old[offset] += eps0_c_Pcp2y[offset] * _C12;
-				eps0_c_Pcp2z_old[offset] += eps0_c_Pcp2z[offset] * _C12;
-				eps0_c_Pcp1x_old[offset] += tempx[offset] * _C31; //eq14term3
-				eps0_c_Pcp1y_old[offset] += tempy[offset] * _C31;
-				eps0_c_Pcp1z_old[offset] += tempz[offset] * _C31;
-				eps0_c_Pcp2x_old[offset] += tempx[offset] * _C32;
-				eps0_c_Pcp2y_old[offset] += tempy[offset] * _C32;
-				eps0_c_Pcp2z_old[offset] += tempz[offset] * _C32;
-				eps0_c_Pcp1x_old[offset] += eps0_c_Ex[offset] * _C41; //eq14term4
-				eps0_c_Pcp1y_old[offset] += eps0_c_Ey[offset] * _C41;
-				eps0_c_Pcp1z_old[offset] += eps0_c_Ez[offset] * _C41;
-				eps0_c_Pcp2x_old[offset] += eps0_c_Ex[offset] * _C42;
-				eps0_c_Pcp2y_old[offset] += eps0_c_Ey[offset] * _C42;
-				eps0_c_Pcp2z_old[offset] += eps0_c_Ez[offset] * _C42;
-				eps0_c_Pcp1x_old[offset] += eps0_c_Ex_old[offset] * _C51; //eq14term5
-				eps0_c_Pcp1y_old[offset] += eps0_c_Ey_old[offset] * _C51;
-				eps0_c_Pcp1z_old[offset] += eps0_c_Ez_old[offset] * _C51;
-				eps0_c_Pcp2x_old[offset] += eps0_c_Ex_old[offset] * _C52;
-				eps0_c_Pcp2y_old[offset] += eps0_c_Ey_old[offset] * _C52;
-				eps0_c_Pcp2z_old[offset] += eps0_c_Ez_old[offset] * _C52;
-				//eps0_c_Ex_old can be used as temp var here now
-
-				//PD
-				eps0_c_Pdx[offset] *= _d1; //eq27term1
-				eps0_c_Pdy[offset] *= _d1;
-				eps0_c_Pdz[offset] *= _d1;
-				eps0_c_Pdx[offset] -= tempx[offset] * _d2; //eq27term2
-				eps0_c_Pdy[offset] -= tempy[offset] * _d2;
-				eps0_c_Pdz[offset] -= tempz[offset] * _d2;
-				eps0_c_Pdx[offset] -= eps0_c_Ex[offset] * _d2; //eq27term3
-				eps0_c_Pdy[offset] -= eps0_c_Ey[offset] * _d2;
-				eps0_c_Pdz[offset] -= eps0_c_Ez[offset] * _d2;
-
-				//FIXME : can be simpler than this?
-				eps0_c_Ex_old[offset] = eps0_c_Ex[offset];
-				eps0_c_Ey_old[offset] = eps0_c_Ey[offset];
-				eps0_c_Ez_old[offset] = eps0_c_Ez[offset];
-
-				eps0_c_Ex[offset] = tempx[offset]; //FIXME : tempx size can be reduced: conider CUDA
-				eps0_c_Ey[offset] = tempy[offset];
-				eps0_c_Ez[offset] = tempz[offset];
-
-				eps0_c_Pcp1x_old[offset] = eps0_c_Pcp1x[offset];
-				eps0_c_Pcp1y_old[offset] = eps0_c_Pcp1y[offset];
-				eps0_c_Pcp1z_old[offset] = eps0_c_Pcp1z[offset];
-
-				eps0_c_Pcp2x_old[offset] = eps0_c_Pcp2x[offset];
-				eps0_c_Pcp2y_old[offset] = eps0_c_Pcp2y[offset];
-				eps0_c_Pcp2z_old[offset] = eps0_c_Pcp2z[offset];
-			}
-			else {	// non metal
-				eps0_c_Ex[offset] += (Hy[offset - _offsetZ] - Hy[offset] + Hz[offset - _offsetZ] - Hz[offset - _offsetY - _offsetZ]) * eps_r_inv[offset] * _cdt_div_dx;
-				eps0_c_Ey[offset] += (Hz[offset - _offsetZ] - Hz[offset + _offsetX - _offsetZ] + Hx[offset] - Hx[offset - _offsetZ]) * eps_r_inv[offset] * _cdt_div_dx;
-				eps0_c_Ez[offset] += (Hx[offset - _offsetX - _offsetY] - Hx[offset - _offsetX] + Hy[offset] - Hy[offset - _offsetX]) * eps_r_inv[offset] * _cdt_div_dx;
-			}
+		/* PML swap*/
+		if (((mask[offset] & (1 << 1)) >> 1) == 1) {
+			//swap
+			eps0_c_Ex_swp[offset] = eps0_c_Ex[offset];
+			eps0_c_Ey_swp[offset] = eps0_c_Ey[offset];
+			eps0_c_Ez_swp[offset] = eps0_c_Ez[offset];
+			eps0_c_Ex[offset] = complex_mul(complex_mul(sy[offset], sz[offset]), complex_div(complex_make(eps0_c_Ex[offset], 0), sx[offset])).re;
+			eps0_c_Ey[offset] = complex_mul(complex_mul(sz[offset], sx[offset]), complex_div(complex_make(eps0_c_Ey[offset], 0), sy[offset])).re;
+			eps0_c_Ez[offset] = complex_mul(complex_mul(sx[offset], sy[offset]), complex_div(complex_make(eps0_c_Ez[offset], 0), sz[offset])).re;
+			Rx_old[offset] = eps0_c_Ex[offset];
+			Ry_old[offset] = eps0_c_Ey[offset];
+			Rz_old[offset] = eps0_c_Ez[offset];
 		}
+
+		/* update */
+		if (dielectric_flag == 0 && ((mask[offset] & (0b1111 << 4)) >> 4) > 0) {// metal
+			tempx[offset] = (Hy[offset - _offsetZ] - Hy[offset] + Hz[offset - _offsetZ] - Hz[offset - _offsetY - _offsetZ]) * eps_r_inv[offset] * _cdt_div_dx; //eq30term1
+			tempy[offset] = (Hz[offset - _offsetZ] - Hz[offset + _offsetX - _offsetZ] + Hx[offset] - Hx[offset - _offsetZ]) * eps_r_inv[offset] * _cdt_div_dx;
+			tempz[offset] = (Hx[offset - _offsetX - _offsetY] - Hx[offset - _offsetX] + Hy[offset] - Hy[offset - _offsetX]) * eps_r_inv[offset] * _cdt_div_dx;
+			tempx[offset] += eps0_c_Ex[offset] * (_eps0_ * _eps_inf - 0.5f * _sigma_ * _dt_ + _d2 - _C4p) / _eps0_; //eq30term2
+			tempy[offset] += eps0_c_Ey[offset] * (_eps0_ * _eps_inf - 0.5f * _sigma_ * _dt_ + _d2 - _C4p) / _eps0_; //FIXME : div_eps0 coeffs cleanup
+			tempz[offset] += eps0_c_Ez[offset] * (_eps0_ * _eps_inf - 0.5f * _sigma_ * _dt_ + _d2 - _C4p) / _eps0_;
+			tempx[offset] -= eps0_c_Ex_old[offset] * _C5p / _eps0_; //eq30term3
+			tempy[offset] -= eps0_c_Ey_old[offset] * _C5p / _eps0_;
+			tempz[offset] -= eps0_c_Ez_old[offset] * _C5p / _eps0_;
+			tempx[offset] -= eps0_c_Pdx[offset] * (_d1 - 1.0f) / _eps0_; //eq30term4
+			tempy[offset] -= eps0_c_Pdy[offset] * (_d1 - 1.0f) / _eps0_;
+			tempz[offset] -= eps0_c_Pdz[offset] * (_d1 - 1.0f) / _eps0_;
+			tempx[offset] -= eps0_c_Pcp1x[offset] * (_C11 - 1.0f) / _eps0_; //eq30term5
+			tempy[offset] -= eps0_c_Pcp1y[offset] * (_C11 - 1.0f) / _eps0_;
+			tempz[offset] -= eps0_c_Pcp1z[offset] * (_C11 - 1.0f) / _eps0_;
+			tempx[offset] -= eps0_c_Pcp2x[offset] * (_C12 - 1.0f) / _eps0_;
+			tempy[offset] -= eps0_c_Pcp2y[offset] * (_C12 - 1.0f) / _eps0_;
+			tempz[offset] -= eps0_c_Pcp2z[offset] * (_C12 - 1.0f) / _eps0_;
+			tempx[offset] -= eps0_c_Pcp1x_old[offset] * _C21 / _eps0_; //eq30term6
+			tempy[offset] -= eps0_c_Pcp1y_old[offset] * _C21 / _eps0_;
+			tempz[offset] -= eps0_c_Pcp1z_old[offset] * _C21 / _eps0_;
+			tempx[offset] -= eps0_c_Pcp2x_old[offset] * _C22 / _eps0_;
+			tempy[offset] -= eps0_c_Pcp2y_old[offset] * _C22 / _eps0_;
+			tempz[offset] -= eps0_c_Pcp2z_old[offset] * _C22 / _eps0_;
+			tempx[offset] /= (_eps0_ * _eps_inf + 0.5f * _sigma_ * _dt_ - _d2 + _C3p) / _eps0_; //eq30term0
+			tempy[offset] /= (_eps0_ * _eps_inf + 0.5f * _sigma_ * _dt_ - _d2 + _C3p) / _eps0_;
+			tempz[offset] /= (_eps0_ * _eps_inf + 0.5f * _sigma_ * _dt_ - _d2 + _C3p) / _eps0_;
+
+			//PCP
+			eps0_c_Pcp1x_old[offset] *= _C21; //eq14term2
+			eps0_c_Pcp1y_old[offset] *= _C21;
+			eps0_c_Pcp1z_old[offset] *= _C21;
+			eps0_c_Pcp2x_old[offset] *= _C22;
+			eps0_c_Pcp2y_old[offset] *= _C22;
+			eps0_c_Pcp2z_old[offset] *= _C22;
+			eps0_c_Pcp1x_old[offset] += eps0_c_Pcp1x[offset] * _C11; //eq14term1
+			eps0_c_Pcp1y_old[offset] += eps0_c_Pcp1y[offset] * _C11;
+			eps0_c_Pcp1z_old[offset] += eps0_c_Pcp1z[offset] * _C11;
+			eps0_c_Pcp2x_old[offset] += eps0_c_Pcp2x[offset] * _C12;
+			eps0_c_Pcp2y_old[offset] += eps0_c_Pcp2y[offset] * _C12;
+			eps0_c_Pcp2z_old[offset] += eps0_c_Pcp2z[offset] * _C12;
+			eps0_c_Pcp1x_old[offset] += tempx[offset] * _C31; //eq14term3
+			eps0_c_Pcp1y_old[offset] += tempy[offset] * _C31;
+			eps0_c_Pcp1z_old[offset] += tempz[offset] * _C31;
+			eps0_c_Pcp2x_old[offset] += tempx[offset] * _C32;
+			eps0_c_Pcp2y_old[offset] += tempy[offset] * _C32;
+			eps0_c_Pcp2z_old[offset] += tempz[offset] * _C32;
+			eps0_c_Pcp1x_old[offset] += eps0_c_Ex[offset] * _C41; //eq14term4
+			eps0_c_Pcp1y_old[offset] += eps0_c_Ey[offset] * _C41;
+			eps0_c_Pcp1z_old[offset] += eps0_c_Ez[offset] * _C41;
+			eps0_c_Pcp2x_old[offset] += eps0_c_Ex[offset] * _C42;
+			eps0_c_Pcp2y_old[offset] += eps0_c_Ey[offset] * _C42;
+			eps0_c_Pcp2z_old[offset] += eps0_c_Ez[offset] * _C42;
+			eps0_c_Pcp1x_old[offset] += eps0_c_Ex_old[offset] * _C51; //eq14term5
+			eps0_c_Pcp1y_old[offset] += eps0_c_Ey_old[offset] * _C51;
+			eps0_c_Pcp1z_old[offset] += eps0_c_Ez_old[offset] * _C51;
+			eps0_c_Pcp2x_old[offset] += eps0_c_Ex_old[offset] * _C52;
+			eps0_c_Pcp2y_old[offset] += eps0_c_Ey_old[offset] * _C52;
+			eps0_c_Pcp2z_old[offset] += eps0_c_Ez_old[offset] * _C52;
+			//eps0_c_Ex_old can be used as temp var here now
+
+			//PD
+			eps0_c_Pdx[offset] *= _d1; //eq27term1
+			eps0_c_Pdy[offset] *= _d1;
+			eps0_c_Pdz[offset] *= _d1;
+			eps0_c_Pdx[offset] -= tempx[offset] * _d2; //eq27term2
+			eps0_c_Pdy[offset] -= tempy[offset] * _d2;
+			eps0_c_Pdz[offset] -= tempz[offset] * _d2;
+			eps0_c_Pdx[offset] -= eps0_c_Ex[offset] * _d2; //eq27term3
+			eps0_c_Pdy[offset] -= eps0_c_Ey[offset] * _d2;
+			eps0_c_Pdz[offset] -= eps0_c_Ez[offset] * _d2;
+
+			//FIXME : can be simpler than this?
+			eps0_c_Ex_old[offset] = eps0_c_Ex[offset];
+			eps0_c_Ey_old[offset] = eps0_c_Ey[offset];
+			eps0_c_Ez_old[offset] = eps0_c_Ez[offset];
+
+			eps0_c_Ex[offset] = tempx[offset]; //FIXME : tempx size can be reduced: conider CUDA
+			eps0_c_Ey[offset] = tempy[offset];
+			eps0_c_Ez[offset] = tempz[offset];
+
+			eps0_c_Pcp1x_old[offset] = eps0_c_Pcp1x[offset];
+			eps0_c_Pcp1y_old[offset] = eps0_c_Pcp1y[offset];
+			eps0_c_Pcp1z_old[offset] = eps0_c_Pcp1z[offset];
+
+			eps0_c_Pcp2x_old[offset] = eps0_c_Pcp2x[offset];
+			eps0_c_Pcp2y_old[offset] = eps0_c_Pcp2y[offset];
+			eps0_c_Pcp2z_old[offset] = eps0_c_Pcp2z[offset];
+		}
+		else {	// non metal
+			eps0_c_Ex[offset] += (Hy[offset - _offsetZ] - Hy[offset] + Hz[offset - _offsetZ] - Hz[offset - _offsetY - _offsetZ]) * eps_r_inv[offset] * _cdt_div_dx;
+			eps0_c_Ey[offset] += (Hz[offset - _offsetZ] - Hz[offset + _offsetX - _offsetZ] + Hx[offset] - Hx[offset - _offsetZ]) * eps_r_inv[offset] * _cdt_div_dx;
+			eps0_c_Ez[offset] += (Hx[offset - _offsetX - _offsetY] - Hx[offset - _offsetX] + Hy[offset] - Hy[offset - _offsetX]) * eps_r_inv[offset] * _cdt_div_dx;
+		}
+
+		/* PML update */
 		if (((mask[offset] & (1 << 1)) >> 1) == 1) {//PML 
-			//FIXME : copy boundary area only
-			Rx[offset] = complex_div(complex_mul(sy[offset], sz[offset]), complex_make(eps0_c_Ex[offset] / sx[offset].re, eps0_c_Ex[offset] / sx[offset].im)).re;
-			Ry[offset] = complex_div(complex_mul(sz[offset], sx[offset]), complex_make(eps0_c_Ey[offset] / sy[offset].re, eps0_c_Ey[offset] / sy[offset].im)).re;
-			Rz[offset] = complex_div(complex_mul(sx[offset], sy[offset]), complex_make(eps0_c_Ez[offset] / sz[offset].re, eps0_c_Ez[offset] / sz[offset].im)).re;
-			if (dielectric_flag == 0 && ((mask[offset] & (0b1111 << 4)) >> 4) > 0) {// metal
-				printf("exception\n");
-			}
-			else {	// non metal
-				Rx_old[offset] = Rx[offset]; Ry_old[offset] = Ry[offset]; Rz_old[offset] = Rz[offset];
-				Rx[offset] += (By[offset - _offsetZ] - By[offset] + Bz[offset - _offsetZ] - Bz[offset - _offsetY - _offsetZ]) * eps_r_inv[offset] * _cdt_div_dx;
-				Ry[offset] += (Bz[offset - _offsetZ] - Bz[offset + _offsetX - _offsetZ] + Bx[offset] - Bx[offset - _offsetZ]) * eps_r_inv[offset] * _cdt_div_dx;
-				Rz[offset] += (Bx[offset - _offsetX - _offsetY] - Bx[offset - _offsetX] + By[offset] - By[offset - _offsetX]) * eps_r_inv[offset] * _cdt_div_dx;
-			}
-			////(43), (41)
-			Ex1__Ex0 =  (2.0f * kappaZ[offset] - sigmaZ_dt_div_eps0[offset] ) / (2.0f * kappaZ[offset] + sigmaZ_dt_div_eps0[offset]);
-			Ex1__Sx1 =  (2.0f * kappaX[offset] + sigmaX_dt_div_eps0[offset] ) / (2.0f * kappaZ[offset] + sigmaZ_dt_div_eps0[offset]);
-			Ex1__Sx0 = -(2.0f * kappaX[offset] - sigmaX_dt_div_eps0[offset] ) / (2.0f * kappaZ[offset] + sigmaZ_dt_div_eps0[offset]);
-			Sx1__Sx0 =  (2.0f * kappaY[offset] - sigmaY_dt_div_eps0[offset] ) / (2.0f * kappaY[offset] + sigmaY_dt_div_eps0[offset]);
-			Sx1__Rx = (2.0f) / (2.0f * kappaY[offset] + sigmaY_dt_div_eps0[offset]);
-			//Sx1__Rx1 =  (2.0f ) / (2.0f * kappaY[offset] + sigmaY_dt_div_eps0[offset]);
-			//Sx1__Rx0 = -(2.0f ) / (2.0f * kappaY[offset] + sigmaY_dt_div_eps0[offset]);
+			//recover
+			Rx[offset] = eps0_c_Ex[offset]; Ry[offset] = eps0_c_Ey[offset]; Rz[offset] = eps0_c_Ez[offset];
+			eps0_c_Ex[offset] = eps0_c_Ex_swp[offset]; eps0_c_Ey[offset] = eps0_c_Ey_swp[offset]; eps0_c_Ez[offset] = eps0_c_Ez_swp[offset];
 
-			Ey1__Ey0 =  (2.0f * kappaX[offset] - sigmaX_dt_div_eps0[offset] ) / (2.0f * kappaX[offset] + sigmaX_dt_div_eps0[offset]);
-			Ey1__Sy1 =  (2.0f * kappaY[offset] + sigmaY_dt_div_eps0[offset] ) / (2.0f * kappaX[offset] + sigmaX_dt_div_eps0[offset]);
-			Ey1__Sy0 = -(2.0f * kappaY[offset] - sigmaY_dt_div_eps0[offset] ) / (2.0f * kappaX[offset] + sigmaX_dt_div_eps0[offset]);
-			Sy1__Sy0 =  (2.0f * kappaZ[offset] - sigmaZ_dt_div_eps0[offset] ) / (2.0f * kappaZ[offset] + sigmaZ_dt_div_eps0[offset]);
-			Sy1__Ry = (2.0f) / (2.0f * kappaZ[offset] + sigmaZ_dt_div_eps0[offset]);
-			//Sy1__Ry1 =  (2.0f ) / (2.0f * kappaZ[offset] + sigmaZ_dt_div_eps0[offset]);
-			//Sy1__Ry0 = -(2.0f ) / (2.0f * kappaZ[offset] + sigmaZ_dt_div_eps0[offset]);
+			//(43), (41)
+			Ex1__Ex0 = (2.0f * kappaZ[offset] - sigmaZ_dt_div_eps0[offset] - alpha_dt_div_eps0[offset] * kappaZ[offset]) / (2.0f * kappaZ[offset] + sigmaZ_dt_div_eps0[offset] + alpha_dt_div_eps0[offset] * kappaZ[offset]);
+			Ex1__Sx1 = (2.0f * kappaX[offset] + sigmaX_dt_div_eps0[offset] + alpha_dt_div_eps0[offset] * kappaX[offset]) / (2.0f * kappaZ[offset] + sigmaZ_dt_div_eps0[offset] + alpha_dt_div_eps0[offset] * kappaZ[offset]);
+			Ex1__Sx0 = -(2.0f * kappaX[offset] - sigmaX_dt_div_eps0[offset] - alpha_dt_div_eps0[offset] * kappaX[offset]) / (2.0f * kappaZ[offset] + sigmaZ_dt_div_eps0[offset] + alpha_dt_div_eps0[offset] * kappaZ[offset]);
+			Sx1__Sx0 = (2.0f * kappaY[offset] - sigmaY_dt_div_eps0[offset] - alpha_dt_div_eps0[offset] * kappaY[offset]) / (2.0f * kappaY[offset] + sigmaY_dt_div_eps0[offset] + alpha_dt_div_eps0[offset] * kappaY[offset]);
+			Sx1__Rx1 = (2.0f + alpha_dt_div_eps0[offset]) / (2.0f * kappaY[offset] + sigmaY_dt_div_eps0[offset] + alpha_dt_div_eps0[offset] * kappaY[offset]);
+			Sx1__Rx0 = -(2.0f - alpha_dt_div_eps0[offset]) / (2.0f * kappaY[offset] + sigmaY_dt_div_eps0[offset] + alpha_dt_div_eps0[offset] * kappaY[offset]);
 
-			Ez1__Ez0 =  (2.0f * kappaY[offset] - sigmaY_dt_div_eps0[offset] ) / (2.0f * kappaY[offset] + sigmaY_dt_div_eps0[offset]);
-			Ez1__Sz1 =  (2.0f * kappaZ[offset] + sigmaZ_dt_div_eps0[offset] ) / (2.0f * kappaY[offset] + sigmaY_dt_div_eps0[offset]);
-			Ez1__Sz0 = -(2.0f * kappaZ[offset] - sigmaZ_dt_div_eps0[offset] ) / (2.0f * kappaY[offset] + sigmaY_dt_div_eps0[offset]);
-			Sz1__Sz0 =  (2.0f * kappaX[offset] - sigmaX_dt_div_eps0[offset] ) / (2.0f * kappaX[offset] + sigmaX_dt_div_eps0[offset]);
-			Sz1__Rz = (2.0f) / (2.0f * kappaX[offset] + sigmaX_dt_div_eps0[offset]);
-			//Sz1__Rz1 =  (2.0f ) / (2.0f * kappaX[offset] + sigmaX_dt_div_eps0[offset]);
-			//Sz1__Rz0 = -(2.0f ) / (2.0f * kappaX[offset] + sigmaX_dt_div_eps0[offset]);
-			
-			//Ex1__Ex0 = (2.0f * kappaY[offset] - sigmaY_dt_div_eps0[offset]) / (2.0f * kappaY[offset] + sigmaY_dt_div_eps0[offset]);
-			//Ex1__Sx1 = (2.0f * kappaX[offset] + sigmaX_dt_div_eps0[offset]) / (2.0f * kappaY[offset] + sigmaY_dt_div_eps0[offset]);
-			//Ex1__Sx0 = -(2.0f * kappaX[offset] - sigmaX_dt_div_eps0[offset]) / (2.0f * kappaY[offset] + sigmaY_dt_div_eps0[offset]);
-			//Sx1__Sx0 = (2.0f * kappaZ[offset] - sigmaZ_dt_div_eps0[offset]) / (2.0f * kappaZ[offset] + sigmaZ_dt_div_eps0[offset]);
-			//Sx1__Rx = (2.0f) / (2.0f * kappaZ[offset] + sigmaZ_dt_div_eps0[offset]);
+			Ey1__Ey0 = (2.0f * kappaX[offset] - sigmaX_dt_div_eps0[offset] - alpha_dt_div_eps0[offset] * kappaX[offset]) / (2.0f * kappaX[offset] + sigmaX_dt_div_eps0[offset] + alpha_dt_div_eps0[offset] * kappaX[offset]);
+			Ey1__Sy1 = (2.0f * kappaY[offset] + sigmaY_dt_div_eps0[offset] + alpha_dt_div_eps0[offset] * kappaY[offset]) / (2.0f * kappaX[offset] + sigmaX_dt_div_eps0[offset] + alpha_dt_div_eps0[offset] * kappaX[offset]);
+			Ey1__Sy0 = -(2.0f * kappaY[offset] - sigmaY_dt_div_eps0[offset] - alpha_dt_div_eps0[offset] * kappaY[offset]) / (2.0f * kappaX[offset] + sigmaX_dt_div_eps0[offset] + alpha_dt_div_eps0[offset] * kappaX[offset]);
+			Sy1__Sy0 = (2.0f * kappaZ[offset] - sigmaZ_dt_div_eps0[offset] - alpha_dt_div_eps0[offset] * kappaZ[offset]) / (2.0f * kappaZ[offset] + sigmaZ_dt_div_eps0[offset] + alpha_dt_div_eps0[offset] * kappaZ[offset]);
+			Sy1__Ry1 = (2.0f + alpha_dt_div_eps0[offset]) / (2.0f * kappaZ[offset] + sigmaZ_dt_div_eps0[offset] + alpha_dt_div_eps0[offset] * kappaZ[offset]);
+			Sy1__Ry0 = -(2.0f - alpha_dt_div_eps0[offset]) / (2.0f * kappaZ[offset] + sigmaZ_dt_div_eps0[offset] + alpha_dt_div_eps0[offset] * kappaZ[offset]);
 
-			//Ey1__Ey0 = (2.0f * kappaZ[offset] - sigmaZ_dt_div_eps0[offset]) / (2.0f * kappaZ[offset] + sigmaZ_dt_div_eps0[offset]);
-			//Ey1__Sy1 = (2.0f * kappaY[offset] + sigmaY_dt_div_eps0[offset]) / (2.0f * kappaZ[offset] + sigmaZ_dt_div_eps0[offset]);
-			//Ey1__Sy0 = -(2.0f * kappaY[offset] - sigmaY_dt_div_eps0[offset]) / (2.0f * kappaZ[offset] + sigmaZ_dt_div_eps0[offset]);
-			//Sy1__Sy0 = (2.0f * kappaX[offset] - sigmaX_dt_div_eps0[offset]) / (2.0f * kappaX[offset] + sigmaX_dt_div_eps0[offset]);
-			//Sy1__Ry = (2.0f) / (2.0f * kappaX[offset] + sigmaX_dt_div_eps0[offset]);
-
-			//Ez1__Ez0 = (2.0f * kappaX[offset] - sigmaX_dt_div_eps0[offset]) / (2.0f * kappaX[offset] + sigmaX_dt_div_eps0[offset]);
-			//Ez1__Sz1 = (2.0f * kappaZ[offset] + sigmaZ_dt_div_eps0[offset]) / (2.0f * kappaX[offset] + sigmaX_dt_div_eps0[offset]);
-			//Ez1__Sz0 = -(2.0f * kappaZ[offset] - sigmaZ_dt_div_eps0[offset]) / (2.0f * kappaX[offset] + sigmaX_dt_div_eps0[offset]);
-			//Sz1__Sz0 = (2.0f * kappaY[offset] - sigmaY_dt_div_eps0[offset]) / (2.0f * kappaY[offset] + sigmaY_dt_div_eps0[offset]);
-			//Sz1__Rz = (2.0f) / (2.0f * kappaY[offset] + sigmaY_dt_div_eps0[offset]);
+			Ez1__Ez0 = (2.0f * kappaY[offset] - sigmaY_dt_div_eps0[offset] - alpha_dt_div_eps0[offset] * kappaY[offset]) / (2.0f * kappaY[offset] + sigmaY_dt_div_eps0[offset] + alpha_dt_div_eps0[offset] * kappaY[offset]);
+			Ez1__Sz1 = (2.0f * kappaZ[offset] + sigmaZ_dt_div_eps0[offset] + alpha_dt_div_eps0[offset] * kappaZ[offset]) / (2.0f * kappaY[offset] + sigmaY_dt_div_eps0[offset] + alpha_dt_div_eps0[offset] * kappaY[offset]);
+			Ez1__Sz0 = -(2.0f * kappaZ[offset] - sigmaZ_dt_div_eps0[offset] - alpha_dt_div_eps0[offset] * kappaZ[offset]) / (2.0f * kappaY[offset] + sigmaY_dt_div_eps0[offset] + alpha_dt_div_eps0[offset] * kappaY[offset]);
+			Sz1__Sz0 = (2.0f * kappaX[offset] - sigmaX_dt_div_eps0[offset] - alpha_dt_div_eps0[offset] * kappaX[offset]) / (2.0f * kappaX[offset] + sigmaX_dt_div_eps0[offset] + alpha_dt_div_eps0[offset] * kappaX[offset]);
+			Sz1__Rz1 = (2.0f + alpha_dt_div_eps0[offset]) / (2.0f * kappaX[offset] + sigmaX_dt_div_eps0[offset] + alpha_dt_div_eps0[offset] * kappaX[offset]);
+			Sz1__Rz0 = -(2.0f - alpha_dt_div_eps0[offset]) / (2.0f * kappaX[offset] + sigmaX_dt_div_eps0[offset] + alpha_dt_div_eps0[offset] * kappaX[offset]);
 
 			//E write (0)
 			eps0_c_Ex[offset] = Ex1__Ex0*eps0_c_Ex[offset] + Ex1__Sx0 * Sx[offset];
 			eps0_c_Ey[offset] = Ey1__Ey0*eps0_c_Ey[offset] + Ey1__Sy0 * Sy[offset];
 			eps0_c_Ez[offset] = Ez1__Ez0*eps0_c_Ez[offset] + Ez1__Sz0 * Sz[offset];
 			//S update
-			Sx[offset] = Sx1__Sx0 * Sx[offset] + Sx1__Rx * 0;//(Rx[offset] - Rx_old[offset]);
-			Sy[offset] = Sy1__Sy0 * Sy[offset] + Sy1__Ry * 0;//(Ry[offset] - Ry_old[offset]);
-			Sz[offset] = Sz1__Sz0 * Sz[offset] + Sz1__Rz * 0;//(Rz[offset] - Rz_old[offset]);
+			Sx[offset] = Sx1__Sx0 * Sx[offset] + Sx1__Rx0 * Rx_old[offset] + Sx1__Rx1 * Rx[offset];
+			Sy[offset] = Sy1__Sy0 * Sy[offset] + Sy1__Ry0 * Ry_old[offset] + Sy1__Ry1 * Ry[offset];
+			Sz[offset] = Sz1__Sz0 * Sz[offset] + Sz1__Rz0 * Rz_old[offset] + Sz1__Rz1 * Rz[offset];
 			//E write (1)
 			eps0_c_Ex[offset] += Ex1__Sx1 * Sx[offset];
 			eps0_c_Ey[offset] += Ey1__Sy1 * Sy[offset];
 			eps0_c_Ez[offset] += Ez1__Sz1 * Sz[offset];
 
-			}
-		
+		}
+
 	}
 }
 
@@ -646,7 +621,7 @@ void RFT(float refractive_index) {
 			FT_H[i][j][1][1] -= Hy[offset] / (RFT_WINDOW - 1) * sinf(2 * M_PI*RFT_K_LIST_CALCULATED[j] / RFT_WINDOW*RFT_counter);
 			FT_H[i][j][2][1] -= Hz[offset] / (RFT_WINDOW - 1) * sinf(2 * M_PI*RFT_K_LIST_CALCULATED[j] / RFT_WINDOW*RFT_counter);
 			if (RFT_counter == _STEP) { continue; }
-			FT_eps0cE[i][j][0][0] += eps0_c_Ex[offset] / RFT_WINDOW * cosf(2 * M_PI*RFT_K_LIST_CALCULATED[j] / RFT_WINDOW*RFT_counter); 
+			FT_eps0cE[i][j][0][0] += eps0_c_Ex[offset] / RFT_WINDOW * cosf(2 * M_PI*RFT_K_LIST_CALCULATED[j] / RFT_WINDOW*RFT_counter);
 			FT_eps0cE[i][j][1][0] += eps0_c_Ey[offset] / RFT_WINDOW * cosf(2 * M_PI*RFT_K_LIST_CALCULATED[j] / RFT_WINDOW*RFT_counter);
 			FT_eps0cE[i][j][2][0] += eps0_c_Ez[offset] / RFT_WINDOW * cosf(2 * M_PI*RFT_K_LIST_CALCULATED[j] / RFT_WINDOW*RFT_counter);
 			FT_H[i][j][0][0] += Hx[offset] / RFT_WINDOW * cosf(2 * M_PI*RFT_K_LIST_CALCULATED[j] / RFT_WINDOW*RFT_counter); //RFT_counter is not q but it shoud not matter
@@ -700,7 +675,7 @@ void RFT(float refractive_index) {
 	RFT_counter++;
 }
 
-void NTFF_onlyUpside(void){
+void NTFF_onlyUpside(void) {
 	for (int i = 0; i < _SURF_SIZE_; i++) {
 		for (int j = 0; j < FREQ_N; j++) {
 			int surf_x, surf_y, surf_z;
@@ -781,14 +756,14 @@ void NTFF(void) {
 	FF_H_z = (MKL_Complex8*)mkl_malloc(NTFF_IMG_SIZE*NTFF_IMG_SIZE * sizeof(MKL_Complex8), 64);
 	FF_ecSr = (MKL_Complex8*)mkl_malloc(NTFF_IMG_SIZE*NTFF_IMG_SIZE * sizeof(MKL_Complex8), 64);
 
-	
+
 	//precalculation per image
 	//theta (0~2pi), phi_upz (0~pi/2), phi_downz(=-phi_upz, -pi/2~0)
 	for (int i = 0; i < NTFF_IMG_SIZE; i++) {
 		for (int j = 0; j < NTFF_IMG_SIZE; j++) {
-			float radius = ((float)NTFF_IMG_SIZE - 1.0f) / 2.0f ;
-			float xx = ((float)i - radius );
-			float yy = ((float)j - radius );
+			float radius = ((float)NTFF_IMG_SIZE - 1.0f) / 2.0f;
+			float xx = ((float)i - radius);
+			float yy = ((float)j - radius);
 			float rr = sqrtf(xx*xx + yy*yy);
 			if (radius < rr) {
 				NF_eyePos[0 * NTFF_IMG_SIZE *NTFF_IMG_SIZE + j*NTFF_IMG_SIZE + i] = -1.0f;
@@ -805,7 +780,7 @@ void NTFF(void) {
 			}
 			float NF_phi = 0.5f * M_PI * (radius - rr) / radius;
 			NF_eyePos[0 * NTFF_IMG_SIZE *NTFF_IMG_SIZE + j*NTFF_IMG_SIZE + i] = cosf(NF_phi) * xx / rr;
-			NF_eyePos[1 * NTFF_IMG_SIZE *NTFF_IMG_SIZE + j*NTFF_IMG_SIZE + i] = cosf(NF_phi) * yy / rr;    
+			NF_eyePos[1 * NTFF_IMG_SIZE *NTFF_IMG_SIZE + j*NTFF_IMG_SIZE + i] = cosf(NF_phi) * yy / rr;
 			NF_eyePos[2 * NTFF_IMG_SIZE *NTFF_IMG_SIZE + j*NTFF_IMG_SIZE + i] = sinf(NF_phi);
 		}
 	}
@@ -889,7 +864,7 @@ void NTFF(void) {
 		printf("Phase calculation\n");
 		ippsZero_64fc(NF_ecL_sum, 3 * NTFF_IMG_SIZE *NTFF_IMG_SIZE);
 		ippsZero_64fc(NF_N_sum, 3 * NTFF_IMG_SIZE *NTFF_IMG_SIZE);
-		
+
 		for (int i = 0; i < NTFF_IMG_SIZE; i++) {
 			printf("%f%%\r", 100.0f*(float)i / (NTFF_IMG_SIZE - 1.0f));
 			for (int j = 0; j < NTFF_IMG_SIZE; j++) {
@@ -901,22 +876,22 @@ void NTFF(void) {
 					_SET_SURF_XYZ_INDEX(k);
 					Hankel_dx[k].real = 0;
 					Hankel_dx[k].imag = k_vector * _dx *(
-						  ((float)surf_x - (_SURF_MidX_))*(NF_eyePos[0 * NTFF_IMG_SIZE *NTFF_IMG_SIZE + j*NTFF_IMG_SIZE + i])
+						((float)surf_x - (_SURF_MidX_))*(NF_eyePos[0 * NTFF_IMG_SIZE *NTFF_IMG_SIZE + j*NTFF_IMG_SIZE + i])
 						+ ((float)surf_y - (_SURF_MidY_))*(NF_eyePos[1 * NTFF_IMG_SIZE *NTFF_IMG_SIZE + j*NTFF_IMG_SIZE + i])
 						+ ((float)surf_z - (_SURF_MidZ_))*(NF_eyePos[2 * NTFF_IMG_SIZE *NTFF_IMG_SIZE + j*NTFF_IMG_SIZE + i])
-						); 
+						);
 				}
 				vcExp(_SURF_SIZE_, Hankel_dx, Hankel_dx); //complex exp 
 
 				for (int ii = 0; ii < 3; ii++) { // x y z
-					vcMul(_SURF_SIZE_, Hankel_dx, NF_ecM + ii * _SURF_SIZE_, NF_ecL_dx + ii * _SURF_SIZE_); 
-					vcMul(_SURF_SIZE_, Hankel_dx, NF_J   + ii * _SURF_SIZE_,   NF_N_dx + ii * _SURF_SIZE_); 
+					vcMul(_SURF_SIZE_, Hankel_dx, NF_ecM + ii * _SURF_SIZE_, NF_ecL_dx + ii * _SURF_SIZE_);
+					vcMul(_SURF_SIZE_, Hankel_dx, NF_J + ii * _SURF_SIZE_, NF_N_dx + ii * _SURF_SIZE_);
 					for (int kk = 0; kk < _SURF_SIZE_; kk++) {
 						if (isfinite(NF_ecL_dx[kk + ii*_SURF_SIZE_].real) == 0) { printf("error!\n"); }
-						NF_ecL_sum[ii * NTFF_IMG_SIZE *NTFF_IMG_SIZE + j*NTFF_IMG_SIZE + i].real += NF_ecL_dx[kk + ii * _SURF_SIZE_].real ;
-						NF_ecL_sum[ii * NTFF_IMG_SIZE *NTFF_IMG_SIZE + j*NTFF_IMG_SIZE + i].imag += NF_ecL_dx[kk + ii * _SURF_SIZE_].imag ;
-						NF_N_sum[ii * NTFF_IMG_SIZE *NTFF_IMG_SIZE + j*NTFF_IMG_SIZE + i].real += NF_N_dx[kk + ii * _SURF_SIZE_].real ;
-						NF_N_sum[ii * NTFF_IMG_SIZE *NTFF_IMG_SIZE + j*NTFF_IMG_SIZE + i].imag += NF_N_dx[kk + ii * _SURF_SIZE_].imag ;
+						NF_ecL_sum[ii * NTFF_IMG_SIZE *NTFF_IMG_SIZE + j*NTFF_IMG_SIZE + i].real += NF_ecL_dx[kk + ii * _SURF_SIZE_].real;
+						NF_ecL_sum[ii * NTFF_IMG_SIZE *NTFF_IMG_SIZE + j*NTFF_IMG_SIZE + i].imag += NF_ecL_dx[kk + ii * _SURF_SIZE_].imag;
+						NF_N_sum[ii * NTFF_IMG_SIZE *NTFF_IMG_SIZE + j*NTFF_IMG_SIZE + i].real += NF_N_dx[kk + ii * _SURF_SIZE_].real;
+						NF_N_sum[ii * NTFF_IMG_SIZE *NTFF_IMG_SIZE + j*NTFF_IMG_SIZE + i].imag += NF_N_dx[kk + ii * _SURF_SIZE_].imag;
 					}//use ippsSum_64fc
 				}
 			}
@@ -969,7 +944,7 @@ void NTFF(void) {
 					- NF_N_sum[1 * NTFF_IMG_SIZE *NTFF_IMG_SIZE + i + j*NTFF_IMG_SIZE].real * NF_eyePos[0 * NTFF_IMG_SIZE *NTFF_IMG_SIZE + i + j*NTFF_IMG_SIZE];
 				FF_ecE_x[i + j*NTFF_IMG_SIZE].imag =
 					NF_N_sum[0 * NTFF_IMG_SIZE *NTFF_IMG_SIZE + i + j*NTFF_IMG_SIZE].imag;
-					+ NF_ecL_sum[1 * NTFF_IMG_SIZE *NTFF_IMG_SIZE + i + j*NTFF_IMG_SIZE].imag * NF_eyePos[2 * NTFF_IMG_SIZE *NTFF_IMG_SIZE + i + j*NTFF_IMG_SIZE]
+				+NF_ecL_sum[1 * NTFF_IMG_SIZE *NTFF_IMG_SIZE + i + j*NTFF_IMG_SIZE].imag * NF_eyePos[2 * NTFF_IMG_SIZE *NTFF_IMG_SIZE + i + j*NTFF_IMG_SIZE]
 					- NF_ecL_sum[2 * NTFF_IMG_SIZE *NTFF_IMG_SIZE + i + j*NTFF_IMG_SIZE].imag * NF_eyePos[1 * NTFF_IMG_SIZE *NTFF_IMG_SIZE + i + j*NTFF_IMG_SIZE];
 				FF_ecE_y[i + j*NTFF_IMG_SIZE].imag =
 					NF_N_sum[1 * NTFF_IMG_SIZE *NTFF_IMG_SIZE + i + j*NTFF_IMG_SIZE].imag
@@ -992,7 +967,7 @@ void NTFF(void) {
 					+ NF_N_sum[0 * NTFF_IMG_SIZE *NTFF_IMG_SIZE + i + j*NTFF_IMG_SIZE].imag * NF_eyePos[1 * NTFF_IMG_SIZE *NTFF_IMG_SIZE + i + j*NTFF_IMG_SIZE]
 					- NF_N_sum[1 * NTFF_IMG_SIZE *NTFF_IMG_SIZE + i + j*NTFF_IMG_SIZE].imag * NF_eyePos[0 * NTFF_IMG_SIZE *NTFF_IMG_SIZE + i + j*NTFF_IMG_SIZE];
 			}
-		} 
+		}
 
 		for (int i = 0; i < NTFF_IMG_SIZE; i++) {  //FIXME : vectorization : use mkl_malloc and mkl functions
 			for (int j = 0; j < NTFF_IMG_SIZE; j++) {
@@ -1045,8 +1020,8 @@ void NTFF(void) {
 				float val = sqrtf(
 					pow(NF_J[(0 * _SURF_SIZE_) + _SURF_INDEX_XYZ(_SURF_StartX_ + i, _SURF_StartY_ + j, _SURF_StartZ_)].real, 2) +
 					pow(NF_J[(1 * _SURF_SIZE_) + _SURF_INDEX_XYZ(_SURF_StartX_ + i, _SURF_StartY_ + j, _SURF_StartZ_)].real, 2) +
-					pow(NF_J[(2 * _SURF_SIZE_) + _SURF_INDEX_XYZ(_SURF_StartX_ + i, _SURF_StartY_ + j, _SURF_StartZ_)].real, 2) 
-					)
+					pow(NF_J[(2 * _SURF_SIZE_) + _SURF_INDEX_XYZ(_SURF_StartX_ + i, _SURF_StartY_ + j, _SURF_StartZ_)].real, 2)
+				)
 					*255.0f * 1000000.0f;
 				image2[4 * _SURF_DX_ * j + 4 * i + 0] = val>0 ? (val>255 ? 255 : val) : 0;
 				image2[4 * _SURF_DX_ * j + 4 * i + 1] = val<0 ? (val<-255 ? 255 : -val) : 0;
@@ -1377,10 +1352,11 @@ int init(void)
 		kappaX[i] = 1.0f;
 		kappaY[i] = 1.0f;
 		kappaZ[i] = 1.0f;
-		sx[i] = complex_make(1.0f, 0.0f);
-		sy[i] = complex_make(1.0f, 0.0f);
-		sz[i] = complex_make(1.0f, 0.0f);
-		Sx[i] = 0; Sy[i] = 0; Sz[i] = 0;
+		sx[i].re = 1.0f;		sx[i].im = 0.0f;
+		sy[i].re = 1.0f;		sy[i].im = 0.0f;
+		sz[i].re = 1.0f;		sz[i].im = 0.0f;
+		Sx[i] = 0.0f;		Sy[i] = 0.0f;		Sz[i] = 0.0f;
+		Tx[i] = 0.0f;		Ty[i] = 0.0f;		Tz[i] = 0.0f;
 		mask[i] = 0;
 
 		//Indexing
@@ -1401,31 +1377,38 @@ int init(void)
 			continue;
 		}
 
+		alpha_dt_div_eps0[i] = (_PML_ALPHA_TUNING_); // FIXME 
+
+
 													 //FIXME : check PML area
 													 //FIXME : sigma do not need to be an array
-		if ( (X + 1 <= ((_PML_PX_X_)) || (_DimX)-((_PML_PX_X_)) <= X) && X<_DimX) {
+		if ((X + 1 <= ((_PML_PX_X_)) || (_DimX)-((_PML_PX_X_)) <= X) && X<_DimX) {
 			mask[i] |= (1 << 1); // 1st bit : PML
-			//sigmaX_dt_div_eps0[i] = pml_sigma_x_dt_div_eps0_max * pow(fmin(fabs(((_PML_PX_X_)) - X), fabs(((_PML_PX_X_)) + X - (_DimX)+1) - 1.0f) / ((_PML_PX_X_)), (pml_n));
-			//kappaX[i] = 1.0f + (pml_kappa_max - 1.0f) * pow((fmin(fabs(((_PML_PX_X_)) - X), fabs(((_PML_PX_X_)) + X - (_DimX)+1)) - 1.0f) / ((float)(_PML_PX_X_)), (pml_n)); //FIXME : 0.5f? -1.0f? check 
+								 //sigmaX_dt_div_eps0[i] = pml_sigma_x_dt_div_eps0_max * pow(fmin(fabs(((_PML_PX_X_)) - X), fabs(((_PML_PX_X_)) + X - (_DimX)+1) - 1.0f) / ((_PML_PX_X_)), (pml_n));
+								 //kappaX[i] = 1.0f + (pml_kappa_max - 1.0f) * pow((fmin(fabs(((_PML_PX_X_)) - X), fabs(((_PML_PX_X_)) + X - (_DimX)+1)) - 1.0f) / ((float)(_PML_PX_X_)), (pml_n)); //FIXME : 0.5f? -1.0f? check 
 			sigmaX_dt_div_eps0[i] = pml_sigma_x_dt_div_eps0_max * pow(fmin(fabs(((_PML_PX_X_)) - X), fabs(((_PML_PX_X_)) + X - (_DimX)+1)) / ((_PML_PX_X_)), (pml_n));
-			kappaX[i] = 1.0f + (pml_kappa_max - 1.0f) * pow((fmin(fabs(((_PML_PX_X_))-X), fabs(((_PML_PX_X_))+X - (_DimX)+1)) )/ ((float)(_PML_PX_X_)), (pml_n)); 
-			sx[i] = complex_make(kappaX[i], sigmaX_dt_div_eps0[i] / _PML_OMEGA_DT_TUNING_); // FIXME : this is not CFS : see Prokopidis 2008  (7) inverse
+			kappaX[i] = 1.0f + (pml_kappa_max - 1.0f) * pow((fmin(fabs(((_PML_PX_X_)) - X), fabs(((_PML_PX_X_)) + X - (_DimX)+1))) / ((float)(_PML_PX_X_)), (pml_n));
+			//sx[i].re = kappaX[i] + sigmaX_dt_div_eps0[i] * alpha_dt_div_eps0[i] / (alpha_dt_div_eps0[i] * alpha_dt_div_eps0[i] + _PML_OMEGA_DT_TUNING_ * _PML_OMEGA_DT_TUNING_);//prokopidis eq34
+			//sx[i].im = - sigmaX_dt_div_eps0[i] * _PML_OMEGA_DT_TUNING_ / (alpha_dt_div_eps0[i] * alpha_dt_div_eps0[i] + _PML_OMEGA_DT_TUNING_ * _PML_OMEGA_DT_TUNING_);
+			//lots of 0s, not efficient 
+			sx[i] = complex_add(complex_make(kappaX[i], 0), complex_div(complex_make(sigmaX_dt_div_eps0[i], 0), complex_make(alpha_dt_div_eps0[i], _PML_OMEGA_DT_TUNING_)));
+
 		}
-		if ( ( Y + 1 <= ((_PML_PX_Y_)) || ((_DimY)-((_PML_PX_Y_)) <= Y)) && Y<_DimY) {
+		if (((Y + 1 <= ((_PML_PX_Y_))) || ((_DimY)-((_PML_PX_Y_)) <= Y)) && Y<_DimY) {
 			mask[i] |= (1 << 1); // 1st bit : PML
-			//sigmaY_dt_div_eps0[i] = pml_sigma_y_dt_div_eps0_max * pow(fmin(fabs(((_PML_PX_Y_)) - Y), fabs(((_PML_PX_Y_)) + Y - (_DimY)+1) - 1.0f) / ((_PML_PX_Y_)), (pml_n));
-			//kappaY[i] = 1.0f + (pml_kappa_max - 1.0f) * pow((fmin(fabs(((_PML_PX_Y_)) - Y), fabs(((_PML_PX_Y_)) + Y - (_DimY)+1)) - 1.0f) / ((float)(_PML_PX_Y_)), (pml_n));
+								 //sigmaY_dt_div_eps0[i] = pml_sigma_y_dt_div_eps0_max * pow(fmin(fabs(((_PML_PX_Y_)) - Y), fabs(((_PML_PX_Y_)) + Y - (_DimY)+1) - 1.0f) / ((_PML_PX_Y_)), (pml_n));
+								 //kappaY[i] = 1.0f + (pml_kappa_max - 1.0f) * pow((fmin(fabs(((_PML_PX_Y_)) - Y), fabs(((_PML_PX_Y_)) + Y - (_DimY)+1)) - 1.0f) / ((float)(_PML_PX_Y_)), (pml_n));
 			sigmaY_dt_div_eps0[i] = pml_sigma_y_dt_div_eps0_max * pow(fmin(fabs(((_PML_PX_Y_)) - Y), fabs(((_PML_PX_Y_)) + Y - (_DimY)+1)) / ((_PML_PX_Y_)), (pml_n));
-			kappaY[i] = 1.0f + (pml_kappa_max - 1.0f) * pow((fmin(fabs(((_PML_PX_Y_))-Y), fabs(((_PML_PX_Y_))+Y - (_DimY)+1)) )/ ((float)(_PML_PX_Y_)), (pml_n));
-			sy[i] = complex_make(kappaY[i], sigmaY_dt_div_eps0[i] / _PML_OMEGA_DT_TUNING_);
+			kappaY[i] = 1.0f + (pml_kappa_max - 1.0f) * pow((fmin(fabs(((_PML_PX_Y_)) - Y), fabs(((_PML_PX_Y_)) + Y - (_DimY)+1))) / ((float)(_PML_PX_Y_)), (pml_n));
+			sy[i] = complex_add(complex_make(kappaY[i], 0), complex_div(complex_make(sigmaY_dt_div_eps0[i], 0), complex_make(alpha_dt_div_eps0[i], _PML_OMEGA_DT_TUNING_)));
 		}
-		if ( (Z + 1 <= ((_PML_PX_Z_)) || (_DimZ)-((_PML_PX_Z_)) <= Z) && Z<_DimZ) {
+		if ((Z + 1 <= ((_PML_PX_Z_)) || (_DimZ)-((_PML_PX_Z_)) <= Z) && Z<_DimZ) {
 			mask[i] |= (1 << 1); // 1st bit : PML
-			//sigmaZ_dt_div_eps0[i] = pml_sigma_z_dt_div_eps0_max * pow(fmin(fabs(((_PML_PX_Z_)) - Z), fabs(((_PML_PX_Z_)) + Z - (_DimZ)+1) - 1.0f) / ((_PML_PX_Z_)), (pml_n));
-			//kappaZ[i] = 1.0f + (pml_kappa_max - 1.0f) * pow((fmin(fabs(((_PML_PX_Z_)) - Z), fabs(((_PML_PX_Z_)) + Z - (_DimZ)+1)) - 1.0f) / ((float)(_PML_PX_Z_)), (pml_n));
+								 //sigmaZ_dt_div_eps0[i] = pml_sigma_z_dt_div_eps0_max * pow(fmin(fabs(((_PML_PX_Z_)) - Z), fabs(((_PML_PX_Z_)) + Z - (_DimZ)+1) - 1.0f) / ((_PML_PX_Z_)), (pml_n));
+								 //kappaZ[i] = 1.0f + (pml_kappa_max - 1.0f) * pow((fmin(fabs(((_PML_PX_Z_)) - Z), fabs(((_PML_PX_Z_)) + Z - (_DimZ)+1)) - 1.0f) / ((float)(_PML_PX_Z_)), (pml_n));
 			sigmaZ_dt_div_eps0[i] = pml_sigma_z_dt_div_eps0_max * pow(fmin(fabs(((_PML_PX_Z_)) - Z), fabs(((_PML_PX_Z_)) + Z - (_DimZ)+1)) / ((_PML_PX_Z_)), (pml_n));
-			kappaZ[i] = 1.0f + (pml_kappa_max - 1.0f) * pow((fmin(fabs(((_PML_PX_Z_))-Z), fabs(((_PML_PX_Z_))+Z - (_DimZ)+1)) )/ ((float)(_PML_PX_Z_)), (pml_n));
-			sz[i] = complex_make(kappaZ[i], sigmaZ_dt_div_eps0[i] / _PML_OMEGA_DT_TUNING_);
+			kappaZ[i] = 1.0f + (pml_kappa_max - 1.0f) * pow((fmin(fabs(((_PML_PX_Z_)) - Z), fabs(((_PML_PX_Z_)) + Z - (_DimZ)+1))) / ((float)(_PML_PX_Z_)), (pml_n));
+			sz[i] = complex_add(complex_make(kappaZ[i], 0), complex_div(complex_make(sigmaZ_dt_div_eps0[i], 0), complex_make(alpha_dt_div_eps0[i], _PML_OMEGA_DT_TUNING_)));
 		}
 		if (((mask[i] & (1 << 0)) >> 0) == 1) { // PML : exclude padding area
 			mask[i] &= ~(1 << 1);
@@ -1447,8 +1430,9 @@ int init(void)
 					rr[ind] = sqrtf(((float)xx - arrX[ind])*((float)xx - arrX[ind]) + ((float)yy - arrY[ind])*((float)yy - arrY[ind]));
 				}
 				offset = _INDEX_XYZ(x, y, z);
-				if (1==0){
-				STRUCTURE}
+				if (1 == 0) {
+					STRUCTURE
+				}
 			}
 		}
 	}
@@ -1605,42 +1589,36 @@ FIELD[_INDEX_THREAD(X, Y, (Z>0? Z - 1:_gridDimZ - 1), 0, yy, (Z>0? _blockDimZ - 
 FIELD[_INDEX_THREAD((X>0? X - 1:_gridDimX - 1), Y, Z, (X>0? _blockDimX - 2 : (((_DimX-1))%(_blockDimX-2)+1) ), yy, 1)];
 
 #define _syncXall _syncX_(eps0_c_Ex) _syncX_(eps0_c_Ey) _syncX_(eps0_c_Ez) _syncX_(Hx)  _syncX_(Hy) _syncX_(Hz) \
-_syncX_(Rx) _syncX_(Ry) _syncX_(Rz) _syncX_(Bx)  _syncX_(By) _syncX_(Bz) \
 _syncX_(eps0_c_Pdx) _syncX_(eps0_c_Pdy) _syncX_(eps0_c_Pdz)  \
 _syncX_(eps0_c_Pcp1x) _syncX_(eps0_c_Pcp1y) _syncX_(eps0_c_Pcp1z)  \
 _syncX_(eps0_c_Pcp2x) _syncX_(eps0_c_Pcp2y) _syncX_(eps0_c_Pcp2z) 
 //\
 //_syncX_(eps0_c_Rx) _syncX_(eps0_c_Ry) _syncX_(eps0_c_Rz)  
 #define _syncYall _syncY_(eps0_c_Ex) _syncY_(eps0_c_Ey) _syncY_(eps0_c_Ez) _syncY_(Hx)  _syncY_(Hy) _syncY_(Hz) \
-_syncY_(Rx) _syncY_(Ry) _syncY_(Rz) _syncY_(Bx)  _syncY_(By) _syncY_(Bz) \
 _syncY_(eps0_c_Pdx) _syncY_(eps0_c_Pdy) _syncY_(eps0_c_Pdz)  \
 _syncY_(eps0_c_Pcp1x) _syncY_(eps0_c_Pcp1y) _syncY_(eps0_c_Pcp1z)  \
 _syncY_(eps0_c_Pcp2x) _syncY_(eps0_c_Pcp2y) _syncY_(eps0_c_Pcp2z)  
 //\
 //_syncY_(eps0_c_Rx) _syncY_(eps0_c_Ry) _syncY_(eps0_c_Rz)  
 #define _syncZall _syncZ_(eps0_c_Ex) _syncZ_(eps0_c_Ey) _syncZ_(eps0_c_Ez) _syncZ_(Hx)  _syncZ_(Hy) _syncZ_(Hz) \
-_syncZ_(Rx) _syncZ_(Ry) _syncZ_(Rz) _syncZ_(Bx)  _syncZ_(By) _syncZ_(Bz) \
 _syncZ_(eps0_c_Pdx) _syncZ_(eps0_c_Pdy) _syncZ_(eps0_c_Pdz)  \
 _syncZ_(eps0_c_Pcp1x) _syncZ_(eps0_c_Pcp1y) _syncZ_(eps0_c_Pcp1z)  \
 _syncZ_(eps0_c_Pcp2x) _syncZ_(eps0_c_Pcp2y) _syncZ_(eps0_c_Pcp2z)  
 //\
 //_syncZ_(eps0_c_Rx) _syncZ_(eps0_c_Ry) _syncZ_(eps0_c_Rz)  
 #define _syncXYall _syncXY_(eps0_c_Ex) _syncXY_(eps0_c_Ey) _syncXY_(eps0_c_Ez) _syncXY_(Hx)  _syncXY_(Hy) _syncXY_(Hz) \
-_syncXY_(Rx) _syncXY_(Ry) _syncXY_(Rz) _syncXY_(Bx)  _syncXY_(By) _syncXY_(Bz) \
 _syncXY_(eps0_c_Pdx) _syncXY_(eps0_c_Pdy) _syncXY_(eps0_c_Pdz)  \
 _syncXY_(eps0_c_Pcp1x) _syncXY_(eps0_c_Pcp1y) _syncXY_(eps0_c_Pcp1z)  \
 _syncXY_(eps0_c_Pcp2x) _syncXY_(eps0_c_Pcp2y) _syncXY_(eps0_c_Pcp2z) 
 // \
 //_syncXY_(eps0_c_Rx) _syncXY_(eps0_c_Ry) _syncXY_(eps0_c_Rz)  
 #define _syncYZall _syncYZ_(eps0_c_Ex) _syncYZ_(eps0_c_Ey) _syncYZ_(eps0_c_Ez) _syncYZ_(Hx)  _syncYZ_(Hy) _syncYZ_(Hz) \
-_syncYZ_(Rx) _syncYZ_(Ry) _syncYZ_(Rz) _syncYZ_(Bx)  _syncYZ_(By) _syncYZ_(Bz) \
 _syncYZ_(eps0_c_Pdx) _syncYZ_(eps0_c_Pdy) _syncYZ_(eps0_c_Pdz)  \
 _syncYZ_(eps0_c_Pcp1x) _syncYZ_(eps0_c_Pcp1y) _syncYZ_(eps0_c_Pcp1z)  \
 _syncYZ_(eps0_c_Pcp2x) _syncYZ_(eps0_c_Pcp2y) _syncYZ_(eps0_c_Pcp2z) 
 // \
 //_syncYZ_(eps0_c_Rx) _syncYZ_(eps0_c_Ry) _syncYZ_(eps0_c_Rz)  
 #define _syncZXall _syncZX_(eps0_c_Ex) _syncZX_(eps0_c_Ey) _syncZX_(eps0_c_Ez) _syncZX_(Hx)  _syncZX_(Hy) _syncZX_(Hz) \
-_syncZX_(Rx) _syncZX_(Ry) _syncZX_(Rz) _syncZX_(Bx)  _syncZX_(By) _syncZX_(Bz) \
 _syncZX_(eps0_c_Pdx) _syncZX_(eps0_c_Pdy) _syncZX_(eps0_c_Pdz)  \
 _syncZX_(eps0_c_Pcp1x) _syncZX_(eps0_c_Pcp1y) _syncZX_(eps0_c_Pcp1z)  \
 _syncZX_(eps0_c_Pcp2x) _syncZX_(eps0_c_Pcp2y) _syncZX_(eps0_c_Pcp2z) 
@@ -1673,8 +1651,10 @@ void syncPadding(void) {
 
 int snapshot(char* filename)
 {
-
 	char filenameFull[256];
+
+
+	/*
 	sprintf(filenameFull, "Ex_Y0_%s.txt", filename);
 	int Y = _DimY / 2;
 	FILE *f = fopen(filenameFull, "w");
@@ -1715,14 +1695,14 @@ int snapshot(char* filename)
 		//if (X%_blockDimX == _blockDimX -1 ){ for (int Z = 0; Z < _DimZ; Z++) 	{	fprintf(f,"%+04.3f\t ", eps0_c_Ex[_INDEX_XYZ(_blockDimX, Y, Z)]);	}fprintf(f,"\n");}
 	}
 	fclose(f);
-
+	*/
 	unsigned char* image;
 	unsigned x, y, z;
 	unsigned width, height;
 	unsigned error;
 
 
-	printf("snapshot : X=%d\n", _DimX/2);
+	printf("snapshot : X=%d\n", _DimX / 2);
 	int X = _DimX / 2;
 	width = _DimY, height = _DimZ;
 	image = malloc(width * height * 4);
@@ -1744,7 +1724,6 @@ int snapshot(char* filename)
 				+ (FT_eps0cE[surf_index][0][2][0]) * (FT_eps0cE[surf_index][0][2][0])
 				+ (FT_eps0cE[surf_index][0][2][1]) * (FT_eps0cE[surf_index][0][2][1])
 				);
-			value += 100 * (kappaZ[offset] -1) ;
 			//int value = (((mask[offset] & (0b1111 << 4)) >> 4)) *50.0f ;
 			value = value > 255 ? 255 : value;
 			value = value < -255 ? -255 : value;
@@ -1767,7 +1746,7 @@ int snapshot(char* filename)
 	free(image);
 
 
-
+	/*
 
 	printf("snapshot : Z=%d\n", _DimZ / 2);
 	int Z = _DimZ / 2;
@@ -1811,7 +1790,7 @@ int snapshot(char* filename)
 	if (error) printf("error %u: %s\n", error, lodepng_error_text(error));
 
 	free(image);
-
+	*/
 	return 0;
 }
 

@@ -379,9 +379,9 @@ void DCP_HE_C(void)
 			Hy[offset] -= (eps0_c_Ez[offset] - eps0_c_Ez[offset + _offsetX] + eps0_c_Ex[offset + _offsetZ] - eps0_c_Ex[offset]) *_cdt_div_dx;
 			Hz[offset] -= (eps0_c_Ex[offset + _offsetZ] - eps0_c_Ex[offset + _offsetY + _offsetZ] + eps0_c_Ey[offset + _offsetZ] - eps0_c_Ey[offset - _offsetX + _offsetZ]) * _cdt_div_dx;
 
-			Bx[offset] = complex_mul(complex_mul(sy[offset], sz[offset]), complex_make(Hx[offset] / sx[offset].re, Hx[offset] / sx[offset].im)).re;
-			By[offset] = complex_mul(complex_mul(sz[offset], sx[offset]), complex_make(Hy[offset] / sy[offset].re, Hy[offset] / sy[offset].im)).re;
-			Bz[offset] = complex_mul(complex_mul(sx[offset], sy[offset]), complex_make(Hz[offset] / sz[offset].re, Hz[offset] / sz[offset].im)).re;
+			Bx[offset] = Hx[offset];
+			By[offset] = Hy[offset];
+			Bz[offset] = Hz[offset];
 		}
 		if (((mask[offset] & (1 << 1)) >> 1) == 1) {//PML 
 

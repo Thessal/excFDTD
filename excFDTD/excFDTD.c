@@ -6,8 +6,8 @@
 //reference : Torok et al, 2006 (doi: 10.1364/JOSAA.23.000713) formulation used for NTFF
 
 
-#define _DimX (104)
-#define _DimY (60)
+#define _DimX (104+8)
+#define _DimY (60+8)
 #define _DimZ (200)
 
 #define _STEP (6*250*3+5000)
@@ -420,13 +420,13 @@ int main(int argc, char* argv[])
 		DCP_HE_C();
 		RFT(__BACK); //FIXME : print warning message if RFT would not reach its final step
 		planeout = 0.0;
-		for (int i = 0; i < _DimX; i++) {
-			for (int j = 0; j < _DimX; j++) {
-				planeout += eps0_c_Ey[_INDEX_XYZ(i, j, (_DimZ / 2 + __SIN_TOP + __METAL_HOLE + 20))];
+		for (int ii = 0; ii < _DimX; ii++) {
+			for (int jj = 0; jj < _DimY; jj++) {
+				planeout += eps0_c_Ey[_INDEX_XYZ(ii, jj, (_DimZ / 2 + __SIN_TOP + __METAL_HOLE + 20))];
 			}
 		}
 		fprintf(f, "%e\t%30e\n", _dt_*(float)i, planeout);
-		if ((i) % 100 == 0) {
+		if ((i) % 50 == 0) {
 			sprintf(filename, "%05d", i);
 			snapshot(filename);
 		}
@@ -1424,6 +1424,7 @@ int init(void)
 	printf("pml_R = %e\n", pml_R);
 	printf("pml_kappa_max = %e\n", pml_kappa_max);
 	printf("pml_sigma_x_dt_div_eps0_max = %e\n", pml_sigma_x_dt_div_eps0_max);
+	printf("alpha_dt_div_eps0[i] = %e\n", (_PML_ALPHA_TUNING_)* (_dt_) /( _eps0_));
 	printf("\n");
 
 	for (unsigned __int64 i = 0; i < _threadPerGrid; i++)
@@ -1457,7 +1458,7 @@ int init(void)
 			continue;
 		}
 
-		alpha_dt_div_eps0[i] = (_PML_ALPHA_TUNING_); // FIXME 
+		alpha_dt_div_eps0[i] = (_PML_ALPHA_TUNING_) * (_dt_ )/ (_eps0_); // FIXME 
 
 
 													 //FIXME : check PML area

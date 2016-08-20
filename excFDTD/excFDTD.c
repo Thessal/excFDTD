@@ -52,7 +52,7 @@ float pml_kappa_max = 8.0f;
 #define __METAL_ON__
 #define _AREA_METAL_
 
-#ifdef __METAL_ON__ \
+#ifdef __METAL_ON__ 
 #define _AREA_METAL_ \
 for(int ind = 0; ind < 5; ind++){\
 if ((-__SLOT<zz) && (zz <= 0) && (rr[ind] <= __SLOT_RADIUS))\
@@ -1273,7 +1273,7 @@ void NTFF(void) {
 
 		for (int i = 0; i < NTFF_IMG_SIZE; i++) {
 			for (int j = 0; j < NTFF_IMG_SIZE; j++) {
-				float val = 255.0f / 10.0f * sqrtf(
+				float val = 255.0f * sqrtf(
 					FF_ecE_x[j*NTFF_IMG_SIZE + i].real * FF_ecE_x[j*NTFF_IMG_SIZE + i].real +
 					FF_ecE_y[j*NTFF_IMG_SIZE + i].real * FF_ecE_y[j*NTFF_IMG_SIZE + i].real +
 					FF_ecE_z[j*NTFF_IMG_SIZE + i].real * FF_ecE_z[j*NTFF_IMG_SIZE + i].real +
@@ -1331,7 +1331,7 @@ void NTFF(void) {
 		for (int i = 0; i < NTFF_IMG_SIZE; i++) {
 			for (int j = 0; j < NTFF_IMG_SIZE; j++) {
 				float val = sqrtf(FF_ecSr[j*NTFF_IMG_SIZE + i].real *  FF_ecSr[j*NTFF_IMG_SIZE + i].real + FF_ecSr[j*NTFF_IMG_SIZE + i].imag *  FF_ecSr[j*NTFF_IMG_SIZE + i].imag)
-					* 255.0f * 100.0f;
+					* 255.0f * 1e5;
 				image[4 * NTFF_IMG_SIZE * j + 4 * i + 0] = val > 0 ? (val < 255 ? val : 255) : 0;		image[4 * NTFF_IMG_SIZE * j + 4 * i + 1] = val < 0 ? (val > -255 ? -val : 255) : 0;		image[4 * NTFF_IMG_SIZE * j + 4 * i + 2] = 0;  image[4 * NTFF_IMG_SIZE * j + 4 * i + 3] = 255;
 			}
 		}
@@ -1349,7 +1349,7 @@ void NTFF(void) {
 
 		for (int i = 0; i < NTFF_IMG_SIZE; i++) {
 			for (int j = 0; j < NTFF_IMG_SIZE; j++) {
-				float val = FF_ecSr[j*NTFF_IMG_SIZE + i].real * 255.0f * 100.0f;
+				float val = FF_ecSr[j*NTFF_IMG_SIZE + i].real * 255.0f * 1e5;
 				image[4 * NTFF_IMG_SIZE * j + 4 * i + 0] = val > 0 ? (val < 255 ? val : 255) : 0;		image[4 * NTFF_IMG_SIZE * j + 4 * i + 1] = val < 0 ? (val > -255 ? -val : 255) : 0;		image[4 * NTFF_IMG_SIZE * j + 4 * i + 2] = 0;  image[4 * NTFF_IMG_SIZE * j + 4 * i + 3] = 255;
 			}
 		}

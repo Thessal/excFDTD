@@ -49,7 +49,7 @@ float pml_kappa_max = 8.0f;
 #define __SLOT_RADIUS  (24)
 #define __SMOOTHING  (9)
 
-#define __METAL_ON__
+//#define __METAL_ON__
 #define _AREA_METAL_
 
 #ifdef __METAL_ON__ \
@@ -57,7 +57,7 @@ float pml_kappa_max = 8.0f;
 for(int ind = 0; ind < 5; ind++){\
 if ((-__SLOT<zz) && (zz <= 0) && (rr[ind] <= __SLOT_RADIUS))\
 {eps_r_inv[offset] = 1.0f / (__BACK*__BACK); /*SiO slot*/} \
-}\
+}\ 
 for(int ind = 0; ind < 5; ind++){\
 if (\
 (-__SLOT < zz) && (zz <= (-__SLOT + __METAL_DISK))\

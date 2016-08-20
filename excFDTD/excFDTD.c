@@ -6,18 +6,18 @@
 //reference : Torok et al, 2006 (doi: 10.1364/JOSAA.23.000713) formulation used for NTFF
 
 
-#define _DimX (30)
-#define _DimY (30)
+#define _DimX (50)
+#define _DimY (50)
 #define _DimZ (100)
 
 #define _STEP (2001)
 
 //eq35
 //consider using simple PML for NTFF calculation
-#define _PML_PX_X_ (0)
-#define _PML_PX_Y_ (0)
+#define _PML_PX_X_ (8)
+#define _PML_PX_Y_ (8)
 #define _PML_PX_Z_ (8)
-#define _PML_ALPHA_TUNING_ (0.0f)
+#define _PML_ALPHA_TUNING_ (1.0f)
 // 0 or 1 (CFS-PML)
 #define _PML_OMEGA_DT_TUNING_ (2.0f*M_PI*50e-9/700e-9)
 //#define _PML_OMEGA_DT_TUNING_ (2.0f*M_PI)
@@ -29,7 +29,7 @@ float pml_kappa_max = 8.0f;
 #define _NTFF_Margin_Z_ (5)
 
 #define STRUCTURE \
-if((((_DimZ)*2/3)<z) && (z <= 20+((_DimZ) * 2 / 3)) && (0)<yy) { \
+if((((_DimZ)*2/3)<z) && (z <= 20+((_DimZ) * 2 / 3)) ) { \
 		mask[offset] = mask[offset] | (0b0001 << 4); \
 }/*Au top*/\
 
@@ -367,7 +367,8 @@ int main(int argc, char* argv[])
 		printf("%f%%\r", 100.0f*(float)i / _STEP);
 		float addval = sin(2.0f * M_PI * _c0 / 500e-9 * (float)i * _dt_) * exp(-((float)i - 200.0f)*((float)i - 200.0f) / 100.0f / 100.0f);
 		addval *= 0.0001 ;
-		for(int ii=0; ii<_DimX; ii++) for(int jj=0; jj<_DimY; jj++){
+//		for(int ii=_PML_PX_X_; ii<_DimX-_PML_PX_X_; ii++) for(int jj=0+ _PML_PX_X_; jj<_DimY - _PML_PX_X_; jj++){
+		addval *= 5;  for (int ii = _DimX / 2 - 5; ii < _DimX / 2 + 5; ii++) for (int jj = _DimY / 2 - 5; jj < _DimY / 2 + 5; jj++) {
 		eps0_c_Ey[_INDEX_XYZ(ii, jj, _DimZ / 3)] += addval*0.5f ;
 		Hx[_INDEX_XYZ(ii, jj, _DimZ / 3)] -= addval*0.25f ;
 		Hx[_INDEX_XYZ(ii, jj, _DimZ / 3 - 1)] -= addval*0.25f ;

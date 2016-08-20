@@ -10,7 +10,7 @@
 #define _DimY (60)
 #define _DimZ (200)
 
-#define _STEP (6*100*3)
+#define _STEP (6*250*3)
 
 //eq35
 //consider using simple PML for NTFF calculation
@@ -416,15 +416,13 @@ int main(int argc, char* argv[])
 	FILE *f = fopen("plane_output.txt", "a"); double planeout;
 	for (int i = 0; i <= _STEP; i++) {
 		printf("%f%%\r", 100.0f*(float)i / _STEP);
-		float addval = -sin(2 * M_PI* i * (_dt_ * _c0 / 300e-9)) * exp(-(float)(i - 6 * 100)*(i - 6 * 100) / (float)(2 * 100* 100)); 
+		float addval = -sin(2 * M_PI* i * (_dt_ * _c0 / 300e-9)) * exp(-(float)(i - 6 * 250)*(i - 6 * 250) / (float)(2 * 250* 250)); 
 		addval /= __SIO_INDEX;
 		for (int ii = 0; ii < _DimX; ii++) {
 			for (int jj = 0; jj < _DimY; jj++) {
 				eps0_c_Ey[_INDEX_XYZ(ii, jj, sourcePos)] += addval *0.5f;
 				Hx[_INDEX_XYZ(ii, jj, sourcePos)] -= addval *0.25f;
 				Hx[_INDEX_XYZ(ii, jj, sourcePos - 1)] -= addval *0.25f;
-				eps0_c_Ex[_INDEX_XYZ(ii, jj, _DimZ-1)] = 0; eps0_c_Ey[_INDEX_XYZ(ii, jj, _DimZ-1)] = 0; eps0_c_Ez[_INDEX_XYZ(ii, jj, _DimZ-1)] = 0;
-				Hx[_INDEX_XYZ(ii, jj, _DimZ-1)] = 0; Hy[_INDEX_XYZ(ii, jj, _DimZ-1)] = 0; Hz[_INDEX_XYZ(ii, jj, _DimZ-1)] = 0;
 			}
 		}
 		DCP_HE_C();

@@ -6,35 +6,102 @@
 //reference : Torok et al, 2006 (doi: 10.1364/JOSAA.23.000713) formulation used for NTFF
 
 
-#define _DimX (50)
-#define _DimY (50)
-#define _DimZ (100)
+#define _DimX (104)
+#define _DimY (60)
+#define _DimZ (200)
 
-#define _STEP (2001)
+#define _STEP (6*250*3+5000)
 
 //eq35
 //consider using simple PML for NTFF calculation
-#define _PML_PX_X_ (8)
-#define _PML_PX_Y_ (8)
+#define _PML_PX_X_ (0)
+#define _PML_PX_Y_ (0)
 #define _PML_PX_Z_ (8)
-#define _PML_ALPHA_TUNING_ (1.0f)
-// 0 or 1 (CFS-PML)
-#define _PML_OMEGA_DT_TUNING_ (2.0f*M_PI*50e-9/700e-9)
-//#define _PML_OMEGA_DT_TUNING_ (2.0f*M_PI)
-int pml_n = 3; //consider using macro
+int pml_n = 3;
 float pml_R = 10e-4;
 float pml_kappa_max = 8.0f;
-#define _NTFF_Margin_X_ (5)
-#define _NTFF_Margin_Y_ (5)
-#define _NTFF_Margin_Z_ (5)
-
-#define STRUCTURE \
-if((((_DimZ)*2/3)<z) && (z <= 20+((_DimZ) * 2 / 3)) ) { \
-		mask[offset] = mask[offset] | (0b0001 << 4); \
-}/*Au top*/\
+#define _NTFF_Margin_X_ (0)
+#define _NTFF_Margin_Y_ (0)
+#define _NTFF_Margin_Z_ (16)
 
 #define _S_factor (2.0f)
-#define _dx (10e-9)
+#define _dx (5e-9)
+#define _PML_ALPHA_TUNING_ (1.0f)
+#define _PML_OMEGA_DT_TUNING_ (2.0f*M_PI*_dx/700e-9/_S_factor)
+
+#define __SUBSTRATE (100)
+#define __PITCH (60)
+#define __METAL_HOLE (14)
+#define __METAL_DISK  (4)
+#define __RADIUS_TOP_IN  (16)
+#define __RADIUS_BOT_IN ( 5)
+#define __RADIUS_TOP_OUT ( 27)
+#define __RADIUS_BOT_OUT  (16)
+#define __RADIUS_DISK_TOP ( 10)
+#define __RADIUS_DISK_BOT ( 14)
+#define __SLOT  (4.2)
+#define __SIN_BOT  (6)
+#define __SIN_TOP  (10)
+#define __DEPTH ( 4)
+#define __REF ( 1.0)
+#define __BACK  (1.3f)
+#define __SLOT_RADIUS  (24)
+#define __SMOOTHING  (9)
+
+
+#define STRUCTURE \
+
+
+//eps_r_inv[offset] = 1.0f / (__BACK*__BACK);\
+//if (((-__SLOT - __SIN_BOT<zz) && (zz <= -__SLOT))\
+//	|| ((0<zz) && (zz <= __SIN_TOP))) {\
+//	eps_r_inv[offset] = 1.0f / (1.8f*1.8f); /*SiN*/\
+//}\
+//if (((-__SLOT<zz) && (zz <= 0) )\
+//	|| (zz <= (-__SLOT - __SIN_BOT))) {\
+//	eps_r_inv[offset] = 1.0f / (1.46f*1.46f); /*SiO*/\
+//}\
+//for(int ind = 0; ind < 5; ind++){\
+//if ((-__SLOT<zz) && (zz <= 0) && (rr[ind] <= __SLOT_RADIUS))\
+//{/*eps_r_inv[offset] = 1.0f / (__BACK*__BACK);*/ /*SiO slot*/} \
+//}\
+//if (((-__SLOT - __SIN_BOT - 8)<zz) && (zz <= (-__SLOT - __SIN_BOT))) {\
+//	eps_r_inv[offset] = 1.0f / (1.8f*1.8f); /*ITO*/\
+//}\
+//for(int ind = 0; ind < 5; ind++){\
+//if (\
+//(-__SLOT < zz) && (zz <= (-__SLOT + __METAL_DISK))\
+//	&& (rr[ind] <= ((__RADIUS_DISK_TOP - __RADIUS_DISK_BOT) / __METAL_DISK*(zz + __SLOT) + __RADIUS_DISK_BOT))\
+//	) {\
+//	/*mask[offset] = mask[offset] | (0b0001 << 4);\
+//		eps_r_inv[offset] = 1.0f/(__BACK*__BACK);*/\
+//} /*Au disk*/\
+//if (\
+//(0 < zz) && (zz <= (__SIN_TOP + __METAL_HOLE))\
+//	&& (rr[ind] <= __RADIUS_BOT_OUT + (float)(__RADIUS_TOP_OUT - __RADIUS_BOT_OUT) / (float)(__SIN_TOP + __METAL_HOLE) * zz)\
+//	) {\
+//	/*mask[offset] = mask[offset] | (0b0001 << 4);\
+//		eps_r_inv[offset] = 1.0f/(__BACK*__BACK);*/\
+//} /*Au sidewall*/\
+//}\
+//if ((__SIN_TOP<zz) && (zz <= (__SIN_TOP + __METAL_HOLE))) {\
+//	/*mask[offset] = mask[offset] | (0b0001 << 4);*/\
+//}/*Au top*/\
+//for(int ind = 0; ind < 5; ind++){\
+//if (\
+//	(\
+//		(0 < zz) && (zz <= __SIN_TOP + __METAL_HOLE) &&\
+//		(rr[ind] <= __RADIUS_BOT_IN + ((float)(__RADIUS_TOP_IN - __RADIUS_BOT_IN) / (float)(__SIN_TOP + __METAL_HOLE)) * zz) \
+//	)\
+//			||\
+//	(\
+//		(0 < zz) && (zz <= __SMOOTHING) &&\
+//		(rr[ind] <= __RADIUS_BOT_IN + __SMOOTHING - zz)\
+//	)\
+//) {\
+//	/*mask[offset] = mask[offset] & ~(0b0001 << 4);*/\
+//} /*thruhole*/\
+//} \
 
 #define _c0 299792458.0f
 #define _USE_MATH_DEFINES
@@ -64,9 +131,7 @@ float stability_factor_inv = 1.0f / _S_factor;
 //	#define RFT_WINDOW _STEP
 //#endif
 #define FREQ_N 3
-float FREQ_LIST_DESIRED[FREQ_N] = { _c0 / 800e-9 / 1.0  , _c0 / 900e-9 / 1.0 , _c0 / 1000e-9 / 1.0 };
-//#define FREQ_N 3
-//float FREQ_LIST_DESIRED[FREQ_N] = { _c0 / 300e-9, _c0 / 500e-9, _c0 / 800e-9 };
+float FREQ_LIST_DESIRED[FREQ_N] = { _c0 / 800e-9 / __BACK  , _c0 / 900e-9 / __BACK , _c0 / 1000e-9 / __BACK };
 float RFT_K_LIST_CALCULATED[FREQ_N];
 
 
@@ -338,27 +403,35 @@ int main(int argc, char* argv[])
 	start = clock();
 	printf("\nCalculating field \n");
 
+	int sourcePos = _DimZ / 2 - __SLOT - __SIN_BOT - 8 - 10;
 	char filename[256];
+	FILE *f = fopen("plane_output.txt", "a"); double planeout;
 	for (int i = 0; i <= _STEP; i++) {
 		printf("%f%%\r", 100.0f*(float)i / _STEP);
-		float addval = sin(2.0f * M_PI * _c0 / 500e-9 * (float)i * _dt_) * exp(-((float)i - 200.0f)*((float)i - 200.0f) / 100.0f / 100.0f);
-		addval *= 0.0001 ;
-//		for(int ii=0; ii<_DimX; ii++) for(int jj=0; jj<_DimY; jj++){
-		addval *= 5;  for (int ii = _DimX / 2 -5; ii < _DimX/2+5; ii++) for (int jj = _DimY /2 - 5; jj < _DimY/2 +5; jj++) {
-		eps0_c_Ey[_INDEX_XYZ(ii, jj, _DimZ / 3)] += addval*0.5f ;
-		Hx[_INDEX_XYZ(ii, jj, _DimZ / 3)] -= addval*0.25f ;
-		Hx[_INDEX_XYZ(ii, jj, _DimZ / 3 - 1)] -= addval*0.25f ;
+		float addval = -sin(2 * M_PI* i * (_dt_ * _c0 / 700e-9)) * exp(-(i - 6 * 250)*(i - 6 * 250) / (2 * 250 * 250));
+		addval /= 1.46f * 10000.0f;
+		for (int ii = 0; ii < _DimX; ii++) {
+			for (int jj = 0; jj < _DimY; jj++) {
+				eps0_c_Ey[_INDEX_XYZ(ii, jj, sourcePos)] += addval *0.5f;
+				Hx[_INDEX_XYZ(ii, jj, sourcePos)] -= addval *0.25f;
+				Hx[_INDEX_XYZ(ii, jj, sourcePos - 1)] -= addval *0.25f;
+			}
 		}
 		DCP_HE_C();
-		RFT(1.0); //FIXME : print warning message if RFT would not reach its final step
-
-		if ((i) % 10 == 0) {
+		RFT(__BACK); //FIXME : print warning message if RFT would not reach its final step
+		planeout = 0.0;
+		for (int i = 0; i < _DimX; i++) {
+			for (int j = 0; j < _DimX; j++) {
+				planeout += eps0_c_Ey[_INDEX_XYZ(i, j, (_DimZ / 2 + __SIN_TOP + __METAL_HOLE + 20))];
+			}
+		}
+		fprintf(f, "%e\t%30e\n", _dt_*(float)i, planeout);
+		if ((i) % 100 == 0) {
 			sprintf(filename, "%05d", i);
 			snapshot(filename);
 		}
 	}
 	printf("\ntime : %f\n", (double)(clock() - start) / CLK_TCK);
-	//snapshot();
 	NTFF_onlyUpside();
 	NTFF();
 	return 0;
@@ -1659,7 +1732,7 @@ int snapshot(char* filename)
 	char filenameFull[256];
 
 
-	/*
+	
 	sprintf(filenameFull, "Ex_Y0_%s.txt", filename);
 	int Y = _DimY / 2;
 	FILE *f = fopen(filenameFull, "w");
@@ -1700,7 +1773,7 @@ int snapshot(char* filename)
 		//if (X%_blockDimX == _blockDimX -1 ){ for (int Z = 0; Z < _DimZ; Z++) 	{	fprintf(f,"%+04.3f\t ", eps0_c_Ex[_INDEX_XYZ(_blockDimX, Y, Z)]);	}fprintf(f,"\n");}
 	}
 	fclose(f);
-	*/
+	
 	unsigned char* image;
 	unsigned x, y, z;
 	unsigned width, height;
@@ -1751,7 +1824,7 @@ int snapshot(char* filename)
 	free(image);
 
 
-	/*
+	
 
 	printf("snapshot : Z=%d\n", _DimZ / 2);
 	int Z = _DimZ / 2;
@@ -1795,7 +1868,7 @@ int snapshot(char* filename)
 	if (error) printf("error %u: %s\n", error, lodepng_error_text(error));
 
 	free(image);
-	*/
+	
 	return 0;
 }
 

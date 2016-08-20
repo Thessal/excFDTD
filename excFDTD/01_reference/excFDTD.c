@@ -10,7 +10,7 @@
 #define _DimY (60)
 #define _DimZ (200)
 
-#define _STEP (6*250*3)
+#define _STEP (6*250*3+5000)
 
 //eq35
 //consider using simple PML for NTFF calculation
@@ -27,7 +27,7 @@ float pml_kappa_max = 8.0f;
 #define _S_factor (2.0f)
 #define _dx (5e-9)
 #define _PML_ALPHA_TUNING_ (1.0f)
-#define _PML_OMEGA_DT_TUNING_ (2.0f*M_PI*_dx/300e-9/_S_factor)
+#define _PML_OMEGA_DT_TUNING_ (2.0f*M_PI*_dx/700e-9/_S_factor)
 
 #define __SUBSTRATE (100)
 #define __PITCH (60)
@@ -49,33 +49,42 @@ float pml_kappa_max = 8.0f;
 #define __SLOT_RADIUS  (24)
 #define __SMOOTHING  (9)
 
-//#define __METAL_ON__
-#define _AREA_METAL_
 
-#ifdef __METAL_ON__ \
-#define _AREA_METAL_ \
+#define STRUCTURE \
+eps_r_inv[offset] = 1.0f / (__BACK*__BACK);\
+if (((-__SLOT - __SIN_BOT<zz) && (zz <= -__SLOT))\
+	|| ((0<zz) && (zz <= __SIN_TOP))) {\
+	eps_r_inv[offset] = 1.0f / (1.8f*1.8f); /*SiN*/\
+}\
+if (((-__SLOT<zz) && (zz <= 0) )\
+	|| (zz <= (-__SLOT - __SIN_BOT))) {\
+	eps_r_inv[offset] = 1.0f / (__SIO_INDEX * __SIO_INDEX); /*SiO*/\
+}\
 for(int ind = 0; ind < 5; ind++){\
 if ((-__SLOT<zz) && (zz <= 0) && (rr[ind] <= __SLOT_RADIUS))\
-{eps_r_inv[offset] = 1.0f / (__BACK*__BACK); /*SiO slot*/} \
-}\ 
+{/*eps_r_inv[offset] = 1.0f / (__BACK*__BACK);*/ /*SiO slot*/} \
+}\
+if (((-__SLOT - __SIN_BOT - 8)<zz) && (zz <= (-__SLOT - __SIN_BOT))) {\
+	eps_r_inv[offset] = 1.0f / (1.8f*1.8f); /*ITO*/\
+}\
 for(int ind = 0; ind < 5; ind++){\
 if (\
 (-__SLOT < zz) && (zz <= (-__SLOT + __METAL_DISK))\
 	&& (rr[ind] <= ((__RADIUS_DISK_TOP - __RADIUS_DISK_BOT) / __METAL_DISK*(zz + __SLOT) + __RADIUS_DISK_BOT))\
 	) {\
-	mask[offset] = mask[offset] | (0b0001 << 4);\
-		eps_r_inv[offset] = 1.0f/(__BACK*__BACK);\
+	/*mask[offset] = mask[offset] | (0b0001 << 4);\
+		eps_r_inv[offset] = 1.0f/(__BACK*__BACK);*/\
 } /*Au disk*/\
 if (\
 (0 < zz) && (zz <= (__SIN_TOP + __METAL_HOLE))\
 	&& (rr[ind] <= __RADIUS_BOT_OUT + (float)(__RADIUS_TOP_OUT - __RADIUS_BOT_OUT) / (float)(__SIN_TOP + __METAL_HOLE) * zz)\
 	) {\
-	mask[offset] = mask[offset] | (0b0001 << 4);\
-		eps_r_inv[offset] = 1.0f/(__BACK*__BACK);\
+	/*mask[offset] = mask[offset] | (0b0001 << 4);\
+		eps_r_inv[offset] = 1.0f/(__BACK*__BACK);*/\
 } /*Au sidewall*/\
 }\
 if ((__SIN_TOP<zz) && (zz <= (__SIN_TOP + __METAL_HOLE))) {\
-	mask[offset] = mask[offset] | (0b0001 << 4);\
+	/*mask[offset] = mask[offset] | (0b0001 << 4);*/\
 }/*Au top*/\
 for(int ind = 0; ind < 5; ind++){\
 if (\
@@ -89,26 +98,9 @@ if (\
 		(rr[ind] <= __RADIUS_BOT_IN + __SMOOTHING - zz)\
 	)\
 ) {\
-	mask[offset] = mask[offset] & ~(0b0001 << 4);\
+	/*mask[offset] = mask[offset] & ~(0b0001 << 4);*/\
 } /*thruhole*/\
 } 
-#endif
-
-#define STRUCTURE \
-eps_r_inv[offset] = 1.0f / (__BACK*__BACK);\
-if (((-__SLOT - __SIN_BOT<zz) && (zz <= -__SLOT))\
-	|| ((0<zz) && (zz <= __SIN_TOP))) {\
-	eps_r_inv[offset] = 1.0f / (1.8f*1.8f); /*SiN*/\
-}\
-if (((-__SLOT<zz) && (zz <= 0) )\
-	|| (zz <= (-__SLOT - __SIN_BOT))) {\
-	eps_r_inv[offset] = 1.0f / (__SIO_INDEX * __SIO_INDEX); /*SiO*/\
-} \
-if (((-__SLOT - __SIN_BOT - 8)<zz) && (zz <= (-__SLOT - __SIN_BOT))) {\
-	eps_r_inv[offset] = 1.0f / (1.8f*1.8f); /*ITO*/\
-} \
-_AREA_METAL_\
-
 
 
 #define _c0 299792458.0f
@@ -416,8 +408,8 @@ int main(int argc, char* argv[])
 	FILE *f = fopen("plane_output.txt", "a"); double planeout;
 	for (int i = 0; i <= _STEP; i++) {
 		printf("%f%%\r", 100.0f*(float)i / _STEP);
-		float addval = -sin(2 * M_PI* i * (_dt_ * _c0 / 300e-9)) * exp(-(i - 6 * 250) / (250));
-		addval /= __SIO_INDEX;
+		float addval = -sin(2 * M_PI* i * (_dt_ * _c0 / 700e-9)) * exp(-(i - 6 * 250)*(i - 6 * 250) / (2 * 250 * 250));
+		addval /= __SIO_INDEX * 10000.0f;
 		for (int ii = 0; ii < _DimX; ii++) {
 			for (int jj = 0; jj < _DimY; jj++) {
 				eps0_c_Ey[_INDEX_XYZ(ii, jj, sourcePos)] += addval *0.5f;

@@ -17,11 +17,7 @@
 #define _PML_PX_X_ (8)
 #define _PML_PX_Y_ (8)
 #define _PML_PX_Z_ (8)
-#define _PML_ALPHA_TUNING_ (1.0f)
-// 0 or 1 (CFS-PML)
-#define _PML_OMEGA_DT_TUNING_ (2.0f*M_PI*50e-9/700e-9)
-//#define _PML_OMEGA_DT_TUNING_ (2.0f*M_PI)
-int pml_n = 3; //consider using macro
+int pml_n = 3;
 float pml_R = 10e-4;
 float pml_kappa_max = 8.0f;
 #define _NTFF_Margin_X_ (5)
@@ -35,7 +31,8 @@ if((((_DimZ)*2/3)<z) && (z <= 20+((_DimZ) * 2 / 3)) ) { \
 
 #define _S_factor (2.0f)
 #define _dx (10e-9)
-
+#define _PML_ALPHA_TUNING_ (1.0f)
+#define _PML_OMEGA_DT_TUNING_ (2.0f*M_PI*_dx/700e-9/_S_factor)
 #define _c0 299792458.0f
 #define _USE_MATH_DEFINES
 #define _mu0_ ( 4e-7 * M_PI )
@@ -1351,6 +1348,7 @@ int init(void)
 	printf("pml_R = %e\n", pml_R);
 	printf("pml_kappa_max = %e\n", pml_kappa_max);
 	printf("pml_sigma_x_dt_div_eps0_max = %e\n", pml_sigma_x_dt_div_eps0_max);
+	printf("alpha_dt_div_eps0[i] = %e\n", (_PML_ALPHA_TUNING_)* (_dt_) /( _eps0_));
 	printf("\n");
 
 	for (unsigned __int64 i = 0; i < _threadPerGrid; i++)
@@ -1384,7 +1382,7 @@ int init(void)
 			continue;
 		}
 
-		alpha_dt_div_eps0[i] = (_PML_ALPHA_TUNING_); // FIXME 
+		alpha_dt_div_eps0[i] = (_PML_ALPHA_TUNING_) * (_dt_ )/ (_eps0_); // FIXME 
 
 
 													 //FIXME : check PML area

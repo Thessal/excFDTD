@@ -385,7 +385,7 @@ void DCP_HE_C(void)
 	/*Update H*/
 	for (unsigned __int64 offset = 0; offset < _threadPerGrid; offset += 1) {
 		if (((mask[offset] & (1 << 0)) >> 0) == 1) { continue; } // skip padding
-		/* PML swap*/
+																 /* PML swap*/
 		if (((mask[offset] & (1 << 1)) >> 1) == 1) {
 			//swap
 			Hx_swp[offset] = Hx[offset];
@@ -452,7 +452,7 @@ void DCP_HE_C(void)
 	/*Update E*/
 	for (unsigned __int64 offset = 0; offset < _threadPerGrid; offset += 1) {
 		if (((mask[offset] & (1 << 0)) >> 0) == 1) { continue; } // skip padding
-		/* PML swap*/
+																 /* PML swap*/
 		if (((mask[offset] & (1 << 1)) >> 1) == 1) {
 			//swap
 			eps0_c_Ex_swp[offset] = eps0_c_Ex[offset];
@@ -496,6 +496,17 @@ void DCP_HE_C(void)
 			tempy[offset] /= (_eps0_ * _eps_inf + 0.5f * _sigma_ * _dt_ - _d2 + _C3p) / _eps0_;
 			tempz[offset] /= (_eps0_ * _eps_inf + 0.5f * _sigma_ * _dt_ - _d2 + _C3p) / _eps0_;
 
+			//PD (single drude)
+			eps0_c_Pdx[offset] *= _d1; //eq27term1
+			eps0_c_Pdy[offset] *= _d1;
+			eps0_c_Pdz[offset] *= _d1;
+			eps0_c_Pdx[offset] -= tempx[offset] * _d2; //eq27term2
+			eps0_c_Pdy[offset] -= tempy[offset] * _d2;
+			eps0_c_Pdz[offset] -= tempz[offset] * _d2;
+			eps0_c_Pdx[offset] -= eps0_c_Ex[offset] * _d2; //eq27term3
+			eps0_c_Pdy[offset] -= eps0_c_Ey[offset] * _d2;
+			eps0_c_Pdz[offset] -= eps0_c_Ez[offset] * _d2;
+
 			//PCP
 			eps0_c_Pcp1x_old[offset] *= _C21; //eq14term2
 			eps0_c_Pcp1y_old[offset] *= _C21;
@@ -527,35 +538,19 @@ void DCP_HE_C(void)
 			eps0_c_Pcp2x_old[offset] += eps0_c_Ex_old[offset] * _C52;
 			eps0_c_Pcp2y_old[offset] += eps0_c_Ey_old[offset] * _C52;
 			eps0_c_Pcp2z_old[offset] += eps0_c_Ez_old[offset] * _C52;
-			//eps0_c_Ex_old can be used as temp var here now
 
-			//PD
-			eps0_c_Pdx[offset] *= _d1; //eq27term1
-			eps0_c_Pdy[offset] *= _d1;
-			eps0_c_Pdz[offset] *= _d1;
-			eps0_c_Pdx[offset] -= tempx[offset] * _d2; //eq27term2
-			eps0_c_Pdy[offset] -= tempy[offset] * _d2;
-			eps0_c_Pdz[offset] -= tempz[offset] * _d2;
-			eps0_c_Pdx[offset] -= eps0_c_Ex[offset] * _d2; //eq27term3
-			eps0_c_Pdy[offset] -= eps0_c_Ey[offset] * _d2;
-			eps0_c_Pdz[offset] -= eps0_c_Ez[offset] * _d2;
+			//SWAP
+			eps0_c_Ex_old[offset] = eps0_c_Ex[offset]; eps0_c_Ex[offset] = tempx[offset];
+			eps0_c_Ey_old[offset] = eps0_c_Ey[offset]; eps0_c_Ey[offset] = tempy[offset];
+			eps0_c_Ez_old[offset] = eps0_c_Ez[offset]; eps0_c_Ez[offset] = tempz[offset];
 
-			//FIXME : can be simpler than this?
-			eps0_c_Ex_old[offset] = eps0_c_Ex[offset];
-			eps0_c_Ey_old[offset] = eps0_c_Ey[offset];
-			eps0_c_Ez_old[offset] = eps0_c_Ez[offset];
+			tempx[offset] = eps0_c_Pcp1x[offset]; eps0_c_Pcp1x[offset] = eps0_c_Pcp1x_old[offset]; eps0_c_Pcp1x_old[offset] = tempx[offset];
+			tempy[offset] = eps0_c_Pcp1y[offset]; eps0_c_Pcp1y[offset] = eps0_c_Pcp1y_old[offset]; eps0_c_Pcp1y_old[offset] = tempy[offset];
+			tempz[offset] = eps0_c_Pcp1z[offset]; eps0_c_Pcp1z[offset] = eps0_c_Pcp1z_old[offset]; eps0_c_Pcp1z_old[offset] = tempz[offset];
 
-			eps0_c_Ex[offset] = tempx[offset]; //FIXME : tempx size can be reduced: conider CUDA
-			eps0_c_Ey[offset] = tempy[offset];
-			eps0_c_Ez[offset] = tempz[offset];
-
-			eps0_c_Pcp1x_old[offset] = eps0_c_Pcp1x[offset];
-			eps0_c_Pcp1y_old[offset] = eps0_c_Pcp1y[offset];
-			eps0_c_Pcp1z_old[offset] = eps0_c_Pcp1z[offset];
-
-			eps0_c_Pcp2x_old[offset] = eps0_c_Pcp2x[offset];
-			eps0_c_Pcp2y_old[offset] = eps0_c_Pcp2y[offset];
-			eps0_c_Pcp2z_old[offset] = eps0_c_Pcp2z[offset];
+			tempx[offset] = eps0_c_Pcp2x[offset]; eps0_c_Pcp2x[offset] = eps0_c_Pcp2x_old[offset]; eps0_c_Pcp2x_old[offset] = tempx[offset];
+			tempy[offset] = eps0_c_Pcp2y[offset]; eps0_c_Pcp2y[offset] = eps0_c_Pcp2y_old[offset]; eps0_c_Pcp2y_old[offset] = tempy[offset];
+			tempz[offset] = eps0_c_Pcp2z[offset]; eps0_c_Pcp2z[offset] = eps0_c_Pcp2z_old[offset]; eps0_c_Pcp2z_old[offset] = tempz[offset];
 		}
 		else {	// non metal
 			eps0_c_Ex[offset] += (Hy[offset - _offsetZ] - Hy[offset] + Hz[offset - _offsetZ] - Hz[offset - _offsetY - _offsetZ]) * eps_r_inv[offset] * _cdt_div_dx;
@@ -565,7 +560,7 @@ void DCP_HE_C(void)
 
 		/* PML update */
 		if (((mask[offset] & (1 << 1)) >> 1) == 1) {//PML 
-			//recover
+													//recover
 			Rx[offset] = eps0_c_Ex[offset]; Ry[offset] = eps0_c_Ey[offset]; Rz[offset] = eps0_c_Ez[offset];
 			eps0_c_Ex[offset] = eps0_c_Ex_swp[offset]; eps0_c_Ey[offset] = eps0_c_Ey_swp[offset]; eps0_c_Ez[offset] = eps0_c_Ez_swp[offset];
 

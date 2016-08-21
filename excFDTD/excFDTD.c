@@ -10,7 +10,8 @@
 #define _DimY (60)
 #define _DimZ (200)
 
-#define _T_DECAY (200)
+#define _SOURCE_WAVELENGTH_ (450e-9)
+#define _T_DECAY (100)
 #define _STEP (6*_T_DECAY*6)
 
 //eq35
@@ -28,7 +29,7 @@ float pml_kappa_max = 8.0f;
 #define _S_factor (2.0f)
 #define _dx (5e-9)
 #define _PML_ALPHA_TUNING_ (1.0f)
-#define _PML_OMEGA_DT_TUNING_ (2.0f*M_PI*_dx/450e-9/_S_factor)
+#define _PML_OMEGA_DT_TUNING_ (2.0f*M_PI*_dx/_SOURCE_WAVELENGTH_/_S_factor)
 
 #define __SUBSTRATE (100)
 #define __PITCH (60)
@@ -114,7 +115,7 @@ if (\
 
 #define STRUCTURE \
 eps_r_inv[offset] = 1.0f;\
-if ((0 < zz) && (zz <= 4)){mask[offset] = mask[offset] & ~(0b0001 << 4);}
+if ((0 < zz) && (zz <= 4)){mask[offset] = mask[offset] | (0b0001 << 4);}
 
 #define _c0 299792458.0f
 #define _USE_MATH_DEFINES
@@ -421,7 +422,7 @@ int main(int argc, char* argv[])
 	FILE *f = fopen("plane_output.txt", "a"); double planeout;
 	for (int i = 0; i <= _STEP; i++) {
 		printf("%f%%\r", 100.0f*(float)i / _STEP);
-		float addval = -sin(2 * M_PI* i * (_dt_ * _c0 / 450e-9)) * exp(-(float)(i - 6 * 30)*(i - 6 * 30) / (float)(2 * 30 * 30));
+		float addval = -sin(2 * M_PI* i * (_dt_ * _c0 / _SOURCE_WAVELENGTH_)) * exp(-(float)(i - 6 * _T_DECAY)*(i - 6 * _T_DECAY) / (float)(2 * _T_DECAY * _T_DECAY));
 		addval /= __SIO_INDEX;
 		for (int ii = 0; ii < _DimX; ii++) {
 			for (int jj = 0; jj < _DimY; jj++) {
@@ -640,13 +641,13 @@ void DCP_HE_C(void)
 			eps0_c_Ey[offset] = tempy[offset];
 			eps0_c_Ez[offset] = tempz[offset];
 
-			eps0_c_Pcp1x_old[offset] = eps0_c_Pcp1x[offset];
-			eps0_c_Pcp1y_old[offset] = eps0_c_Pcp1y[offset];
-			eps0_c_Pcp1z_old[offset] = eps0_c_Pcp1z[offset];
+			tempx[offset] = eps0_c_Pcp1x[offset]; eps0_c_Pcp1x[offset] = eps0_c_Pcp1x_old[offset]; eps0_c_Pcp1x_old[offset] = tempx[offset];
+			tempy[offset] = eps0_c_Pcp1y[offset]; eps0_c_Pcp1y[offset] = eps0_c_Pcp1y_old[offset]; eps0_c_Pcp1y_old[offset] = tempy[offset];
+			tempz[offset] = eps0_c_Pcp1z[offset]; eps0_c_Pcp1z[offset] = eps0_c_Pcp1z_old[offset]; eps0_c_Pcp1z_old[offset] = tempz[offset];
 
-			eps0_c_Pcp2x_old[offset] = eps0_c_Pcp2x[offset];
-			eps0_c_Pcp2y_old[offset] = eps0_c_Pcp2y[offset];
-			eps0_c_Pcp2z_old[offset] = eps0_c_Pcp2z[offset];
+			tempx[offset] = eps0_c_Pcp2x[offset]; eps0_c_Pcp2x[offset] = eps0_c_Pcp2x_old[offset]; eps0_c_Pcp2x_old[offset] = tempx[offset];
+			tempy[offset] = eps0_c_Pcp2y[offset]; eps0_c_Pcp2y[offset] = eps0_c_Pcp2y_old[offset]; eps0_c_Pcp2y_old[offset] = tempy[offset];
+			tempz[offset] = eps0_c_Pcp2z[offset]; eps0_c_Pcp2z[offset] = eps0_c_Pcp2z_old[offset]; eps0_c_Pcp2z_old[offset] = tempz[offset];
 		}
 		else {	// non metal
 			eps0_c_Ex[offset] += (Hy[offset - _offsetZ] - Hy[offset] + Hz[offset - _offsetZ] - Hz[offset - _offsetY - _offsetZ]) * eps_r_inv[offset] * _cdt_div_dx;

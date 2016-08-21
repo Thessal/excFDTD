@@ -27,7 +27,7 @@ float pml_kappa_max = 8.0f;
 #define _S_factor (2.0f)
 #define _dx (5e-9)
 #define _PML_ALPHA_TUNING_ (1.0f)
-#define _PML_OMEGA_DT_TUNING_ (2.0f*M_PI*_dx/300e-9/_S_factor)
+#define _PML_OMEGA_DT_TUNING_ (2.0f*M_PI*_dx/450e-9/_S_factor)
 
 #define __SUBSTRATE (100)
 #define __PITCH (60)
@@ -411,7 +411,7 @@ int main(int argc, char* argv[])
 	start = clock();
 	printf("\nCalculating field \n");
 
-	int sourcePos = _PML_PX_Z_ + 10;
+	int sourcePos = _DimZ / 2 - __SLOT - __SIN_BOT - 8 - 10;
 	char filename[256];
 	FILE *f = fopen("plane_output.txt", "a"); double planeout;
 	for (int i = 0; i <= _STEP; i++) {

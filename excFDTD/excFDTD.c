@@ -56,11 +56,11 @@ float pml_kappa_max = 8.0f;
 
 #ifdef __METAL_ON__ 
 #define _AREA_METAL_ \
-for(int ind = 0; ind < 5; ind++){\
+for(int ind = 2; ind < 3; ind++){\
 if ((-__SLOT<zz) && (zz <= 0) && (rr[ind] <= __SLOT_RADIUS))\
 {eps_r_inv[offset] = 1.0f / (__BACK*__BACK); /*SiO slot*/} \
 }\
-for(int ind = 0; ind < 5; ind++){\
+for(int ind = 2; ind < 3; ind++){\
 if (\
 (-__SLOT < zz) && (zz <= (-__SLOT + __METAL_DISK))\
 	&& (rr[ind] <= ((__RADIUS_DISK_TOP - __RADIUS_DISK_BOT) / __METAL_DISK*(zz + __SLOT) + __RADIUS_DISK_BOT))\
@@ -79,7 +79,7 @@ if (\
 if ((__SIN_TOP<zz) && (zz <= (__SIN_TOP + __METAL_HOLE))) {\
 	mask[offset] = mask[offset] | (0b0001 << 4);\
 }/*Au top*/\
-for(int ind = 0; ind < 5; ind++){\
+for(int ind = 2; ind < 3; ind++){\
 if (\
 	(\
 		(0 < zz) && (zz <= __SIN_TOP + __METAL_HOLE) &&\

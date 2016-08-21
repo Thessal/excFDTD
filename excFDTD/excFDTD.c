@@ -1733,16 +1733,8 @@ void syncPadding(void) {
 				for (int xx = 0; xx < _blockDimX; xx++) { _syncYZall }
 				for (int yy = 0; yy < _blockDimY; yy++) { _syncZXall }
 			}
-	if (_PML_PX_Z_ > 0 )
-		for (int X = 0; X < _gridDimX; X++)
-			for (int Y = 0; Y < _gridDimY; Y++)
-				for (int xx = 0; xx < _blockDimX; xx++)
-					for (int yy = 0; yy < _blockDimY; yy++) {
-						eps0_c_Ex[_INDEX_THREAD(X, Y, 0, xx, yy, 0)] = 0; eps0_c_Ey[_INDEX_THREAD(X, Y, 0, xx, yy, 0)] = 0; eps0_c_Ez[_INDEX_THREAD(X, Y, 0, xx, yy, 0)] = 0;
-						Hx[_INDEX_THREAD(X, Y, 0, xx, yy, 0)] = 0; Hy[_INDEX_THREAD(X, Y, 0, xx, yy, 0)] = 0; Hz[_INDEX_THREAD(X, Y, 0, xx, yy, 0)] = 0;
-						eps0_c_Ex[_INDEX_THREAD(X, Y, _gridDimZ - 1, xx, yy, _blockDimZ - 1)] = 0; eps0_c_Ey[_INDEX_THREAD(X, Y, _gridDimZ - 1, xx, yy, _blockDimZ - 1)] = 0; eps0_c_Ez[_INDEX_THREAD(X, Y, _gridDimZ - 1, xx, yy, _blockDimZ - 1)] = 0;
-						Hx[_INDEX_THREAD(X, Y, _gridDimZ - 1, xx, yy, _blockDimZ - 1)] = 0; Hy[_INDEX_THREAD(X, Y, _gridDimZ - 1, xx, yy, _blockDimZ - 1)] = 0; Hz[_INDEX_THREAD(X, Y, _gridDimZ - 1, xx, yy, _blockDimZ - 1)] = 0;
-					}
+	
+
 	if (_PML_PX_X_ > 0)
 		for (int Y = 0; Y < _gridDimY; Y++)
 			for (int Z = 0; Z < _gridDimZ; Z++)
@@ -1750,20 +1742,29 @@ void syncPadding(void) {
 					for (int zz = 0; zz < _blockDimZ; zz++) {
 						eps0_c_Ex[_INDEY_THREAD(0, Y, Z, 0, yy, zz)] = 0; eps0_c_Ey[_INDEY_THREAD(0, Y, Z, 0, yy, zz)] = 0; eps0_c_Ez[_INDEY_THREAD(0, Y, Z, 0, yy, zz)] = 0;
 						Hx[_INDEY_THREAD(0, Y, Z, 0, yy, zz)] = 0; Hy[_INDEY_THREAD(0, Y, Z, 0, yy, zz)] = 0; Hz[_INDEY_THREAD(0, Y, Z, 0, yy, zz)] = 0;
-						eps0_c_Ex[_INDEY_THREAD(_gridDimX - 1, Y, Z, _blockDimX - 1, yy, zz)] = 0; eps0_c_Ey[_INDEY_THREAD(_gridDimX - 1, Y, Z, _blockDimX - 1, yy, zz)] = 0; eps0_c_Ez[_INDEY_THREAD(_gridDimX - 1, Y, Z, _blockDimX - 1, yy, zz)] = 0;
-						Hx[_INDEY_THREAD(_gridDimX - 1, Y, Z, _blockDimX - 1, yy, zz)] = 0; Hy[_INDEY_THREAD(_gridDimX - 1, Y, Z, _blockDimX - 1, yy, zz)] = 0; Hz[_INDEY_THREAD(_gridDimX - 1, Y, Z, _blockDimX - 1, yy, zz)] = 0;
+						eps0_c_Ex[_INDEY_THREAD(_gridDimX - 1, Y, Z, ((_DimX - 1)) % (_blockDimX - 2) + 2, yy, zz)] = 0; eps0_c_Ey[_INDEY_THREAD(_gridDimX - 1, Y, Z, ((_DimX - 1)) % (_blockDimX - 2) + 2, yy, zz)] = 0; eps0_c_Ez[_INDEY_THREAD(_gridDimX - 1, Y, Z, ((_DimX - 1)) % (_blockDimX - 2) + 2, yy, zz)] = 0;
+						Hx[_INDEY_THREAD(_gridDimX - 1, Y, Z, ((_DimX - 1)) % (_blockDimX - 2) + 2, yy, zz)] = 0; Hy[_INDEY_THREAD(_gridDimX - 1, Y, Z, ((_DimX - 1)) % (_blockDimX - 2) + 2, yy, zz)] = 0; Hz[_INDEY_THREAD(_gridDimX - 1, Y, Z, ((_DimX - 1)) % (_blockDimX - 2) + 2, yy, zz)] = 0;
 					}
-	if (_PML_PX_Z_ > 0)
+	if (_PML_PX_Y_ > 0)
 		for (int X = 0; X < _gridDimX; X++)
 			for (int Z = 0; Z < _gridDimZ; Z++)
 				for (int xx = 0; xx < _blockDimX; xx++)
 					for (int zz = 0; zz < _blockDimZ; zz++) {
 						eps0_c_Ex[_INDEX_THREAD(X, 0, Z, xx, 0, zz)] = 0; eps0_c_Ey[_INDEX_THREAD(X, 0, Z, xx, 0, zz)] = 0; eps0_c_Ez[_INDEX_THREAD(X, 0, Z, xx, 0, zz)] = 0;
 						Hx[_INDEX_THREAD(X, 0, Z, xx, 0, zz)] = 0; Hy[_INDEX_THREAD(X, 0, Z, xx, 0, zz)] = 0; Hz[_INDEX_THREAD(X, 0, Z, xx, 0, zz)] = 0;
-						eps0_c_Ex[_INDEX_THREAD(X, _gridDimY - 1, Z, xx, _blockDimY - 1, zz)] = 0; eps0_c_Ey[_INDEX_THREAD(X, _gridDimY - 1, Z, xx, _blockDimY - 1, zz)] = 0; eps0_c_Ez[_INDEX_THREAD(X, _gridDimY - 1, Z, xx, _blockDimY - 1, zz)] = 0;
-						Hx[_INDEX_THREAD(X, _gridDimY - 1, Z, xx, _blockDimY - 1, zz)] = 0; Hy[_INDEX_THREAD(X, _gridDimY - 1, Z, xx, _blockDimY - 1, zz)] = 0; Hz[_INDEX_THREAD(X, _gridDimY - 1, Z, xx, _blockDimY - 1, zz)] = 0;
+						eps0_c_Ex[_INDEX_THREAD(X, _gridDimY - 1, Z, xx, ((_DimY - 1)) % (_blockDimY - 2) + 2, zz)] = 0; eps0_c_Ey[_INDEX_THREAD(X, _gridDimY - 1, Z, xx, ((_DimY - 1)) % (_blockDimY - 2) + 2, zz)] = 0; eps0_c_Ez[_INDEX_THREAD(X, _gridDimY - 1, Z, xx, ((_DimY - 1)) % (_blockDimY - 2) + 2, zz)] = 0;
+						Hx[_INDEX_THREAD(X, _gridDimY - 1, Z, xx, ((_DimY - 1)) % (_blockDimY - 2) + 2, zz)] = 0; Hy[_INDEX_THREAD(X, _gridDimY - 1, Z, xx, ((_DimY - 1)) % (_blockDimY - 2) + 2, zz)] = 0; Hz[_INDEX_THREAD(X, _gridDimY - 1, Z, xx, ((_DimY - 1)) % (_blockDimY - 2) + 2, zz)] = 0;
 					}
-
+	if (_PML_PX_Z_ > 0)
+		for (int X = 0; X < _gridDimX; X++)
+			for (int Y = 0; Y < _gridDimY; Y++)
+				for (int xx = 0; xx < _blockDimX; xx++)
+					for (int yy = 0; yy < _blockDimY; yy++) {
+						eps0_c_Ex[_INDEX_THREAD(X, Y, 0, xx, yy, 0)] = 0; eps0_c_Ey[_INDEX_THREAD(X, Y, 0, xx, yy, 0)] = 0; eps0_c_Ez[_INDEX_THREAD(X, Y, 0, xx, yy, 0)] = 0;
+						Hx[_INDEX_THREAD(X, Y, 0, xx, yy, 0)] = 0; Hy[_INDEX_THREAD(X, Y, 0, xx, yy, 0)] = 0; Hz[_INDEX_THREAD(X, Y, 0, xx, yy, 0)] = 0;
+						eps0_c_Ex[_INDEX_THREAD(X, Y, _gridDimZ - 1, xx, yy, ((_DimZ - 1)) % (_blockDimZ - 2) + 2)] = 0; eps0_c_Ey[_INDEX_THREAD(X, Y, _gridDimZ - 1, xx, yy, ((_DimZ - 1)) % (_blockDimZ - 2) + 2)] = 0; eps0_c_Ez[_INDEX_THREAD(X, Y, _gridDimZ - 1, xx, yy, ((_DimZ - 1)) % (_blockDimZ - 2) + 2)] = 0;
+						Hx[_INDEX_THREAD(X, Y, _gridDimZ - 1, xx, yy, ((_DimZ - 1)) % (_blockDimZ - 2) + 2)] = 0; Hy[_INDEX_THREAD(X, Y, _gridDimZ - 1, xx, yy, ((_DimZ - 1)) % (_blockDimZ - 2) + 2)] = 0; Hz[_INDEX_THREAD(X, Y, _gridDimZ - 1, xx, yy, ((_DimZ - 1)) % (_blockDimZ - 2) + 2)] = 0;
+					}
 }
 
 

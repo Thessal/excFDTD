@@ -10,7 +10,7 @@
 #define _DimY (60)
 #define _DimZ (200)
 
-#define _STEP (6*250*3)
+#define _STEP (6*100*6)
 
 //eq35
 //consider using simple PML for NTFF calculation
@@ -49,7 +49,7 @@ float pml_kappa_max = 8.0f;
 #define __SLOT_RADIUS  (24)
 #define __SMOOTHING  (9)
 
-#define __METAL_ON__
+//#define __METAL_ON__
 #define _AREA_METAL_
 
 #ifdef __METAL_ON__ 
@@ -138,8 +138,8 @@ float stability_factor_inv = 1.0f / _S_factor;
 //#if RFT_WINDOW > _STEP
 //	#define RFT_WINDOW _STEP
 //#endif
-#define FREQ_N 3
-float FREQ_LIST_DESIRED[FREQ_N] = { _c0 / 800e-9 / __BACK  , _c0 / 900e-9 / __BACK , _c0 / 1000e-9 / __BACK };
+#define FREQ_N 1
+float FREQ_LIST_DESIRED[FREQ_N] = { _c0 / 450e-9};
 float RFT_K_LIST_CALCULATED[FREQ_N];
 
 
@@ -399,7 +399,7 @@ void DCP_HE_C(void);
 void syncPadding(void);
 void RFT(float background_index);
 void NTFF_onlyUpside(void);
-void NTFF(void);
+void NTFF(float background_index);
 int snapshot(char*);
 void snapshotStructure(void);
 
@@ -416,7 +416,7 @@ int main(int argc, char* argv[])
 	FILE *f = fopen("plane_output.txt", "a"); double planeout;
 	for (int i = 0; i <= _STEP; i++) {
 		printf("%f%%\r", 100.0f*(float)i / _STEP);
-		float addval = -sin(2 * M_PI* i * (_dt_ * _c0 / 300e-9)) * exp(-(float)(i - 6 * 250)*(i - 6 * 250) / (float)(2 * 250* 250)); 
+		float addval = -sin(2 * M_PI* i * (_dt_ * _c0 / 300e-9)) * exp(-(float)(i - 6 * 100)*(i - 6 * 100) / (float)(2 * 100 * 100));
 		addval /= __SIO_INDEX;
 		for (int ii = 0; ii < _DimX; ii++) {
 			for (int jj = 0; jj < _DimY; jj++) {
@@ -426,13 +426,15 @@ int main(int argc, char* argv[])
 			}
 		}
 		DCP_HE_C();
-		RFT(__BACK); //FIXME : print warning message if RFT would not reach its final step
+		//RFT(__BACK); 
 		planeout = 0.0;
 		for (int ii = 0; ii < _DimX; ii++) {
 			for (int jj = 0; jj < _DimY; jj++) {
 				planeout += eps0_c_Ey[_INDEX_XYZ(ii, jj, (_DimZ / 2 + __SIN_TOP + __METAL_HOLE + 20))];
 			}
 		}
+
+			
 		fprintf(f, "%e\t%30e\n", _dt_*(float)i, planeout);
 		if ((i) % 50 == 0) {
 			sprintf(filename, "%05d", i);
@@ -440,8 +442,8 @@ int main(int argc, char* argv[])
 		}
 	}
 	printf("\ntime : %f\n", (double)(clock() - start) / CLK_TCK);
-	NTFF_onlyUpside();
-	NTFF();
+	//NTFF_onlyUpside();
+	//NTFF(__BACK);
 	return 0;
 }
 
@@ -796,7 +798,7 @@ void NTFF_onlyUpside(void) {
 #include "ipp.h"
 //#include "mkl_vml_functions.h"
 
-void NTFF(void) {
+void NTFF(float refractive_index) {
 	printf("\nNTFF calculation\n");
 	float progress = 0;
 
@@ -876,7 +878,7 @@ void NTFF(void) {
 
 
 	for (int freqN = 0; freqN < FREQ_N; freqN++) { //each frequency
-		k_vector = RFT_K_LIST_CALCULATED[freqN] * 2.0f * M_PI / RFT_WINDOW / _c0 / _dt_;
+		k_vector = RFT_K_LIST_CALCULATED[freqN] * refractive_index * 2.0f * M_PI / RFT_WINDOW / _c0 / _dt_;
 		//J,M calculation
 		for (int k = 0; k < _SURF_SIZE_; k++) {
 			NF_ecE[0 * _SURF_SIZE_ + k].real = (float)FT_eps0cE[k][freqN][0][0];
@@ -1731,8 +1733,38 @@ void syncPadding(void) {
 				for (int xx = 0; xx < _blockDimX; xx++) { _syncYZall }
 				for (int yy = 0; yy < _blockDimY; yy++) { _syncZXall }
 			}
+	
 
-
+	if (_PML_PX_X_ > 0)
+		for (int Y = 0; Y < _gridDimY; Y++)
+			for (int Z = 0; Z < _gridDimZ; Z++)
+				for (int yy = 0; yy < _blockDimY; yy++)
+					for (int zz = 0; zz < _blockDimZ; zz++) {
+						eps0_c_Ex[_INDEY_THREAD(0, Y, Z, 0, yy, zz)] = 0; eps0_c_Ey[_INDEY_THREAD(0, Y, Z, 0, yy, zz)] = 0; eps0_c_Ez[_INDEY_THREAD(0, Y, Z, 0, yy, zz)] = 0;
+						Hx[_INDEY_THREAD(0, Y, Z, 0, yy, zz)] = 0; Hy[_INDEY_THREAD(0, Y, Z, 0, yy, zz)] = 0; Hz[_INDEY_THREAD(0, Y, Z, 0, yy, zz)] = 0;
+						eps0_c_Ex[_INDEY_THREAD(_gridDimX - 1, Y, Z, ((_DimX - 1)) % (_blockDimX - 2) + 2, yy, zz)] = 0; eps0_c_Ey[_INDEY_THREAD(_gridDimX - 1, Y, Z, ((_DimX - 1)) % (_blockDimX - 2) + 2, yy, zz)] = 0; eps0_c_Ez[_INDEY_THREAD(_gridDimX - 1, Y, Z, ((_DimX - 1)) % (_blockDimX - 2) + 2, yy, zz)] = 0;
+						Hx[_INDEY_THREAD(_gridDimX - 1, Y, Z, ((_DimX - 1)) % (_blockDimX - 2) + 2, yy, zz)] = 0; Hy[_INDEY_THREAD(_gridDimX - 1, Y, Z, ((_DimX - 1)) % (_blockDimX - 2) + 2, yy, zz)] = 0; Hz[_INDEY_THREAD(_gridDimX - 1, Y, Z, ((_DimX - 1)) % (_blockDimX - 2) + 2, yy, zz)] = 0;
+					}
+	if (_PML_PX_Y_ > 0)
+		for (int X = 0; X < _gridDimX; X++)
+			for (int Z = 0; Z < _gridDimZ; Z++)
+				for (int xx = 0; xx < _blockDimX; xx++)
+					for (int zz = 0; zz < _blockDimZ; zz++) {
+						eps0_c_Ex[_INDEX_THREAD(X, 0, Z, xx, 0, zz)] = 0; eps0_c_Ey[_INDEX_THREAD(X, 0, Z, xx, 0, zz)] = 0; eps0_c_Ez[_INDEX_THREAD(X, 0, Z, xx, 0, zz)] = 0;
+						Hx[_INDEX_THREAD(X, 0, Z, xx, 0, zz)] = 0; Hy[_INDEX_THREAD(X, 0, Z, xx, 0, zz)] = 0; Hz[_INDEX_THREAD(X, 0, Z, xx, 0, zz)] = 0;
+						eps0_c_Ex[_INDEX_THREAD(X, _gridDimY - 1, Z, xx, ((_DimY - 1)) % (_blockDimY - 2) + 2, zz)] = 0; eps0_c_Ey[_INDEX_THREAD(X, _gridDimY - 1, Z, xx, ((_DimY - 1)) % (_blockDimY - 2) + 2, zz)] = 0; eps0_c_Ez[_INDEX_THREAD(X, _gridDimY - 1, Z, xx, ((_DimY - 1)) % (_blockDimY - 2) + 2, zz)] = 0;
+						Hx[_INDEX_THREAD(X, _gridDimY - 1, Z, xx, ((_DimY - 1)) % (_blockDimY - 2) + 2, zz)] = 0; Hy[_INDEX_THREAD(X, _gridDimY - 1, Z, xx, ((_DimY - 1)) % (_blockDimY - 2) + 2, zz)] = 0; Hz[_INDEX_THREAD(X, _gridDimY - 1, Z, xx, ((_DimY - 1)) % (_blockDimY - 2) + 2, zz)] = 0;
+					}
+	if (_PML_PX_Z_ > 0)
+		for (int X = 0; X < _gridDimX; X++)
+			for (int Y = 0; Y < _gridDimY; Y++)
+				for (int xx = 0; xx < _blockDimX; xx++)
+					for (int yy = 0; yy < _blockDimY; yy++) {
+						eps0_c_Ex[_INDEX_THREAD(X, Y, 0, xx, yy, 0)] = 0; eps0_c_Ey[_INDEX_THREAD(X, Y, 0, xx, yy, 0)] = 0; eps0_c_Ez[_INDEX_THREAD(X, Y, 0, xx, yy, 0)] = 0;
+						Hx[_INDEX_THREAD(X, Y, 0, xx, yy, 0)] = 0; Hy[_INDEX_THREAD(X, Y, 0, xx, yy, 0)] = 0; Hz[_INDEX_THREAD(X, Y, 0, xx, yy, 0)] = 0;
+						eps0_c_Ex[_INDEX_THREAD(X, Y, _gridDimZ - 1, xx, yy, ((_DimZ - 1)) % (_blockDimZ - 2) + 2)] = 0; eps0_c_Ey[_INDEX_THREAD(X, Y, _gridDimZ - 1, xx, yy, ((_DimZ - 1)) % (_blockDimZ - 2) + 2)] = 0; eps0_c_Ez[_INDEX_THREAD(X, Y, _gridDimZ - 1, xx, yy, ((_DimZ - 1)) % (_blockDimZ - 2) + 2)] = 0;
+						Hx[_INDEX_THREAD(X, Y, _gridDimZ - 1, xx, yy, ((_DimZ - 1)) % (_blockDimZ - 2) + 2)] = 0; Hy[_INDEX_THREAD(X, Y, _gridDimZ - 1, xx, yy, ((_DimZ - 1)) % (_blockDimZ - 2) + 2)] = 0; Hz[_INDEX_THREAD(X, Y, _gridDimZ - 1, xx, yy, ((_DimZ - 1)) % (_blockDimZ - 2) + 2)] = 0;
+					}
 }
 
 

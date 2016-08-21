@@ -10,7 +10,7 @@
 #define _DimY (60)
 #define _DimZ (200)
 
-#define _STEP (6*100*3)
+#define _STEP (6*100*6)
 
 //eq35
 //consider using simple PML for NTFF calculation
@@ -49,7 +49,7 @@ float pml_kappa_max = 8.0f;
 #define __SLOT_RADIUS  (24)
 #define __SMOOTHING  (9)
 
-//#define __METAL_ON__
+#define __METAL_ON__
 #define _AREA_METAL_
 
 #ifdef __METAL_ON__ 
@@ -411,7 +411,7 @@ int main(int argc, char* argv[])
 	start = clock();
 	printf("\nCalculating field \n");
 
-	int sourcePos = _DimZ / 2 - __SLOT - __SIN_BOT - 8 - 10;
+	int sourcePos = _PML_PX_Z_ + 10;
 	char filename[256];
 	FILE *f = fopen("plane_output.txt", "a"); double planeout;
 	for (int i = 0; i <= _STEP; i++) {

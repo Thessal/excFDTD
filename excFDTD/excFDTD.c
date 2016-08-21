@@ -8,8 +8,6 @@
 
 #define _DimX (104)
 #define _DimY (60)
-#define _DimX (10)
-#define _DimY (10)
 #define _DimZ (200)
 
 #define _SOURCE_WAVELENGTH_ (450e-9)
@@ -99,25 +97,22 @@ if (\
 #endif
 
 
-//#define STRUCTURE \
-//eps_r_inv[offset] = 1.0f / (__BACK*__BACK);\
-//if (((-__SLOT - __SIN_BOT<zz) && (zz <= -__SLOT))\
-//	|| ((0<zz) && (zz <= __SIN_TOP))) {\
-//	eps_r_inv[offset] = 1.0f / (1.8f*1.8f); /*SiN*/\
-//}\
-//if (((-__SLOT<zz) && (zz <= 0) )\
-//	|| (zz <= (-__SLOT - __SIN_BOT))) {\
-//	eps_r_inv[offset] = 1.0f / (__SIO_INDEX * __SIO_INDEX); /*SiO*/\
-//} \
-//if (((-__SLOT - __SIN_BOT - 8)<zz) && (zz <= (-__SLOT - __SIN_BOT))) {\
-//	eps_r_inv[offset] = 1.0f / (1.8f*1.8f); /*ITO*/\
-//} \
-//_AREA_METAL_\
-
-
 #define STRUCTURE \
-eps_r_inv[offset] = 1.0f; \
-if ((0 < zz) && (zz <= 4)){mask[offset] = mask[offset] | (0b0001 << 4);}
+eps_r_inv[offset] = 1.0f / (__BACK*__BACK);\
+if (((-__SLOT - __SIN_BOT<zz) && (zz <= -__SLOT))\
+	|| ((0<zz) && (zz <= __SIN_TOP))) {\
+	eps_r_inv[offset] = 1.0f / (1.8f*1.8f); /*SiN*/\
+}\
+if (((-__SLOT<zz) && (zz <= 0) )\
+	|| (zz <= (-__SLOT - __SIN_BOT))) {\
+	eps_r_inv[offset] = 1.0f / (__SIO_INDEX * __SIO_INDEX); /*SiO*/\
+} \
+if (((-__SLOT - __SIN_BOT - 8)<zz) && (zz <= (-__SLOT - __SIN_BOT))) {\
+	eps_r_inv[offset] = 1.0f / (1.8f*1.8f); /*ITO*/\
+} \
+_AREA_METAL_\
+
+
 
 #define _c0 (299792458.0)
 #define _USE_MATH_DEFINES

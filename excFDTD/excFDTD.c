@@ -51,7 +51,7 @@ float pml_kappa_max = 8.0f;
 #define __SLOT_RADIUS  (24)
 #define __SMOOTHING  (9)
 
-//#define __METAL_ON__
+#define __METAL_ON__
 #define _AREA_METAL_
 
 #ifdef __METAL_ON__ 
@@ -1738,7 +1738,7 @@ void syncPadding(void) {
 				for (int yy = 0; yy < _blockDimY; yy++) { _syncZXall }
 			}
 	
-
+	/*
 	if (_PML_PX_X_ > 0)
 		for (int Y = 0; Y < _gridDimY; Y++)
 			for (int Z = 0; Z < _gridDimZ; Z++)
@@ -1769,6 +1769,7 @@ void syncPadding(void) {
 						eps0_c_Ex[_INDEX_THREAD(X, Y, _gridDimZ - 1, xx, yy, ((_DimZ - 1)) % (_blockDimZ - 2) + 2)] = 0; eps0_c_Ey[_INDEX_THREAD(X, Y, _gridDimZ - 1, xx, yy, ((_DimZ - 1)) % (_blockDimZ - 2) + 2)] = 0; eps0_c_Ez[_INDEX_THREAD(X, Y, _gridDimZ - 1, xx, yy, ((_DimZ - 1)) % (_blockDimZ - 2) + 2)] = 0;
 						Hx[_INDEX_THREAD(X, Y, _gridDimZ - 1, xx, yy, ((_DimZ - 1)) % (_blockDimZ - 2) + 2)] = 0; Hy[_INDEX_THREAD(X, Y, _gridDimZ - 1, xx, yy, ((_DimZ - 1)) % (_blockDimZ - 2) + 2)] = 0; Hz[_INDEX_THREAD(X, Y, _gridDimZ - 1, xx, yy, ((_DimZ - 1)) % (_blockDimZ - 2) + 2)] = 0;
 					}
+	*/
 }
 
 

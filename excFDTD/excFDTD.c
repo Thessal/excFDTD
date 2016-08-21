@@ -61,7 +61,7 @@ float stability_factor_inv = 1.0f / _S_factor;
 //	#define RFT_WINDOW _STEP
 //#endif
 #define FREQ_N 3
-float FREQ_LIST_DESIRED[FREQ_N] = { _c0 / 800e-9 / 1.0  , _c0 / 900e-9 / 1.0 , _c0 / 1000e-9 / 1.0 };
+float FREQ_LIST_DESIRED[FREQ_N] = { _c0 / 800e-9  , _c0 / 900e-9 , _c0 / 1000e-9  };
 //#define FREQ_N 3
 //float FREQ_LIST_DESIRED[FREQ_N] = { _c0 / 300e-9, _c0 / 500e-9, _c0 / 800e-9 };
 float RFT_K_LIST_CALCULATED[FREQ_N];
@@ -323,7 +323,7 @@ void DCP_HE_C(void);
 void syncPadding(void);
 void RFT(float background_index);
 void NTFF_onlyUpside(void);
-void NTFF(void);
+void NTFF(float background_index);
 int snapshot(char*);
 void snapshotStructure(void);
 
@@ -357,7 +357,7 @@ int main(int argc, char* argv[])
 	printf("\ntime : %f\n", (double)(clock() - start) / CLK_TCK);
 	//snapshot();
 	NTFF_onlyUpside();
-	NTFF();
+	NTFF(1.0);
 	return 0;
 }
 
@@ -712,7 +712,7 @@ void NTFF_onlyUpside(void) {
 #include "ipp.h"
 //#include "mkl_vml_functions.h"
 
-void NTFF(void) {
+void NTFF(float refractive_index) {
 	printf("\nNTFF calculation\n");
 	float progress = 0;
 
@@ -792,7 +792,7 @@ void NTFF(void) {
 
 
 	for (int freqN = 0; freqN < FREQ_N; freqN++) { //each frequency
-		k_vector = RFT_K_LIST_CALCULATED[freqN] * 2.0f * M_PI / RFT_WINDOW / _c0 / _dt_;
+		k_vector = RFT_K_LIST_CALCULATED[freqN] * refractive_index * 2.0f * M_PI / RFT_WINDOW / _c0 / _dt_;
 		//J,M calculation
 		for (int k = 0; k < _SURF_SIZE_; k++) {
 			NF_ecE[0 * _SURF_SIZE_ + k].real = (float)FT_eps0cE[k][freqN][0][0];

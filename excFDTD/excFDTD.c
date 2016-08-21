@@ -93,7 +93,10 @@ if (\
 ) {\
 	mask[offset] = mask[offset] & ~(0b0001 << 4);\
 } /*thruhole*/\
-} 
+} \
+if (((mask[offset] & (0b1111 << 4)) >> 4) > 0 &&(x<_PML_PX_X_ || x>_DimX-1-_PML_PX_X_ || y<_PML_PX_Y_ || y>_DimY - 1 - _PML_PX_Y_|| z<_PML_PX_Z_ || z>_DimZ - 1 - _PML_PX_Z_)){\
+mask[offset] = mask[offset] & ~(0b0001 << 4); eps_r_inv[offset] = 1.0f/1.03/1.03;\
+}
 #endif
 
 

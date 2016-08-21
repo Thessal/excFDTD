@@ -10,8 +10,7 @@
 #define _DimY (60)
 #define _DimZ (200)
 
-#define _T_DECAY (200)
-#define _STEP (6*_T_DECAY*6)
+#define _STEP (6*100*6)
 
 //eq35
 //consider using simple PML for NTFF calculation
@@ -114,7 +113,8 @@ if (\
 
 #define STRUCTURE \
 eps_r_inv[offset] = 1.0f;\
-if ((0 < zz) && (zz <= 4)){mask[offset] = mask[offset] & ~(0b0001 << 4);}
+if ((0 < zz) && (zz <= 4)) {mask[offset] = mask[offset] | (0b0001 << 4);}
+
 
 #define _c0 299792458.0f
 #define _USE_MATH_DEFINES
@@ -421,7 +421,7 @@ int main(int argc, char* argv[])
 	FILE *f = fopen("plane_output.txt", "a"); double planeout;
 	for (int i = 0; i <= _STEP; i++) {
 		printf("%f%%\r", 100.0f*(float)i / _STEP);
-		float addval = -sin(2 * M_PI* i * (_dt_ * _c0 / 450e-9)) * exp(-(float)(i - 6 * 30)*(i - 6 * 30) / (float)(2 * 30 * 30));
+		float addval = -sin(2 * M_PI* i * (_dt_ * _c0 / 300e-9)) * exp(-(float)(i - 6 * 100)*(i - 6 * 100) / (float)(2 * 100 * 100));
 		addval /= __SIO_INDEX;
 		for (int ii = 0; ii < _DimX; ii++) {
 			for (int jj = 0; jj < _DimY; jj++) {

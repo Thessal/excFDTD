@@ -27,7 +27,7 @@ float pml_kappa_max = 8.0f;
 #define _NTFF_Margin_Z_ ((int)(_DimZ/2 - _PML_PX_Z_ - 50))
 
 #define _S_factor (2.0f)
-#define _dx (5e-9)
+#define _dx (2e-9)
 #define _PML_ALPHA_TUNING_ (1.0f)
 #define _PML_OMEGA_DT_TUNING_ (2.0f*M_PI*_dx/_SOURCE_WAVELENGTH_/_S_factor)
 
@@ -115,7 +115,7 @@ if (\
 
 #define STRUCTURE \
 eps_r_inv[offset] = 1.0f;\
-if ((0 < zz) && (zz <= 4)){mask[offset] = mask[offset] | (0b0001 << 4);}
+if ((0 < zz) && (zz <= 10)){mask[offset] = mask[offset] | (0b0001 << 4);}
 
 #define _c0 299792458.0f
 #define _USE_MATH_DEFINES
@@ -560,9 +560,9 @@ void DCP_HE_C(void)
 
 		/* update */
 		if (dielectric_flag == 0 && ((mask[offset] & (0b1111 << 4)) >> 4) > 0) {// metal
-			tempx[offset] = (Hy[offset - _offsetZ] - Hy[offset] + Hz[offset - _offsetZ] - Hz[offset - _offsetY - _offsetZ]) * _cdt_div_dx; //eq30term1
-			tempy[offset] = (Hz[offset - _offsetZ] - Hz[offset + _offsetX - _offsetZ] + Hx[offset] - Hx[offset - _offsetZ]) * _cdt_div_dx;
-			tempz[offset] = (Hx[offset - _offsetX - _offsetY] - Hx[offset - _offsetX] + Hy[offset] - Hy[offset - _offsetX]) * _cdt_div_dx;
+			tempx[offset] = (Hy[offset - _offsetZ] - Hy[offset] + Hz[offset - _offsetZ] - Hz[offset - _offsetY - _offsetZ]) * _cdt_div_dx ; //eq30term1
+			tempy[offset] = (Hz[offset - _offsetZ] - Hz[offset + _offsetX - _offsetZ] + Hx[offset] - Hx[offset - _offsetZ]) * _cdt_div_dx ;
+			tempz[offset] = (Hx[offset - _offsetX - _offsetY] - Hx[offset - _offsetX] + Hy[offset] - Hy[offset - _offsetX]) * _cdt_div_dx ;
 			tempx[offset] += eps0_c_Ex[offset] * (_eps0_ * _eps_inf - 0.5f * _sigma_ * _dt_ + _d2 - _C4p) / _eps0_; //eq30term2
 			tempy[offset] += eps0_c_Ey[offset] * (_eps0_ * _eps_inf - 0.5f * _sigma_ * _dt_ + _d2 - _C4p) / _eps0_; //FIXME : div_eps0 coeffs cleanup
 			tempz[offset] += eps0_c_Ez[offset] * (_eps0_ * _eps_inf - 0.5f * _sigma_ * _dt_ + _d2 - _C4p) / _eps0_;
@@ -588,7 +588,7 @@ void DCP_HE_C(void)
 			tempy[offset] /= (_eps0_ * _eps_inf + 0.5f * _sigma_ * _dt_ - _d2 + _C3p) / _eps0_;
 			tempz[offset] /= (_eps0_ * _eps_inf + 0.5f * _sigma_ * _dt_ - _d2 + _C3p) / _eps0_;
 
-			//PD
+			//PD (single drude)
 			eps0_c_Pdx[offset] *= _d1; //eq27term1
 			eps0_c_Pdy[offset] *= _d1;
 			eps0_c_Pdz[offset] *= _d1;

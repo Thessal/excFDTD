@@ -16,8 +16,8 @@
 
 //eq35
 //consider using simple PML for NTFF calculation
-#define _PML_PX_X_ (0)
-#define _PML_PX_Y_ (0)
+#define _PML_PX_X_ (8)
+#define _PML_PX_Y_ (8)
 #define _PML_PX_Z_ (8)
 int pml_n = 3;
 float pml_R = 10e-4;
@@ -51,7 +51,7 @@ float pml_kappa_max = 8.0f;
 #define __SLOT_RADIUS  (24)
 #define __SMOOTHING  (9)
 
-#define __METAL_ON__
+//#define __METAL_ON__
 #define _AREA_METAL_
 
 #ifdef __METAL_ON__ 
@@ -426,23 +426,20 @@ int main(int argc, char* argv[])
 		printf("%f%%\r", 100.0f*(float)i / _STEP);
 		float addval = -sin(2 * M_PI* i * (_dt_ * _c0 / _SOURCE_WAVELENGTH_)) * exp(-(float)(i - 6 * _T_DECAY)*(i - 6 * _T_DECAY) / (float)(2 * _T_DECAY * _T_DECAY));
 		addval /= __SIO_INDEX;
-		for (int ii = 0; ii < _DimX; ii++) {
-			for (int jj = 0; jj < _DimY; jj++) {
-				eps0_c_Ey[_INDEX_XYZ(ii, jj, sourcePos)] += addval *0.5f;
-				Hx[_INDEX_XYZ(ii, jj, sourcePos)] -= addval *0.25f;
-				Hx[_INDEX_XYZ(ii, jj, sourcePos - 1)] -= addval *0.25f;
-			}
-		}
+				eps0_c_Ey[_INDEX_XYZ(_DimX/2, _DimY/2, sourcePos)] += addval *0.5f;
+				Hx[_INDEX_XYZ(_DimX / 2, _DimY / 2, sourcePos)] -= addval *0.25f;
+				Hx[_INDEX_XYZ(_DimX / 2, _DimY / 2, sourcePos - 1)] -= addval *0.25f;
 		DCP_HE_C();
 		//RFT(__BACK); 
 		planeoutX = 0.0;		planeoutY = 0.0;		planeoutZ = 0.0;
-		for (int ii = 0; ii < _DimX; ii++) {
-			for (int jj = 0; jj < _DimY; jj++) {
+		for (int ii = 8; ii < _DimX-8; ii++) {
+			for (int jj = 8; jj < _DimY-8; jj++) {
 				planeoutX += eps0_c_Ex[_INDEX_XYZ(ii, jj, (_DimZ / 2 + __SIN_TOP + __METAL_HOLE + 20))];
 				planeoutY += eps0_c_Ey[_INDEX_XYZ(ii, jj, (_DimZ / 2 + __SIN_TOP + __METAL_HOLE + 20))];
 				planeoutZ += eps0_c_Ez[_INDEX_XYZ(ii, jj, (_DimZ / 2 + __SIN_TOP + __METAL_HOLE + 20))];
 			}
 		}
+		planeoutX *= __BACK; planeoutY *= __BACK; planeoutZ *= __BACK;
 
 			
 		fprintf(fx, "%e\t%30e\n", _dt_*(float)i, planeoutX);
@@ -1747,10 +1744,10 @@ void syncPadding(void) {
 			for (int Z = 0; Z < _gridDimZ; Z++)
 				for (int yy = 0; yy < _blockDimY; yy++)
 					for (int zz = 0; zz < _blockDimZ; zz++) {
-						eps0_c_Ex[_INDEY_THREAD(0, Y, Z, 0, yy, zz)] = 0; eps0_c_Ey[_INDEY_THREAD(0, Y, Z, 0, yy, zz)] = 0; eps0_c_Ez[_INDEY_THREAD(0, Y, Z, 0, yy, zz)] = 0;
-						Hx[_INDEY_THREAD(0, Y, Z, 0, yy, zz)] = 0; Hy[_INDEY_THREAD(0, Y, Z, 0, yy, zz)] = 0; Hz[_INDEY_THREAD(0, Y, Z, 0, yy, zz)] = 0;
-						eps0_c_Ex[_INDEY_THREAD(_gridDimX - 1, Y, Z, ((_DimX - 1)) % (_blockDimX - 2) + 2, yy, zz)] = 0; eps0_c_Ey[_INDEY_THREAD(_gridDimX - 1, Y, Z, ((_DimX - 1)) % (_blockDimX - 2) + 2, yy, zz)] = 0; eps0_c_Ez[_INDEY_THREAD(_gridDimX - 1, Y, Z, ((_DimX - 1)) % (_blockDimX - 2) + 2, yy, zz)] = 0;
-						Hx[_INDEY_THREAD(_gridDimX - 1, Y, Z, ((_DimX - 1)) % (_blockDimX - 2) + 2, yy, zz)] = 0; Hy[_INDEY_THREAD(_gridDimX - 1, Y, Z, ((_DimX - 1)) % (_blockDimX - 2) + 2, yy, zz)] = 0; Hz[_INDEY_THREAD(_gridDimX - 1, Y, Z, ((_DimX - 1)) % (_blockDimX - 2) + 2, yy, zz)] = 0;
+						eps0_c_Ex[_INDEX_THREAD(0, Y, Z, 0, yy, zz)] = 0; eps0_c_Ey[_INDEX_THREAD(0, Y, Z, 0, yy, zz)] = 0; eps0_c_Ez[_INDEX_THREAD(0, Y, Z, 0, yy, zz)] = 0;
+						Hx[_INDEX_THREAD(0, Y, Z, 0, yy, zz)] = 0; Hy[_INDEX_THREAD(0, Y, Z, 0, yy, zz)] = 0; Hz[_INDEX_THREAD(0, Y, Z, 0, yy, zz)] = 0;
+						eps0_c_Ex[_INDEX_THREAD(_gridDimX - 1, Y, Z, ((_DimX - 1)) % (_blockDimX - 2) + 2, yy, zz)] = 0; eps0_c_Ey[_INDEX_THREAD(_gridDimX - 1, Y, Z, ((_DimX - 1)) % (_blockDimX - 2) + 2, yy, zz)] = 0; eps0_c_Ez[_INDEX_THREAD(_gridDimX - 1, Y, Z, ((_DimX - 1)) % (_blockDimX - 2) + 2, yy, zz)] = 0;
+						Hx[_INDEX_THREAD(_gridDimX - 1, Y, Z, ((_DimX - 1)) % (_blockDimX - 2) + 2, yy, zz)] = 0; Hy[_INDEX_THREAD(_gridDimX - 1, Y, Z, ((_DimX - 1)) % (_blockDimX - 2) + 2, yy, zz)] = 0; Hz[_INDEX_THREAD(_gridDimX - 1, Y, Z, ((_DimX - 1)) % (_blockDimX - 2) + 2, yy, zz)] = 0;
 					}
 	if (_PML_PX_Y_ > 0)
 		for (int X = 0; X < _gridDimX; X++)

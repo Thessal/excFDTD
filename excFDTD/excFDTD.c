@@ -8,6 +8,8 @@
 
 #define _DimX (104)
 #define _DimY (60)
+#define _DimX (10)
+#define _DimY (10)
 #define _DimZ (200)
 
 #define _SOURCE_WAVELENGTH_ (450e-9)
@@ -26,10 +28,10 @@ float pml_kappa_max = 8.0f;
 #define _NTFF_Margin_Y_ (0)
 #define _NTFF_Margin_Z_ ((int)(_DimZ/2 - _PML_PX_Z_ - 50))
 
-#define _S_factor (2.0f)
-#define _dx (2e-9)
-#define _PML_ALPHA_TUNING_ (1.0f)
-#define _PML_OMEGA_DT_TUNING_ (2.0f*M_PI*_dx/_SOURCE_WAVELENGTH_/_S_factor)
+#define _S_factor ((double)(2.0))
+#define _dx (5e-9)
+#define _PML_ALPHA_TUNING_ (1.0)
+#define _PML_OMEGA_DT_TUNING_ (2.0*M_PI*_dx/_SOURCE_WAVELENGTH_/_S_factor)
 
 #define __SUBSTRATE (100)
 #define __PITCH (60)
@@ -114,19 +116,20 @@ if (\
 
 
 #define STRUCTURE \
-eps_r_inv[offset] = 1.0f;\
-if ((0 < zz) && (zz <= 10)){mask[offset] = mask[offset] | (0b0001 << 4);}
+eps_r_inv[offset] = 1.0f; \
+if ((0 < zz) && (zz <= 4)){mask[offset] = mask[offset] | (0b0001 << 4);}
 
-#define _c0 299792458.0f
+#define _c0 (299792458.0)
 #define _USE_MATH_DEFINES
 #define _mu0_ ( 4e-7 * M_PI )
-#define _eps0_ ( 1.0f / _c0 / _c0 / _mu0_ )
+#define _eps0_ ( 1.0 / _c0 / _c0 / _mu0_ )
 #define _dt_ (_dx / _c0 / _S_factor)
 #define _cdt__ (_dx / _S_factor)
 #define _cdt_div_dx (1 / _S_factor)
-float stability_factor_inv = 1.0f / _S_factor;
+float stability_factor_inv = 1.0 / _S_factor;
 
-// doi:10.1088/0022-3727/40/22/043, Au
+//doi:10.1088/0022-3727/40/22/043, Au
+//400-1000nm
 #define _eps_inf (1.0300 )
 #define _gamma_D (1.1274e14)
 #define _omega_D (1.3064e16 )
@@ -137,7 +140,9 @@ float stability_factor_inv = 1.0f / _S_factor;
 #define _Omega2_L (6.4269e15)
 #define _Gamma2_L (6.7371e14)
 #define _Delta_eps2_L (1.3700)
-#define _phi2_L (-0.08734)
+#define _phi2_L (-0.087341)
+
+
 
 // RFT NTFF frequency
 #define RFT_WINDOW _STEP
@@ -268,25 +273,25 @@ static double FT_H[_SURF_SIZE_][FREQ_N][3][2]; //XYZ,Re,Im
 #define _b21 (1.0f)
 #define _b22 (1.0f)
 
-#define _C1_ ( (_b21 / _dt_ / _dt_) + (_b11 * 0.5f / _dt_) + (_b01 * 0.25f) )
-#define _C2_ ( (_b22 / _dt_ / _dt_) + (_b12 * 0.5f / _dt_) + (_b02 * 0.25f) )
-#define _C11 ( ( ( 2.0f*_b21/_dt_/_dt_ ) - (_b01*0.5f) ) / _C1_ )
-#define _C12 ( ( ( 2.0f*_b22/_dt_/_dt_ ) - (_b02*0.5f) ) / _C2_ )
-#define _C21 ( ( ( _b11 * 0.5f / _dt_ ) - ( _b21 / _dt_ / _dt_ ) - ( _b01 * 0.25f ) ) / _C1_ )
-#define _C22 ( ( ( _b12 * 0.5f / _dt_ ) - ( _b22 / _dt_ / _dt_ ) - ( _b02 * 0.25f ) ) / _C2_ )
-#define _C31 ( ( ( _a01 * 0.25f ) + ( _a11 * 0.5f / _dt_ ) ) / _C1_ )
-#define _C32 ( ( ( _a02 * 0.25f ) + ( _a12 * 0.5f / _dt_ ) ) / _C2_ )
-#define _C41 ( _a01 * 0.5f / _C1_ )
-#define _C42 ( _a02 * 0.5f / _C2_ )
-#define _C51 ( ( _a01 * 0.25f ) - ( _a11 * 0.5f / _dt_ ) ) / _C1_
-#define _C52 ( ( _a02 * 0.25f ) - ( _a12 * 0.5f / _dt_ ) ) / _C2_
+#define _C1_ ( (_b21 / _dt_ / _dt_) + (_b11 * 0.5 / _dt_) + (_b01 * 0.25) )
+#define _C2_ ( (_b22 / _dt_ / _dt_) + (_b12 * 0.5 / _dt_) + (_b02 * 0.25) )
+#define _C11 ( ( ( 2.0*_b21/_dt_/_dt_ ) - (_b01*0.5) ) / _C1_ )
+#define _C12 ( ( ( 2.0*_b22/_dt_/_dt_ ) - (_b02*0.5) ) / _C2_ )
+#define _C21 ( ( ( _b11 * 0.5 / _dt_ ) - ( _b21 / _dt_ / _dt_ ) - ( _b01 * 0.25 ) ) / _C1_ )
+#define _C22 ( ( ( _b12 * 0.5 / _dt_ ) - ( _b22 / _dt_ / _dt_ ) - ( _b02 * 0.25 ) ) / _C2_ )
+#define _C31 ( ( ( _a01 * 0.25 ) + ( _a11 * 0.5 / _dt_ ) ) / _C1_ )
+#define _C32 ( ( ( _a02 * 0.25 ) + ( _a12 * 0.5 / _dt_ ) ) / _C2_ )
+#define _C41 ( _a01 * 0.5 / _C1_ )
+#define _C42 ( _a02 * 0.5 / _C2_ )
+#define _C51 ( ( ( _a01 * 0.25 ) - ( _a11 * 0.5 / _dt_ ) ) / _C1_ )
+#define _C52 ( ( ( _a02 * 0.25 ) - ( _a12 * 0.5 / _dt_ ) ) / _C2_ )
 #define _C3p ( _C31 + _C32 )
 #define _C4p ( _C41 + _C42 )
 #define _C5p ( _C51 + _C52 )
 
 #define _gamma__ (_gamma_D)
 											   //FIXME : gamma = gamma_D ?  check
-#define _d1 ( ( 2.0f - _gamma__ * _dt_ ) / ( 2 + _gamma__ * _dt_) )
+#define _d1 ( ( 2.0 - _gamma__ * _dt_ ) / ( 2 + _gamma__ * _dt_) )
 #define _d2 (_eps0_ * _omega_D * _omega_D  * _dt_ / (2 + _gamma__ * _dt_) / _gamma__ )
 #define _sigma_ (_eps0_ * _omega_D * _omega_D / _gamma__ )
 
@@ -419,7 +424,9 @@ int main(int argc, char* argv[])
 
 	int sourcePos = _DimZ / 2 - __SLOT - __SIN_BOT - 8 - 10;
 	char filename[256];
-	FILE *f = fopen("plane_output.txt", "a"); double planeout;
+	FILE *fx = fopen("plane_output_Ex.txt", "a"); double planeoutX;
+	FILE *fy = fopen("plane_output_Ey.txt", "a"); double planeoutY;
+	FILE *fz = fopen("plane_output_Ez.txt", "a"); double planeoutZ;
 	for (int i = 0; i <= _STEP; i++) {
 		printf("%f%%\r", 100.0f*(float)i / _STEP);
 		float addval = -sin(2 * M_PI* i * (_dt_ * _c0 / _SOURCE_WAVELENGTH_)) * exp(-(float)(i - 6 * _T_DECAY)*(i - 6 * _T_DECAY) / (float)(2 * _T_DECAY * _T_DECAY));
@@ -433,15 +440,19 @@ int main(int argc, char* argv[])
 		}
 		DCP_HE_C();
 		//RFT(__BACK); 
-		planeout = 0.0;
+		planeoutX = 0.0;		planeoutY = 0.0;		planeoutZ = 0.0;
 		for (int ii = 0; ii < _DimX; ii++) {
 			for (int jj = 0; jj < _DimY; jj++) {
-				planeout += eps0_c_Ey[_INDEX_XYZ(ii, jj, (_DimZ / 2 + __SIN_TOP + __METAL_HOLE + 20))];
+				planeoutX += eps0_c_Ex[_INDEX_XYZ(ii, jj, (_DimZ / 2 + __SIN_TOP + __METAL_HOLE + 20))];
+				planeoutY += eps0_c_Ey[_INDEX_XYZ(ii, jj, (_DimZ / 2 + __SIN_TOP + __METAL_HOLE + 20))];
+				planeoutZ += eps0_c_Ez[_INDEX_XYZ(ii, jj, (_DimZ / 2 + __SIN_TOP + __METAL_HOLE + 20))];
 			}
 		}
 
 			
-		fprintf(f, "%e\t%30e\n", _dt_*(float)i, planeout);
+		fprintf(fx, "%e\t%30e\n", _dt_*(float)i, planeoutX);
+		fprintf(fy, "%e\t%30e\n", _dt_*(float)i, planeoutY);
+		fprintf(fz, "%e\t%30e\n", _dt_*(float)i, planeoutZ);
 		if ((i) % 50 == 0) {
 			sprintf(filename, "%05d", i);
 			snapshot(filename);
@@ -563,30 +574,30 @@ void DCP_HE_C(void)
 			tempx[offset] = (Hy[offset - _offsetZ] - Hy[offset] + Hz[offset - _offsetZ] - Hz[offset - _offsetY - _offsetZ]) * _cdt_div_dx ; //eq30term1
 			tempy[offset] = (Hz[offset - _offsetZ] - Hz[offset + _offsetX - _offsetZ] + Hx[offset] - Hx[offset - _offsetZ]) * _cdt_div_dx ;
 			tempz[offset] = (Hx[offset - _offsetX - _offsetY] - Hx[offset - _offsetX] + Hy[offset] - Hy[offset - _offsetX]) * _cdt_div_dx ;
-			tempx[offset] += eps0_c_Ex[offset] * (_eps0_ * _eps_inf - 0.5f * _sigma_ * _dt_ + _d2 - _C4p) / _eps0_; //eq30term2
-			tempy[offset] += eps0_c_Ey[offset] * (_eps0_ * _eps_inf - 0.5f * _sigma_ * _dt_ + _d2 - _C4p) / _eps0_; //FIXME : div_eps0 coeffs cleanup
-			tempz[offset] += eps0_c_Ez[offset] * (_eps0_ * _eps_inf - 0.5f * _sigma_ * _dt_ + _d2 - _C4p) / _eps0_;
-			tempx[offset] -= eps0_c_Ex_old[offset] * _C5p / _eps0_; //eq30term3
-			tempy[offset] -= eps0_c_Ey_old[offset] * _C5p / _eps0_;
-			tempz[offset] -= eps0_c_Ez_old[offset] * _C5p / _eps0_;
-			tempx[offset] -= eps0_c_Pdx[offset] * (_d1 - 1.0f) / _eps0_; //eq30term4
-			tempy[offset] -= eps0_c_Pdy[offset] * (_d1 - 1.0f) / _eps0_;
-			tempz[offset] -= eps0_c_Pdz[offset] * (_d1 - 1.0f) / _eps0_;
-			tempx[offset] -= eps0_c_Pcp1x[offset] * (_C11 - 1.0f) / _eps0_; //eq30term5
-			tempy[offset] -= eps0_c_Pcp1y[offset] * (_C11 - 1.0f) / _eps0_;
-			tempz[offset] -= eps0_c_Pcp1z[offset] * (_C11 - 1.0f) / _eps0_;
-			tempx[offset] -= eps0_c_Pcp2x[offset] * (_C12 - 1.0f) / _eps0_;
-			tempy[offset] -= eps0_c_Pcp2y[offset] * (_C12 - 1.0f) / _eps0_;
-			tempz[offset] -= eps0_c_Pcp2z[offset] * (_C12 - 1.0f) / _eps0_;
-			tempx[offset] -= eps0_c_Pcp1x_old[offset] * _C21 / _eps0_; //eq30term6
-			tempy[offset] -= eps0_c_Pcp1y_old[offset] * _C21 / _eps0_;
-			tempz[offset] -= eps0_c_Pcp1z_old[offset] * _C21 / _eps0_;
-			tempx[offset] -= eps0_c_Pcp2x_old[offset] * _C22 / _eps0_;
-			tempy[offset] -= eps0_c_Pcp2y_old[offset] * _C22 / _eps0_;
-			tempz[offset] -= eps0_c_Pcp2z_old[offset] * _C22 / _eps0_;
-			tempx[offset] /= (_eps0_ * _eps_inf + 0.5f * _sigma_ * _dt_ - _d2 + _C3p) / _eps0_; //eq30term0
-			tempy[offset] /= (_eps0_ * _eps_inf + 0.5f * _sigma_ * _dt_ - _d2 + _C3p) / _eps0_;
-			tempz[offset] /= (_eps0_ * _eps_inf + 0.5f * _sigma_ * _dt_ - _d2 + _C3p) / _eps0_;
+			tempx[offset] += eps0_c_Ex[offset] * (((double)_eps0_ * (double)_eps_inf - 0.5 * _sigma_ * (double)_dt_ + _d2 - _C4p) / (double)_eps0_); //eq30term2
+			tempy[offset] += eps0_c_Ey[offset] * (((double)_eps0_ * (double)_eps_inf - 0.5 * _sigma_ * (double)_dt_ + _d2 - _C4p) / (double)_eps0_); //FIXME : div_eps0 coeffs cleanup
+			tempz[offset] += eps0_c_Ez[offset] * (((double)_eps0_ * (double)_eps_inf - 0.5 * _sigma_ * (double)_dt_ + _d2 - _C4p) / (double)_eps0_);
+			tempx[offset] -= eps0_c_Ex_old[offset] * (_C5p / (double)_eps0_); //eq30term3
+			tempy[offset] -= eps0_c_Ey_old[offset] * (_C5p / (double)_eps0_);
+			tempz[offset] -= eps0_c_Ez_old[offset] * (_C5p / (double)_eps0_);
+			tempx[offset] -= eps0_c_Pdx[offset] * ((_d1 - 1.0) / (double)_eps0_); //eq30term4
+			tempy[offset] -= eps0_c_Pdy[offset] * ((_d1 - 1.0) / (double)_eps0_);
+			tempz[offset] -= eps0_c_Pdz[offset] * ((_d1 - 1.0) / (double)_eps0_);
+			tempx[offset] -= eps0_c_Pcp1x[offset] * ((_C11 - 1.0) / (double)_eps0_); //eq30term5
+			tempy[offset] -= eps0_c_Pcp1y[offset] * ((_C11 - 1.0) / (double)_eps0_);
+			tempz[offset] -= eps0_c_Pcp1z[offset] * ((_C11 - 1.0) / (double)_eps0_);
+			tempx[offset] -= eps0_c_Pcp2x[offset] * ((_C12 - 1.0) / (double)_eps0_);
+			tempy[offset] -= eps0_c_Pcp2y[offset] * ((_C12 - 1.0) / (double)_eps0_);
+			tempz[offset] -= eps0_c_Pcp2z[offset] * ((_C12 - 1.0) / (double)_eps0_);
+			tempx[offset] -= eps0_c_Pcp1x_old[offset] * (_C21 / (double)_eps0_); //eq30term6
+			tempy[offset] -= eps0_c_Pcp1y_old[offset] * (_C21 / (double)_eps0_);
+			tempz[offset] -= eps0_c_Pcp1z_old[offset] * (_C21 / (double)_eps0_);
+			tempx[offset] -= eps0_c_Pcp2x_old[offset] * (_C22 / (double)_eps0_);
+			tempy[offset] -= eps0_c_Pcp2y_old[offset] * (_C22 / (double)_eps0_);
+			tempz[offset] -= eps0_c_Pcp2z_old[offset] * (_C22 / (double)_eps0_);
+			tempx[offset] /= (((double)_eps0_ * _eps_inf + 0.5 * _sigma_ * (double)_dt_ - _d2 + _C3p) / (double)_eps0_); //eq30term0
+			tempy[offset] /= (((double)_eps0_ * _eps_inf + 0.5 * _sigma_ * (double)_dt_ - _d2 + _C3p) / (double)_eps0_);
+			tempz[offset] /= (((double)_eps0_ * _eps_inf + 0.5 * _sigma_ * (double)_dt_ - _d2 + _C3p) / (double)_eps0_);
 
 			//PD (single drude)
 			eps0_c_Pdx[offset] *= _d1; //eq27term1
@@ -612,24 +623,24 @@ void DCP_HE_C(void)
 			eps0_c_Pcp2x_old[offset] += eps0_c_Pcp2x[offset] * _C12;
 			eps0_c_Pcp2y_old[offset] += eps0_c_Pcp2y[offset] * _C12;
 			eps0_c_Pcp2z_old[offset] += eps0_c_Pcp2z[offset] * _C12;
-			eps0_c_Pcp1x_old[offset] += tempx[offset] * _C31; //eq14term3
-			eps0_c_Pcp1y_old[offset] += tempy[offset] * _C31;
-			eps0_c_Pcp1z_old[offset] += tempz[offset] * _C31;
-			eps0_c_Pcp2x_old[offset] += tempx[offset] * _C32;
-			eps0_c_Pcp2y_old[offset] += tempy[offset] * _C32;
-			eps0_c_Pcp2z_old[offset] += tempz[offset] * _C32;
-			eps0_c_Pcp1x_old[offset] += eps0_c_Ex[offset] * _C41; //eq14term4
-			eps0_c_Pcp1y_old[offset] += eps0_c_Ey[offset] * _C41;
-			eps0_c_Pcp1z_old[offset] += eps0_c_Ez[offset] * _C41;
-			eps0_c_Pcp2x_old[offset] += eps0_c_Ex[offset] * _C42;
-			eps0_c_Pcp2y_old[offset] += eps0_c_Ey[offset] * _C42;
-			eps0_c_Pcp2z_old[offset] += eps0_c_Ez[offset] * _C42;
-			eps0_c_Pcp1x_old[offset] += eps0_c_Ex_old[offset] * _C51; //eq14term5
-			eps0_c_Pcp1y_old[offset] += eps0_c_Ey_old[offset] * _C51;
-			eps0_c_Pcp1z_old[offset] += eps0_c_Ez_old[offset] * _C51;
-			eps0_c_Pcp2x_old[offset] += eps0_c_Ex_old[offset] * _C52;
-			eps0_c_Pcp2y_old[offset] += eps0_c_Ey_old[offset] * _C52;
-			eps0_c_Pcp2z_old[offset] += eps0_c_Ez_old[offset] * _C52;
+			eps0_c_Pcp1x_old[offset] += tempx[offset] * _C31 ; //eq14term3
+			eps0_c_Pcp1y_old[offset] += tempy[offset] * _C31 ;
+			eps0_c_Pcp1z_old[offset] += tempz[offset] * _C31 ;
+			eps0_c_Pcp2x_old[offset] += tempx[offset] * _C32 ;
+			eps0_c_Pcp2y_old[offset] += tempy[offset] * _C32 ;
+			eps0_c_Pcp2z_old[offset] += tempz[offset] * _C32 ;
+			eps0_c_Pcp1x_old[offset] += eps0_c_Ex[offset] * _C41 ; //eq14term4
+			eps0_c_Pcp1y_old[offset] += eps0_c_Ey[offset] * _C41 ;
+			eps0_c_Pcp1z_old[offset] += eps0_c_Ez[offset] * _C41 ;
+			eps0_c_Pcp2x_old[offset] += eps0_c_Ex[offset] * _C42 ;
+			eps0_c_Pcp2y_old[offset] += eps0_c_Ey[offset] * _C42 ;
+			eps0_c_Pcp2z_old[offset] += eps0_c_Ez[offset] * _C42 ;
+			eps0_c_Pcp1x_old[offset] += eps0_c_Ex_old[offset] * _C51 ; //eq14term5
+			eps0_c_Pcp1y_old[offset] += eps0_c_Ey_old[offset] * _C51 ;
+			eps0_c_Pcp1z_old[offset] += eps0_c_Ez_old[offset] * _C51 ;
+			eps0_c_Pcp2x_old[offset] += eps0_c_Ex_old[offset] * _C52 ;
+			eps0_c_Pcp2y_old[offset] += eps0_c_Ey_old[offset] * _C52 ;
+			eps0_c_Pcp2z_old[offset] += eps0_c_Ez_old[offset] * _C52 ;
 			
 			//SWAP
 			eps0_c_Ex_old[offset] = eps0_c_Ex[offset]; eps0_c_Ex[offset] = tempx[offset];

@@ -10,7 +10,9 @@
 #define _DimY (60)
 #define _DimZ (200)
 
-#define _STEP (6*100*6)
+#define _SOURCE_WAVELENGTH_ (450e-9)
+#define _T_DECAY (100)
+#define _STEP (6*_T_DECAY*6)
 
 //eq35
 //consider using simple PML for NTFF calculation
@@ -25,9 +27,9 @@ float pml_kappa_max = 8.0f;
 #define _NTFF_Margin_Z_ ((int)(_DimZ/2 - _PML_PX_Z_ - 50))
 
 #define _S_factor (2.0f)
-#define _dx (5e-9)
+#define _dx (2e-9)
 #define _PML_ALPHA_TUNING_ (1.0f)
-#define _PML_OMEGA_DT_TUNING_ (2.0f*M_PI*_dx/300e-9/_S_factor)
+#define _PML_OMEGA_DT_TUNING_ (2.0f*M_PI*_dx/_SOURCE_WAVELENGTH_/_S_factor)
 
 #define __SUBSTRATE (100)
 #define __PITCH (60)
@@ -94,22 +96,27 @@ if (\
 } 
 #endif
 
+
+//#define STRUCTURE \
+//eps_r_inv[offset] = 1.0f / (__BACK*__BACK);\
+//if (((-__SLOT - __SIN_BOT<zz) && (zz <= -__SLOT))\
+//	|| ((0<zz) && (zz <= __SIN_TOP))) {\
+//	eps_r_inv[offset] = 1.0f / (1.8f*1.8f); /*SiN*/\
+//}\
+//if (((-__SLOT<zz) && (zz <= 0) )\
+//	|| (zz <= (-__SLOT - __SIN_BOT))) {\
+//	eps_r_inv[offset] = 1.0f / (__SIO_INDEX * __SIO_INDEX); /*SiO*/\
+//} \
+//if (((-__SLOT - __SIN_BOT - 8)<zz) && (zz <= (-__SLOT - __SIN_BOT))) {\
+//	eps_r_inv[offset] = 1.0f / (1.8f*1.8f); /*ITO*/\
+//} \
+//_AREA_METAL_\
+
+
 #define STRUCTURE \
-eps_r_inv[offset] = 1.0f / (__BACK*__BACK);\
-if (((-__SLOT - __SIN_BOT<zz) && (zz <= -__SLOT))\
-	|| ((0<zz) && (zz <= __SIN_TOP))) {\
-	eps_r_inv[offset] = 1.0f / (1.8f*1.8f); /*SiN*/\
-}\
-if (((-__SLOT<zz) && (zz <= 0) )\
-	|| (zz <= (-__SLOT - __SIN_BOT))) {\
-	eps_r_inv[offset] = 1.0f / (__SIO_INDEX * __SIO_INDEX); /*SiO*/\
-} \
-if (((-__SLOT - __SIN_BOT - 8)<zz) && (zz <= (-__SLOT - __SIN_BOT))) {\
-	eps_r_inv[offset] = 1.0f / (1.8f*1.8f); /*ITO*/\
-} \
-_AREA_METAL_\
+eps_r_inv[offset] = 1.0f;
 
-
+//if ((0 < zz) && (zz <= 10)){mask[offset] = mask[offset] | (0b0001 << 4);}
 
 #define _c0 299792458.0f
 #define _USE_MATH_DEFINES
@@ -416,7 +423,7 @@ int main(int argc, char* argv[])
 	FILE *f = fopen("plane_output.txt", "a"); double planeout;
 	for (int i = 0; i <= _STEP; i++) {
 		printf("%f%%\r", 100.0f*(float)i / _STEP);
-		float addval = -sin(2 * M_PI* i * (_dt_ * _c0 / 300e-9)) * exp(-(float)(i - 6 * 100)*(i - 6 * 100) / (float)(2 * 100 * 100));
+		float addval = -sin(2 * M_PI* i * (_dt_ * _c0 / _SOURCE_WAVELENGTH_)) * exp(-(float)(i - 6 * _T_DECAY)*(i - 6 * _T_DECAY) / (float)(2 * _T_DECAY * _T_DECAY));
 		addval /= __SIO_INDEX;
 		for (int ii = 0; ii < _DimX; ii++) {
 			for (int jj = 0; jj < _DimY; jj++) {
@@ -554,9 +561,9 @@ void DCP_HE_C(void)
 
 		/* update */
 		if (dielectric_flag == 0 && ((mask[offset] & (0b1111 << 4)) >> 4) > 0) {// metal
-			tempx[offset] = (Hy[offset - _offsetZ] - Hy[offset] + Hz[offset - _offsetZ] - Hz[offset - _offsetY - _offsetZ]) * eps_r_inv[offset] * _cdt_div_dx; //eq30term1
-			tempy[offset] = (Hz[offset - _offsetZ] - Hz[offset + _offsetX - _offsetZ] + Hx[offset] - Hx[offset - _offsetZ]) * eps_r_inv[offset] * _cdt_div_dx;
-			tempz[offset] = (Hx[offset - _offsetX - _offsetY] - Hx[offset - _offsetX] + Hy[offset] - Hy[offset - _offsetX]) * eps_r_inv[offset] * _cdt_div_dx;
+			tempx[offset] = (Hy[offset - _offsetZ] - Hy[offset] + Hz[offset - _offsetZ] - Hz[offset - _offsetY - _offsetZ]) * _cdt_div_dx ; //eq30term1
+			tempy[offset] = (Hz[offset - _offsetZ] - Hz[offset + _offsetX - _offsetZ] + Hx[offset] - Hx[offset - _offsetZ]) * _cdt_div_dx ;
+			tempz[offset] = (Hx[offset - _offsetX - _offsetY] - Hx[offset - _offsetX] + Hy[offset] - Hy[offset - _offsetX]) * _cdt_div_dx ;
 			tempx[offset] += eps0_c_Ex[offset] * (_eps0_ * _eps_inf - 0.5f * _sigma_ * _dt_ + _d2 - _C4p) / _eps0_; //eq30term2
 			tempy[offset] += eps0_c_Ey[offset] * (_eps0_ * _eps_inf - 0.5f * _sigma_ * _dt_ + _d2 - _C4p) / _eps0_; //FIXME : div_eps0 coeffs cleanup
 			tempz[offset] += eps0_c_Ez[offset] * (_eps0_ * _eps_inf - 0.5f * _sigma_ * _dt_ + _d2 - _C4p) / _eps0_;
@@ -581,6 +588,17 @@ void DCP_HE_C(void)
 			tempx[offset] /= (_eps0_ * _eps_inf + 0.5f * _sigma_ * _dt_ - _d2 + _C3p) / _eps0_; //eq30term0
 			tempy[offset] /= (_eps0_ * _eps_inf + 0.5f * _sigma_ * _dt_ - _d2 + _C3p) / _eps0_;
 			tempz[offset] /= (_eps0_ * _eps_inf + 0.5f * _sigma_ * _dt_ - _d2 + _C3p) / _eps0_;
+
+			//PD (single drude)
+			eps0_c_Pdx[offset] *= _d1; //eq27term1
+			eps0_c_Pdy[offset] *= _d1;
+			eps0_c_Pdz[offset] *= _d1;
+			eps0_c_Pdx[offset] -= tempx[offset] * _d2; //eq27term2
+			eps0_c_Pdy[offset] -= tempy[offset] * _d2;
+			eps0_c_Pdz[offset] -= tempz[offset] * _d2;
+			eps0_c_Pdx[offset] -= eps0_c_Ex[offset] * _d2; //eq27term3
+			eps0_c_Pdy[offset] -= eps0_c_Ey[offset] * _d2;
+			eps0_c_Pdz[offset] -= eps0_c_Ez[offset] * _d2;
 
 			//PCP
 			eps0_c_Pcp1x_old[offset] *= _C21; //eq14term2
@@ -613,35 +631,19 @@ void DCP_HE_C(void)
 			eps0_c_Pcp2x_old[offset] += eps0_c_Ex_old[offset] * _C52;
 			eps0_c_Pcp2y_old[offset] += eps0_c_Ey_old[offset] * _C52;
 			eps0_c_Pcp2z_old[offset] += eps0_c_Ez_old[offset] * _C52;
-			//eps0_c_Ex_old can be used as temp var here now
+			
+			//SWAP
+			eps0_c_Ex_old[offset] = eps0_c_Ex[offset]; eps0_c_Ex[offset] = tempx[offset];
+			eps0_c_Ey_old[offset] = eps0_c_Ey[offset]; eps0_c_Ey[offset] = tempy[offset];
+			eps0_c_Ez_old[offset] = eps0_c_Ez[offset]; eps0_c_Ez[offset] = tempz[offset];
 
-			//PD
-			eps0_c_Pdx[offset] *= _d1; //eq27term1
-			eps0_c_Pdy[offset] *= _d1;
-			eps0_c_Pdz[offset] *= _d1;
-			eps0_c_Pdx[offset] -= tempx[offset] * _d2; //eq27term2
-			eps0_c_Pdy[offset] -= tempy[offset] * _d2;
-			eps0_c_Pdz[offset] -= tempz[offset] * _d2;
-			eps0_c_Pdx[offset] -= eps0_c_Ex[offset] * _d2; //eq27term3
-			eps0_c_Pdy[offset] -= eps0_c_Ey[offset] * _d2;
-			eps0_c_Pdz[offset] -= eps0_c_Ez[offset] * _d2;
+			tempx[offset] = eps0_c_Pcp1x[offset]; eps0_c_Pcp1x[offset] = eps0_c_Pcp1x_old[offset]; eps0_c_Pcp1x_old[offset] = tempx[offset];
+			tempy[offset] = eps0_c_Pcp1y[offset]; eps0_c_Pcp1y[offset] = eps0_c_Pcp1y_old[offset]; eps0_c_Pcp1y_old[offset] = tempy[offset];
+			tempz[offset] = eps0_c_Pcp1z[offset]; eps0_c_Pcp1z[offset] = eps0_c_Pcp1z_old[offset]; eps0_c_Pcp1z_old[offset] = tempz[offset];
 
-			//FIXME : can be simpler than this?
-			eps0_c_Ex_old[offset] = eps0_c_Ex[offset];
-			eps0_c_Ey_old[offset] = eps0_c_Ey[offset];
-			eps0_c_Ez_old[offset] = eps0_c_Ez[offset];
-
-			eps0_c_Ex[offset] = tempx[offset]; //FIXME : tempx size can be reduced: conider CUDA
-			eps0_c_Ey[offset] = tempy[offset];
-			eps0_c_Ez[offset] = tempz[offset];
-
-			eps0_c_Pcp1x_old[offset] = eps0_c_Pcp1x[offset];
-			eps0_c_Pcp1y_old[offset] = eps0_c_Pcp1y[offset];
-			eps0_c_Pcp1z_old[offset] = eps0_c_Pcp1z[offset];
-
-			eps0_c_Pcp2x_old[offset] = eps0_c_Pcp2x[offset];
-			eps0_c_Pcp2y_old[offset] = eps0_c_Pcp2y[offset];
-			eps0_c_Pcp2z_old[offset] = eps0_c_Pcp2z[offset];
+			tempx[offset] = eps0_c_Pcp2x[offset]; eps0_c_Pcp2x[offset] = eps0_c_Pcp2x_old[offset]; eps0_c_Pcp2x_old[offset] = tempx[offset];
+			tempy[offset] = eps0_c_Pcp2y[offset]; eps0_c_Pcp2y[offset] = eps0_c_Pcp2y_old[offset]; eps0_c_Pcp2y_old[offset] = tempy[offset];
+			tempz[offset] = eps0_c_Pcp2z[offset]; eps0_c_Pcp2z[offset] = eps0_c_Pcp2z_old[offset]; eps0_c_Pcp2z_old[offset] = tempz[offset];
 		}
 		else {	// non metal
 			eps0_c_Ex[offset] += (Hy[offset - _offsetZ] - Hy[offset] + Hz[offset - _offsetZ] - Hz[offset - _offsetY - _offsetZ]) * eps_r_inv[offset] * _cdt_div_dx;

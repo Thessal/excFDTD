@@ -10,8 +10,8 @@
 #define _DimY (60)
 #define _DimZ (200)
 
-#define _SOURCE_WAVELENGTH_ (450e-9)
-#define _T_DECAY (100)
+#define _SOURCE_WAVELENGTH_ (500e-9)
+#define _T_DECAY (25)
 #define _STEP (6*_T_DECAY*6)
 
 //eq35
@@ -420,14 +420,16 @@ int main(int argc, char* argv[])
 	start = clock();
 	printf("\nCalculating field \n");
 
-	int sourcePos = _DimZ / 2 - __SLOT - __SIN_BOT - 8 - 10;
+	//	int sourcePos = _DimZ / 2 - __SLOT - __SIN_BOT - 8 - 10;
+	int sourcePos = 20;
 	char filename[256];
 	FILE *fx = fopen("plane_output_Ex.txt", "a"); double planeoutX;
 	FILE *fy = fopen("plane_output_Ey.txt", "a"); double planeoutY;
 	FILE *fz = fopen("plane_output_Ez.txt", "a"); double planeoutZ;
 	for (int i = 0; i <= _STEP; i++) {
 		printf("%f%%\r", 100.0f*(float)i / _STEP);
-		float addval = -sin(2 * M_PI* i * (_dt_ * _c0 / _SOURCE_WAVELENGTH_)) * exp(-(float)(i - 6 * _T_DECAY)*(i - 6 * _T_DECAY) / (float)(2 * _T_DECAY * _T_DECAY));
+//		float addval = -sin(2 * M_PI* i * (_dt_ * _c0 / _SOURCE_WAVELENGTH_)) * exp(-(float)(i - 6 * _T_DECAY)*(i - 6 * _T_DECAY) / (float)(2 * _T_DECAY * _T_DECAY));
+		float addval = -sin(2 * M_PI* i * (_dt_ * _c0 / _SOURCE_WAVELENGTH_)) * ((double)100000);
 		addval /= __SIO_INDEX;
 				eps0_c_Ey[_INDEX_XYZ(_DimX/2, _DimY/2, sourcePos)] += addval *0.5f;
 				Hx[_INDEX_XYZ(_DimX / 2, _DimY / 2, sourcePos)] -= addval *0.25f;
@@ -448,7 +450,7 @@ int main(int argc, char* argv[])
 		fprintf(fx, "%e\t%30e\n", _dt_*(float)i, planeoutX);
 		fprintf(fy, "%e\t%30e\n", _dt_*(float)i, planeoutY);
 		fprintf(fz, "%e\t%30e\n", _dt_*(float)i, planeoutZ);
-		if ((i) % 50 == 0) {
+		if ((i) % 5 == 0) {
 			sprintf(filename, "%05d", i);
 			snapshot(filename);
 		}
@@ -1861,9 +1863,9 @@ int snapshot(char* filename)
 			) * 255.0f;
 			val2 = val2 > 255 ? 255 : val2;
 			val2 = val2 < -255 ? -255 : val2;
-			image[4 * width * (height - 1 - z) + 4 * y + 0] = (unsigned char)(value>0 ? value : 0);
-			image[4 * width * (height - 1 - z) + 4 * y + 1] = (unsigned char)(val2<0 ? -val2 : 0);
-			image[4 * width * (height - 1 - z) + 4 * y + 2] = (unsigned char)(val2>0 ? val2 : 0);
+			image[4 * width * (height - 1 - z) + 4 * y + 0] = (unsigned char)(val2>0 ? val2 : 0); 
+			image[4 * width * (height - 1 - z) + 4 * y + 1] = (unsigned char)(value>0 ? value : 0);
+			image[4 * width * (height - 1 - z) + 4 * y + 2] = (unsigned char)(val2<0 ? -val2 : 0);
 			image[4 * width * (height - 1 - z) + 4 * y + 3] = 255;
 		}
 	sprintf(filenameFull, "E2_X0_%s.png", filename);
@@ -1907,9 +1909,9 @@ int snapshot(char* filename)
 			) * 255.0f;
 			val2 = val2 > 255 ? 255 : val2;
 			val2 = val2 < -255 ? -255 : val2;
-			image[4 * width * (height - 1 - y) + 4 * x + 0] = (unsigned char)(value>0 ? value : 0);
-			image[4 * width * (height - 1 - y) + 4 * x + 1] = (unsigned char)(val2<0 ? -val2 : 0);
-			image[4 * width * (height - 1 - y) + 4 * x + 2] = (unsigned char)(val2>0 ? val2 : 0);
+			image[4 * width * (height - 1 - y) + 4 * x + 0] = (unsigned char)(val2>0 ? val2 : 0); 
+			image[4 * width * (height - 1 - y) + 4 * x + 1] = (unsigned char)(value>0 ? value : 0); 
+			image[4 * width * (height - 1 - y) + 4 * x + 2] = (unsigned char)(val2<0 ? -val2 : 0);
 			image[4 * width * (height - 1 - y) + 4 * x + 3] = 255;
 		}
 	sprintf(filenameFull, "E2_Z0_%s.png", filename);

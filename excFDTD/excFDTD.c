@@ -10,8 +10,8 @@
 #define _DimY (60)
 #define _DimZ (200)
 
-#define _SOURCE_WAVELENGTH_ (450e-9)
-#define _T_DECAY (100)
+#define _SOURCE_WAVELENGTH_ (600e-9)
+#define _T_DECAY (50)
 #define _STEP (6*_T_DECAY*6)
 
 //eq35
@@ -47,7 +47,7 @@ float pml_kappa_max = 8.0f;
 #define __DEPTH ( 4)
 #define __REF ( 1.0)
 #define __SIO_INDEX (1.46)
-#define __BACK  (1.3f)
+#define __BACK  (1.4f)
 #define __SLOT_RADIUS  (24)
 #define __SMOOTHING  (9)
 
@@ -417,14 +417,16 @@ int main(int argc, char* argv[])
 	start = clock();
 	printf("\nCalculating field \n");
 
-	int sourcePos = _DimZ / 2 - __SLOT - __SIN_BOT - 8 - 10;
+	//int sourcePos = _DimZ / 2 - __SLOT - __SIN_BOT - 8 - 10;
+	int sourcePos = 10;
 	char filename[256];
 	FILE *fx = fopen("plane_output_Ex.txt", "a"); double planeoutX;
 	FILE *fy = fopen("plane_output_Ey.txt", "a"); double planeoutY;
 	FILE *fz = fopen("plane_output_Ez.txt", "a"); double planeoutZ;
 	for (int i = 0; i <= _STEP; i++) {
 		printf("%f%%\r", 100.0f*(float)i / _STEP);
-		float addval = -sin(2 * M_PI* i * (_dt_ * _c0 / _SOURCE_WAVELENGTH_)) * exp(-(float)(i - 6 * _T_DECAY)*(i - 6 * _T_DECAY) / (float)(2 * _T_DECAY * _T_DECAY));
+		//float addval = -sin(2 * M_PI* i * (_dt_ * _c0 / _SOURCE_WAVELENGTH_)) * exp(-(float)(i - 6 * _T_DECAY)*(i - 6 * _T_DECAY) / (float)(2 * _T_DECAY * _T_DECAY));
+		float addval = -sin(2 * M_PI* i * (_dt_ * _c0 / _SOURCE_WAVELENGTH_));
 		addval /= __SIO_INDEX;
 		for (int ii = 0; ii < _DimX; ii++) {
 			for (int jj = 0; jj < _DimY; jj++) {
@@ -445,10 +447,10 @@ int main(int argc, char* argv[])
 		}
 
 			
-		fprintf(fx, "%e\t%30e\n", _dt_*(float)i, planeoutX);
-		fprintf(fy, "%e\t%30e\n", _dt_*(float)i, planeoutY);
-		fprintf(fz, "%e\t%30e\n", _dt_*(float)i, planeoutZ);
-		if ((i) % 50 == 0) {
+		fprintf(fx, "%e\t%30e\n", _dt_*(float)i, planeoutX*__BACK);
+		fprintf(fy, "%e\t%30e\n", _dt_*(float)i, planeoutY*__BACK);
+		fprintf(fz, "%e\t%30e\n", _dt_*(float)i, planeoutZ*__BACK);
+		if ((i) % 5 == 0) {
 			sprintf(filename, "%05d", i);
 			snapshot(filename);
 		}
@@ -1860,9 +1862,9 @@ int snapshot(char* filename)
 			) * 255.0f;
 			val2 = val2 > 255 ? 255 : val2;
 			val2 = val2 < -255 ? -255 : val2;
-			image[4 * width * (height - 1 - z) + 4 * y + 0] = (unsigned char)(value>0 ? value : 0);
-			image[4 * width * (height - 1 - z) + 4 * y + 1] = (unsigned char)(val2<0 ? -val2 : 0);
-			image[4 * width * (height - 1 - z) + 4 * y + 2] = (unsigned char)(val2>0 ? val2 : 0);
+			image[4 * width * (height - 1 - z) + 4 * y + 0] = (unsigned char)(val2>0 ? val2 : 0); 
+			image[4 * width * (height - 1 - z) + 4 * y + 1] = (unsigned char)(value>0 ? value : 0);
+			image[4 * width * (height - 1 - z) + 4 * y + 2] = (unsigned char)(val2<0 ? -val2 : 0);
 			image[4 * width * (height - 1 - z) + 4 * y + 3] = 255;
 		}
 	sprintf(filenameFull, "E2_X0_%s.png", filename);

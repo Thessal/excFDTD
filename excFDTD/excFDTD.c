@@ -10,7 +10,7 @@
 #define _DimY (60)
 #define _DimZ (200)
 
-#define _SOURCE_WAVELENGTH_ (500e-9)
+#define _SOURCE_WAVELENGTH_ (800e-9)
 #define _T_DECAY (25)
 #define _STEP (6*_T_DECAY*6)
 
@@ -429,7 +429,7 @@ int main(int argc, char* argv[])
 	for (int i = 0; i <= _STEP; i++) {
 		printf("%f%%\r", 100.0f*(float)i / _STEP);
 //		float addval = -sin(2 * M_PI* i * (_dt_ * _c0 / _SOURCE_WAVELENGTH_)) * exp(-(float)(i - 6 * _T_DECAY)*(i - 6 * _T_DECAY) / (float)(2 * _T_DECAY * _T_DECAY));
-		float addval = -sin(2 * M_PI* i * (_dt_ * _c0 / _SOURCE_WAVELENGTH_)) * ((double)100000);
+		float addval = -sin(2 * M_PI* i * (_dt_ * _c0 / _SOURCE_WAVELENGTH_)) * ((double)20000);
 		addval /= __SIO_INDEX;
 				eps0_c_Ey[_INDEX_XYZ(_DimX/2, _DimY/2, sourcePos)] += addval *0.5f;
 				Hx[_INDEX_XYZ(_DimX / 2, _DimY / 2, sourcePos)] -= addval *0.25f;

@@ -7,10 +7,10 @@
 
 
 #define _DimX (104)
-#define _DimY (60)
+#define _DimY (104)
 #define _DimZ (200)
 
-#define _SOURCE_WAVELENGTH_ (800e-9)
+#define _SOURCE_WAVELENGTH_ (500e-9)
 #define _T_DECAY (25)
 #define _STEP (6*_T_DECAY*6)
 
@@ -429,27 +429,27 @@ int main(int argc, char* argv[])
 	for (int i = 0; i <= _STEP; i++) {
 		printf("%f%%\r", 100.0f*(float)i / _STEP);
 //		float addval = -sin(2 * M_PI* i * (_dt_ * _c0 / _SOURCE_WAVELENGTH_)) * exp(-(float)(i - 6 * _T_DECAY)*(i - 6 * _T_DECAY) / (float)(2 * _T_DECAY * _T_DECAY));
-		float addval = -sin(2 * M_PI* i * (_dt_ * _c0 / _SOURCE_WAVELENGTH_)) * ((double)20000);
+		float addval = -sin(2 * M_PI* i * (_dt_ * _c0 / _SOURCE_WAVELENGTH_)) ;
 		addval /= __SIO_INDEX;
-				eps0_c_Ey[_INDEX_XYZ(_DimX/2, _DimY/2, sourcePos)] += addval *0.5f;
-				Hx[_INDEX_XYZ(_DimX / 2, _DimY / 2, sourcePos)] -= addval *0.25f;
-				Hx[_INDEX_XYZ(_DimX / 2, _DimY / 2, sourcePos - 1)] -= addval *0.25f;
+		eps0_c_Ey[_INDEX_XYZ(_DimX/2, _DimY/2, sourcePos)] += addval *0.5f;
+		Hx[_INDEX_XYZ(_DimX / 2, _DimY / 2, sourcePos)] -= addval *0.25f;
+		Hx[_INDEX_XYZ(_DimX / 2, _DimY / 2, sourcePos - 1)] -= addval *0.25f;
 		DCP_HE_C();
 		//RFT(__BACK); 
 		planeoutX = 0.0;		planeoutY = 0.0;		planeoutZ = 0.0;
-		for (int ii = 8; ii < _DimX-8; ii++) {
-			for (int jj = 8; jj < _DimY-8; jj++) {
-				planeoutX += eps0_c_Ex[_INDEX_XYZ(ii, jj, (_DimZ / 2 + __SIN_TOP + __METAL_HOLE + 20))];
-				planeoutY += eps0_c_Ey[_INDEX_XYZ(ii, jj, (_DimZ / 2 + __SIN_TOP + __METAL_HOLE + 20))];
-				planeoutZ += eps0_c_Ez[_INDEX_XYZ(ii, jj, (_DimZ / 2 + __SIN_TOP + __METAL_HOLE + 20))];
-			}
-		}
-		planeoutX *= __BACK; planeoutY *= __BACK; planeoutZ *= __BACK;
+		//for (int ii = 8; ii < _DimX-8; ii++) {
+		//	for (int jj = 8; jj < _DimY-8; jj++) {
+		//		planeoutX += eps0_c_Ex[_INDEX_XYZ(ii, jj, (_DimZ / 2 + __SIN_TOP + __METAL_HOLE + 20))];
+		//		planeoutY += eps0_c_Ey[_INDEX_XYZ(ii, jj, (_DimZ / 2 + __SIN_TOP + __METAL_HOLE + 20))];
+		//		planeoutZ += eps0_c_Ez[_INDEX_XYZ(ii, jj, (_DimZ / 2 + __SIN_TOP + __METAL_HOLE + 20))];
+		//	}
+		//}
+		//planeoutX *= __BACK; planeoutY *= __BACK; planeoutZ *= __BACK;
 
-			
-		fprintf(fx, "%e\t%30e\n", _dt_*(float)i, planeoutX);
-		fprintf(fy, "%e\t%30e\n", _dt_*(float)i, planeoutY);
-		fprintf(fz, "%e\t%30e\n", _dt_*(float)i, planeoutZ);
+		//	
+		//fprintf(fx, "%e\t%30e\n", _dt_*(float)i, planeoutX);
+		//fprintf(fy, "%e\t%30e\n", _dt_*(float)i, planeoutY);
+		//fprintf(fz, "%e\t%30e\n", _dt_*(float)i, planeoutZ);
 		if ((i) % 5 == 0) {
 			sprintf(filename, "%05d", i);
 			snapshot(filename);
@@ -1784,12 +1784,12 @@ int snapshot(char* filename)
 
 
 	
-	sprintf(filenameFull, "Ex_Y0_%s.txt", filename);
-	int Y = _DimY / 2;
+	sprintf(filenameFull, "Ex_X0_%s.txt", filename);
+	int X = _DimX / 2;
 	FILE *f = fopen(filenameFull, "w");
 	for (int Z = 0; Z < _DimZ; Z++) {
 		//if (X%_blockDimX == 0) { for (int Z = 0; Z < _DimZ + _gridDimZ - 1 ; Z++) { fprintf(f,"%+04.3e \t ", TEMP[_INDEX_XYZ(-1, Y, Z)]);  } 	fprintf(f,"\n");}
-		for (int X = 0; X < _DimX; X++) {
+		for (int Y = 0; Y < _DimY; Y++) {
 			//if (Z%_blockDimZ == 0) { fprintf(f,"%04.3f \t", TEMP[_INDEX_XYZ(X, Y, -1)]);}
 			fprintf(f, "%+04.3e\t", eps0_c_Ex[_INDEX_XYZ(X, Y, Z)]);
 			//if (Z%_blockDimZ == _blockDimZ-1) { fprintf(f,"%+04.3f\t ", TEMP[_INDEX_XYZ(_blockDimX, Y, Z)]); }
@@ -1798,11 +1798,11 @@ int snapshot(char* filename)
 		//if (X%_blockDimX == _blockDimX -1 ){ for (int Z = 0; Z < _DimZ; Z++) 	{	fprintf(f,"%+04.3f\t ", eps0_c_Ex[_INDEX_XYZ(_blockDimX, Y, Z)]);	}fprintf(f,"\n");}
 	}
 	fclose(f);
-	sprintf(filenameFull, "Ey_Y0_%s.txt", filename);
+	sprintf(filenameFull, "Ey_X0_%s.txt", filename);
 	f = fopen(filenameFull, "w");
 	for (int Z = 0; Z < _DimZ; Z++) {
 		//if (X%_blockDimX == 0) { for (int Z = 0; Z < _DimZ + _gridDimZ - 1 ; Z++) { fprintf(f,"%+04.3e \t ", TEMP[_INDEX_XYZ(-1, Y, Z)]);  } 	fprintf(f,"\n");}
-		for (int X = 0; X < _DimX; X++) {
+		for (int Y = 0; Y < _DimY; Y++) {
 			//if (Z%_blockDimZ == 0) { fprintf(f,"%04.3f \t", TEMP[_INDEX_XYZ(X, Y, -1)]);}
 			fprintf(f, "%+04.3e\t", eps0_c_Ey[_INDEX_XYZ(X, Y, Z)]);
 			//if (Z%_blockDimZ == _blockDimZ-1) { fprintf(f,"%+04.3f\t ", TEMP[_INDEX_XYZ(_blockDimX, Y, Z)]); }
@@ -1811,11 +1811,11 @@ int snapshot(char* filename)
 		//if (X%_blockDimX == _blockDimX -1 ){ for (int Z = 0; Z < _DimZ; Z++) 	{	fprintf(f,"%+04.3f\t ", eps0_c_Ex[_INDEX_XYZ(_blockDimX, Y, Z)]);	}fprintf(f,"\n");}
 	}
 	fclose(f);
-	sprintf(filenameFull, "Ez_Y0_%s.txt", filename);
+	sprintf(filenameFull, "Ez_X0_%s.txt", filename);
 	f = fopen(filenameFull, "w");
 	for (int Z = 0; Z < _DimZ; Z++) {
 		//if (X%_blockDimX == 0) { for (int Z = 0; Z < _DimZ + _gridDimZ - 1 ; Z++) { fprintf(f,"%+04.3e \t ", TEMP[_INDEX_XYZ(-1, Y, Z)]);  } 	fprintf(f,"\n");}
-		for (int X = 0; X < _DimX; X++) {
+		for (int Y = 0; Y < _DimY; Y++) {
 			//if (Z%_blockDimZ == 0) { fprintf(f,"%04.3f \t", TEMP[_INDEX_XYZ(X, Y, -1)]);}
 			fprintf(f, "%+04.3e\t", eps0_c_Ez[_INDEX_XYZ(X, Y, Z)]);
 			//if (Z%_blockDimZ == _blockDimZ-1) { fprintf(f,"%+04.3f\t ", TEMP[_INDEX_XYZ(_blockDimX, Y, Z)]); }
@@ -1831,94 +1831,94 @@ int snapshot(char* filename)
 	unsigned error;
 
 
-	printf("snapshot : X=%d\n", _DimX / 2);
-	int X = _DimX / 2;
-	width = _DimY, height = _DimZ;
-	image = malloc(width * height * 4);
-	for (z = 0; z < height; z++)
-		for (y = 0; y < width; y++)
-		{
-			int surf_x, surf_y, surf_z;
-			int surf_index = _SURF_INDEX_XYZ(X, y, z);
-			_SET_SURF_XYZ_INDEX(surf_index);
-			int offset = _INDEX_XYZ(X, y, z);
-			int value = 0;
+	//printf("snapshot : X=%d\n", _DimX / 2);
+	//int X = _DimX / 2;
+	//width = _DimY, height = _DimZ;
+	//image = malloc(width * height * 4);
+	//for (z = 0; z < height; z++)
+	//	for (y = 0; y < width; y++)
+	//	{
+	//		int surf_x, surf_y, surf_z;
+	//		int surf_index = _SURF_INDEX_XYZ(X, y, z);
+	//		_SET_SURF_XYZ_INDEX(surf_index);
+	//		int offset = _INDEX_XYZ(X, y, z);
+	//		int value = 0;
 
-			//if (surf_index !=-1) value = (FT_eps0cE[_SURF_INDEX_XYZ(X, y, z)][1][0][0]* FT_eps0cE[_SURF_INDEX_XYZ(X, y, z)][1][0][0]+ FT_eps0cE[_SURF_INDEX_XYZ(X, y, z)][1][0][1]* FT_eps0cE[_SURF_INDEX_XYZ(X, y, z)][1][0][1]) * 255.0f * 5000.0f * 5000.0f;
-			if (surf_index != -1) value = 255.0f * 20000.0f * 20000.0f*(0
-				+ (FT_eps0cE[surf_index][0][0][0]) * (FT_eps0cE[surf_index][0][0][0])
-				+ (FT_eps0cE[surf_index][0][0][1]) * (FT_eps0cE[surf_index][0][0][1])
-				+ (FT_eps0cE[surf_index][0][1][0]) * (FT_eps0cE[surf_index][0][1][0])
-				+ (FT_eps0cE[surf_index][0][1][1]) * (FT_eps0cE[surf_index][0][1][1])
-				+ (FT_eps0cE[surf_index][0][2][0]) * (FT_eps0cE[surf_index][0][2][0])
-				+ (FT_eps0cE[surf_index][0][2][1]) * (FT_eps0cE[surf_index][0][2][1])
-				);
-			//int value = (((mask[offset] & (0b1111 << 4)) >> 4)) *50.0f ;
-			value = value > 255 ? 255 : value;
-			value = value < -255 ? -255 : value;
-			int val2 = sqrtf(
-				eps0_c_Ex[offset] * eps0_c_Ex[offset] +
-				eps0_c_Ey[offset] * eps0_c_Ey[offset] +
-				eps0_c_Ez[offset] * eps0_c_Ez[offset]
-			) * 255.0f;
-			val2 = val2 > 255 ? 255 : val2;
-			val2 = val2 < -255 ? -255 : val2;
-			image[4 * width * (height - 1 - z) + 4 * y + 0] = (unsigned char)(val2>0 ? val2 : 0); 
-			image[4 * width * (height - 1 - z) + 4 * y + 1] = (unsigned char)(value>0 ? value : 0);
-			image[4 * width * (height - 1 - z) + 4 * y + 2] = (unsigned char)(val2<0 ? -val2 : 0);
-			image[4 * width * (height - 1 - z) + 4 * y + 3] = 255;
-		}
-	sprintf(filenameFull, "E2_X0_%s.png", filename);
-	error = lodepng_encode32_file(filenameFull, image, width, height);
-	if (error) printf("error %u: %s\n", error, lodepng_error_text(error));
+	//		//if (surf_index !=-1) value = (FT_eps0cE[_SURF_INDEX_XYZ(X, y, z)][1][0][0]* FT_eps0cE[_SURF_INDEX_XYZ(X, y, z)][1][0][0]+ FT_eps0cE[_SURF_INDEX_XYZ(X, y, z)][1][0][1]* FT_eps0cE[_SURF_INDEX_XYZ(X, y, z)][1][0][1]) * 255.0f * 5000.0f * 5000.0f;
+	//		if (surf_index != -1) value = 255.0f * 20000.0f * 20000.0f*(0
+	//			+ (FT_eps0cE[surf_index][0][0][0]) * (FT_eps0cE[surf_index][0][0][0])
+	//			+ (FT_eps0cE[surf_index][0][0][1]) * (FT_eps0cE[surf_index][0][0][1])
+	//			+ (FT_eps0cE[surf_index][0][1][0]) * (FT_eps0cE[surf_index][0][1][0])
+	//			+ (FT_eps0cE[surf_index][0][1][1]) * (FT_eps0cE[surf_index][0][1][1])
+	//			+ (FT_eps0cE[surf_index][0][2][0]) * (FT_eps0cE[surf_index][0][2][0])
+	//			+ (FT_eps0cE[surf_index][0][2][1]) * (FT_eps0cE[surf_index][0][2][1])
+	//			);
+	//		//int value = (((mask[offset] & (0b1111 << 4)) >> 4)) *50.0f ;
+	//		value = value > 255 ? 255 : value;
+	//		value = value < -255 ? -255 : value;
+	//		int val2 = sqrtf(
+	//			eps0_c_Ex[offset] * eps0_c_Ex[offset] +
+	//			eps0_c_Ey[offset] * eps0_c_Ey[offset] +
+	//			eps0_c_Ez[offset] * eps0_c_Ez[offset]
+	//		) * 255.0f;
+	//		val2 = val2 > 255 ? 255 : val2;
+	//		val2 = val2 < -255 ? -255 : val2;
+	//		image[4 * width * (height - 1 - z) + 4 * y + 0] = (unsigned char)(val2>0 ? val2 : 0); 
+	//		image[4 * width * (height - 1 - z) + 4 * y + 1] = (unsigned char)(value>0 ? value : 0);
+	//		image[4 * width * (height - 1 - z) + 4 * y + 2] = (unsigned char)(val2<0 ? -val2 : 0);
+	//		image[4 * width * (height - 1 - z) + 4 * y + 3] = 255;
+	//	}
+	//sprintf(filenameFull, "E2_X0_%s.png", filename);
+	//error = lodepng_encode32_file(filenameFull, image, width, height);
+	//if (error) printf("error %u: %s\n", error, lodepng_error_text(error));
 
-	free(image);
+	//free(image);
 
 
-	
+	//
 
-	printf("snapshot : Z=%d\n", _DimZ / 2);
-	int Z = _DimZ / 2;
-	width = _DimX, height = _DimY;
-	image = malloc(width * height * 4);
-	for (y = 0; y < height; y++)
-		for (x = 0; x < width; x++)
-		{
-			int surf_x, surf_y, surf_z;
-			int surf_index = _SURF_INDEX_XYZ(x, y, Z);
-			_SET_SURF_XYZ_INDEX(surf_index);
-			int offset = _INDEX_XYZ(x, y, Z);
-			int value = 0;
+	//printf("snapshot : Z=%d\n", _DimZ / 2);
+	//int Z = _DimZ / 2;
+	//width = _DimX, height = _DimY;
+	//image = malloc(width * height * 4);
+	//for (y = 0; y < height; y++)
+	//	for (x = 0; x < width; x++)
+	//	{
+	//		int surf_x, surf_y, surf_z;
+	//		int surf_index = _SURF_INDEX_XYZ(x, y, Z);
+	//		_SET_SURF_XYZ_INDEX(surf_index);
+	//		int offset = _INDEX_XYZ(x, y, Z);
+	//		int value = 0;
 
-			//if (surf_index !=-1) value = (FT_eps0cE[_SURF_INDEX_XYZ(X, y, z)][1][0][0]* FT_eps0cE[_SURF_INDEX_XYZ(X, y, z)][1][0][0]+ FT_eps0cE[_SURF_INDEX_XYZ(X, y, z)][1][0][1]* FT_eps0cE[_SURF_INDEX_XYZ(X, y, z)][1][0][1]) * 255.0f * 5000.0f * 5000.0f;
-			if (surf_index != -1) value = 255.0f * 20000.0f * 20000.0f*(0
-				+ (FT_eps0cE[surf_index][0][0][0]) * (FT_eps0cE[surf_index][0][0][0])
-				+ (FT_eps0cE[surf_index][0][0][1]) * (FT_eps0cE[surf_index][0][0][1])
-				+ (FT_eps0cE[surf_index][0][1][0]) * (FT_eps0cE[surf_index][0][1][0])
-				+ (FT_eps0cE[surf_index][0][1][1]) * (FT_eps0cE[surf_index][0][1][1])
-				+ (FT_eps0cE[surf_index][0][2][0]) * (FT_eps0cE[surf_index][0][2][0])
-				+ (FT_eps0cE[surf_index][0][2][1]) * (FT_eps0cE[surf_index][0][2][1])
-				);
-			//int value = (((mask[offset] & (0b1111 << 4)) >> 4)) *50.0f ;
-			value = value > 255 ? 255 : value;
-			value = value < -255 ? -255 : value;
-			int val2 = sqrtf(
-				eps0_c_Ex[offset] * eps0_c_Ex[offset] +
-				eps0_c_Ey[offset] * eps0_c_Ey[offset] +
-				eps0_c_Ez[offset] * eps0_c_Ez[offset]
-			) * 255.0f;
-			val2 = val2 > 255 ? 255 : val2;
-			val2 = val2 < -255 ? -255 : val2;
-			image[4 * width * (height - 1 - y) + 4 * x + 0] = (unsigned char)(val2>0 ? val2 : 0); 
-			image[4 * width * (height - 1 - y) + 4 * x + 1] = (unsigned char)(value>0 ? value : 0); 
-			image[4 * width * (height - 1 - y) + 4 * x + 2] = (unsigned char)(val2<0 ? -val2 : 0);
-			image[4 * width * (height - 1 - y) + 4 * x + 3] = 255;
-		}
-	sprintf(filenameFull, "E2_Z0_%s.png", filename);
-	error = lodepng_encode32_file(filenameFull, image, width, height);
-	if (error) printf("error %u: %s\n", error, lodepng_error_text(error));
+	//		//if (surf_index !=-1) value = (FT_eps0cE[_SURF_INDEX_XYZ(X, y, z)][1][0][0]* FT_eps0cE[_SURF_INDEX_XYZ(X, y, z)][1][0][0]+ FT_eps0cE[_SURF_INDEX_XYZ(X, y, z)][1][0][1]* FT_eps0cE[_SURF_INDEX_XYZ(X, y, z)][1][0][1]) * 255.0f * 5000.0f * 5000.0f;
+	//		if (surf_index != -1) value = 255.0f * 20000.0f * 20000.0f*(0
+	//			+ (FT_eps0cE[surf_index][0][0][0]) * (FT_eps0cE[surf_index][0][0][0])
+	//			+ (FT_eps0cE[surf_index][0][0][1]) * (FT_eps0cE[surf_index][0][0][1])
+	//			+ (FT_eps0cE[surf_index][0][1][0]) * (FT_eps0cE[surf_index][0][1][0])
+	//			+ (FT_eps0cE[surf_index][0][1][1]) * (FT_eps0cE[surf_index][0][1][1])
+	//			+ (FT_eps0cE[surf_index][0][2][0]) * (FT_eps0cE[surf_index][0][2][0])
+	//			+ (FT_eps0cE[surf_index][0][2][1]) * (FT_eps0cE[surf_index][0][2][1])
+	//			);
+	//		//int value = (((mask[offset] & (0b1111 << 4)) >> 4)) *50.0f ;
+	//		value = value > 255 ? 255 : value;
+	//		value = value < -255 ? -255 : value;
+	//		int val2 = sqrtf(
+	//			eps0_c_Ex[offset] * eps0_c_Ex[offset] +
+	//			eps0_c_Ey[offset] * eps0_c_Ey[offset] +
+	//			eps0_c_Ez[offset] * eps0_c_Ez[offset]
+	//		) * 255.0f;
+	//		val2 = val2 > 255 ? 255 : val2;
+	//		val2 = val2 < -255 ? -255 : val2;
+	//		image[4 * width * (height - 1 - y) + 4 * x + 0] = (unsigned char)(val2>0 ? val2 : 0); 
+	//		image[4 * width * (height - 1 - y) + 4 * x + 1] = (unsigned char)(value>0 ? value : 0); 
+	//		image[4 * width * (height - 1 - y) + 4 * x + 2] = (unsigned char)(val2<0 ? -val2 : 0);
+	//		image[4 * width * (height - 1 - y) + 4 * x + 3] = 255;
+	//	}
+	//sprintf(filenameFull, "E2_Z0_%s.png", filename);
+	//error = lodepng_encode32_file(filenameFull, image, width, height);
+	//if (error) printf("error %u: %s\n", error, lodepng_error_text(error));
 
-	free(image);
+	//free(image);
 	
 	return 0;
 }
